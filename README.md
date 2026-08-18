@@ -24,9 +24,11 @@ The system simplifies essential business processes such as **sales transactions,
 
 ![Inventory Management](image/pictures/4.png)
 
+![Sales](image/pictures/5.png)
+
 ### Products Management
 
-![Products](image/pictures/5.png)
+![Products](image/pictures/6.png)
 
 ---
 
