@@ -10,23 +10,23 @@ The system simplifies essential business processes such as **sales transactions,
 
 ### POS Login
 
-![POS Login](image/picture/1.png)
+![POS Login](image/pictures/1.png)
 
 ### POS Homepage
 
-![POS Homepage](image/picture/2.png)
+![POS Homepage](image/pictures/2.png)
 
 ### Dashboard Management
 
-![Dashboard Management](image/picture/3.png)
+![Dashboard Management](image/pictures/3.png)
 
 ### Inventory Management
 
-![Inventory Management](image/picture/4.png)
+![Inventory Management](image/pictures/4.png)
 
 ### Products Management
 
-![Products](image/picture/5.png)
+![Products](image/pictures/5.png)
 
 ---
 
