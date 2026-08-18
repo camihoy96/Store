@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jul 24, 2026 at 12:38 PM
+-- Generation Time: Aug 18, 2026 at 11:46 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -68,7 +68,9 @@ INSERT INTO `bread_remain` (`id`, `bread_id`, `quantity`, `price`, `date_recorde
 (28, 5, 30, 5.00, '2025-08-14', 7, '2025-08-14 14:39:55'),
 (29, 2, 40, 2.00, '2025-08-14', 7, '2025-08-14 13:53:36'),
 (30, 4, 25, 15.00, '2025-08-14', 7, '2025-08-14 14:39:10'),
-(31, 4, 10, 15.00, '2025-08-25', 7, '2025-08-25 06:07:28');
+(31, 4, 10, 15.00, '2025-08-25', 7, '2025-08-25 06:07:28'),
+(33, 4, 20, 15.00, '2026-08-18', 7, '2026-08-18 02:46:10'),
+(34, 4, 20, 15.00, '2026-08-18', 7, '2026-08-18 03:29:09');
 
 -- --------------------------------------------------------
 
@@ -185,14 +187,14 @@ CREATE TABLE `products` (
 
 INSERT INTO `products` (`id`, `code`, `name`, `category`, `price`, `brand`, `seller_store`, `expiry_date`, `purchase_date`, `pieces`, `kg`, `measurement_type`, `purchase_price`, `image_path`, `date_added`) VALUES
 (1, 'P1', 'Swack', 'Goods', 12.00, 'Bear Brand', 'Cangz', '2026-08-09', '2025-07-01', 2109, NULL, NULL, 865.00, NULL, '2025-07-11 00:00:51'),
-(2, 'P2', 'Coke ', 'Drinks', 40.00, 'Coca Cola', 'Lee Plaza', '2026-07-10', '0000-00-00', 33, NULL, NULL, 954.00, NULL, '2025-07-11 00:00:51'),
+(2, 'P2', 'Coke ', 'Drinks', 40.00, 'Coca Cola', 'Lee Plaza', '2026-07-10', '0000-00-00', 32, NULL, NULL, 954.00, NULL, '2025-07-11 00:00:51'),
 (3, 'P3', 'Sprite', 'Drinks', 40.00, 'Coca Cola', 'Lee Plaza', '2026-07-02', '0000-00-00', 35, NULL, NULL, 850.00, NULL, '2025-07-11 00:00:51'),
 (4, 'P4', 'Coke Sakto', 'Drinks', 15.00, 'Coca Cola', 'Lee Plaza', '2026-07-09', '0000-00-00', 66, NULL, NULL, 750.00, NULL, '2025-07-11 00:00:51'),
 (5, 'P5', 'Royal', 'Drinks', 40.00, 'Coca Cola', 'Lee Plaza', '2026-07-09', '0000-00-00', 23, NULL, NULL, 580.00, NULL, '2025-07-11 00:00:51'),
 (6, 'P6', 'Sprite Sakto', 'Drinks', 15.00, 'Coca Cola', 'Lee Plaza', '2026-07-09', '2025-07-02', 70, NULL, NULL, 700.00, NULL, '2025-07-11 00:00:51'),
 (7, 'P7', 'Royal Sakto', 'Drinks', 15.00, 'Coca Cola', 'Lee Plaza', '2026-07-09', '2025-07-02', 96, NULL, NULL, 600.00, NULL, '2025-07-11 00:00:51'),
 (12, NULL, 'Royal Sakto', 'Drinks', 15.00, 'Coca Cola', 'Lee Plaza', '2026-07-09', '2025-07-02', 100, NULL, NULL, 600.00, NULL, '2025-07-11 00:00:51'),
-(13, NULL, 'Royal Sakto', 'Drinks', 15.00, 'Coca Cola', 'Lee Plaza', '2026-07-09', '2025-07-02', 90, NULL, NULL, 600.00, NULL, '2025-07-11 00:00:51'),
+(13, NULL, 'Royal Sakto', 'Drinks', 15.00, 'Coca Cola', 'Lee Plaza', '2026-07-09', '2025-07-02', 89, NULL, NULL, 600.00, NULL, '2025-07-11 00:00:51'),
 (14, NULL, 'Cellphone', 'Mobile', 9000.00, 'Infinix', '7-11', '2026-07-16', '2025-07-06', 2, NULL, 'pieces', 14000.00, NULL, '2025-07-11 00:00:51'),
 (15, NULL, 'Volt', 'Aluminum', 20.00, 'Rolex', 'Beton Volts', NULL, '2025-07-06', 250, NULL, 'pieces', 500.00, 'uploads/prod_686e6d587d5757.26847650.png', '2025-07-11 00:00:51'),
 (32, NULL, 'Carne Norte', 'Goods', 45.00, 'Sardines', 'Lee Plaza', '2025-11-12', '2025-07-11', 85, NULL, 'pieces', 1800.00, 'uploads/prod_687a005e907df2.97738693.jpg', '2025-07-18 03:05:50'),
@@ -278,9 +280,9 @@ CREATE TABLE `system_settings` (
 --
 
 INSERT INTO `system_settings` (`id`, `setting_key`, `setting_value`, `setting_type`, `description`, `updated_at`, `updated_by`) VALUES
-(1, 'business_name', 'Angel\'s Bakeshop', 'text', 'Business name displayed throughout the system', '2026-03-29 07:34:53', NULL),
-(2, 'business_subtitle', 'POS SYSTEM', 'text', 'Subtitle/System name', '2026-03-29 07:34:53', NULL),
-(3, 'business_address', 'Upper Batinguel, Dumaguete City, Negros Oriental 6200', 'text', 'Business address', '2026-03-29 07:34:53', NULL),
+(1, 'business_name', 'St4nger POS', 'text', 'Business name displayed throughout the system', '2026-08-18 09:27:55', NULL),
+(2, 'business_subtitle', 'INVENTORY SYSTEM', 'text', 'Subtitle/System name', '2026-08-18 09:28:35', NULL),
+(3, 'business_address', 'Dumaguete City, Negros Oriental 6200', 'text', 'Business address', '2026-08-18 09:27:06', NULL),
 (4, 'business_phone', '0905 615 2262', 'text', 'Business contact number', '2026-03-29 07:34:53', NULL),
 (5, 'receipt_footer', 'Thank you for your purchase!', 'text', 'Footer text printed on receipts', '2026-03-29 07:34:53', NULL),
 (6, 'currency_symbol', '₱', 'text', 'Currency symbol', '2026-03-29 07:34:53', NULL),
@@ -363,7 +365,8 @@ INSERT INTO `transactions` (`id`, `cashier_name`, `date`, `time`, `total`, `paid
 (66, 'St4nger Dev', '2026-04-03', '23:43:57', 51.00, 51.00, 0.00, '[{\"id\":\"34\",\"name\":\"Mais\",\"qty\":1,\"price\":51,\"measurement_type\":\"kg\",\"unit\":\"kg\",\"total\":\"51.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'GCash', '5466747'),
 (67, 'St4nger Dev', '2026-04-04', '15:51:13', 51.00, 60.00, 9.00, '[{\"id\":\"34\",\"name\":\"Mais\",\"qty\":1,\"price\":51,\"measurement_type\":\"kg\",\"unit\":\"kg\",\"total\":\"51.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
 (68, 'St4nger Dev', '2026-06-01', '16:21:17', 45.00, 45.00, 0.00, '[{\"id\":\"32\",\"name\":\"Carne Norte\",\"qty\":1,\"price\":45,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"45.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'GCash', '5445641565456'),
-(69, 'St4nger Dev', '2026-06-01', '17:06:11', 13.00, 20.00, 7.00, '[{\"id\":\"48\",\"name\":\"Luckey Me\",\"qty\":1,\"price\":13,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"13.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', '');
+(69, 'St4nger Dev', '2026-06-01', '17:06:11', 13.00, 20.00, 7.00, '[{\"id\":\"48\",\"name\":\"Luckey Me\",\"qty\":1,\"price\":13,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"13.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(70, 'St4nger Dev', '2026-08-18', '14:36:30', 55.00, 100.00, 45.00, '[{\"id\":\"2\",\"name\":\"Coke \",\"qty\":1,\"price\":40,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"40.00\"},{\"id\":\"13\",\"name\":\"Royal Sakto\",\"qty\":1,\"price\":15,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"15.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', '');
 
 -- --------------------------------------------------------
 
@@ -492,7 +495,7 @@ ALTER TABLE `breads`
 -- AUTO_INCREMENT for table `bread_remain`
 --
 ALTER TABLE `bread_remain`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=33;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=35;
 
 --
 -- AUTO_INCREMENT for table `edit_deletion_log`
@@ -540,13 +543,13 @@ ALTER TABLE `reserved_items`
 -- AUTO_INCREMENT for table `system_settings`
 --
 ALTER TABLE `system_settings`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=80;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=119;
 
 --
 -- AUTO_INCREMENT for table `transactions`
 --
 ALTER TABLE `transactions`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=70;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=71;
 
 --
 -- AUTO_INCREMENT for table `users`
