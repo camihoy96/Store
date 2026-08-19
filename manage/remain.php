@@ -94,6 +94,7 @@ $enableCash = $systemSettings['enable_cash'] ?? '1';
 $enableEwallet = $systemSettings['enable_ewallet'] ?? '1';
 $receiptFooter = $systemSettings['receipt_footer'] ?? 'Thank you for your purchase!';
 $autoPrintReceipt = $systemSettings['auto_print_receipt'] ?? '1';
+$logoPath = $systemSettings['logo_path'] ?? ''; // ADD THIS LINE
 
 ?>
 <!DOCTYPE html>
@@ -129,10 +130,36 @@ body {
 .logo-block {
   background: linear-gradient(135deg, #ff8800, #ff5500);
   border-radius: 5px; padding: 3px 12px;
-  display: flex; flex-direction: column; align-items: center; line-height: 1.15;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.15;
 }
-.logo-block .brand { font-weight: 900; font-size: 12px; color: white; letter-spacing: 0.5px; }
-.logo-block .sub   { font-size: 7.5px; color: rgba(255,255,255,0.82); letter-spacing: 1.5px; font-weight: 600; }
+.logo-block .logo-img {
+  max-height: 28px;
+  width: auto;
+  display: block;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.logo-block .logo-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.logo-block .brand { 
+  font-weight: 900; 
+  font-size: 12px; 
+  color: white; 
+  letter-spacing: 0.5px; 
+}
+.logo-block .sub   { 
+  font-size: 7.5px; 
+  color: rgba(255,255,255,0.82); 
+  letter-spacing: 1.5px; 
+  font-weight: 600; 
+}
 .top-clock  { color: #ffcc66; font-weight: 700; font-size: 11px; margin-left: 8px; }
 .top-spacer { flex: 1; }
 .top-title  { font-size: 15px; font-weight: 700; color: #f0f0f0; }
@@ -349,8 +376,13 @@ tbody td { padding: 8px 12px; font-size: 12px; color: #d0d0d0; vertical-align: m
 <div class="top-bar">
   <button class="menu-btn" id="menuBtn" onclick="toggleSidebar()">☰</button>
   <div class="logo-block">
-     <span class="brand"><?= htmlspecialchars($businessName) ?></span>
-  <span class="sub"><?= htmlspecialchars($businessSubtitle) ?></span>
+    <?php if (!empty($logoPath) && file_exists('../' . $logoPath)): ?>
+      <img src="../<?= htmlspecialchars($logoPath) ?>" alt="Logo" class="logo-img">
+    <?php endif; ?>
+    <div class="logo-text">
+      <span class="brand"><?= htmlspecialchars($businessName) ?></span>
+      <span class="sub"><?= htmlspecialchars($businessSubtitle) ?></span>
+    </div>
   </div>
   <span class="top-title" style="margin-left:8px;">Bread Inventory</span>
   <span class="top-clock" id="currentTime"></span>

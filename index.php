@@ -243,6 +243,7 @@ $enableCash       = $systemSettings['enable_cash']         ?? '1';
 $enableEwallet    = $systemSettings['enable_ewallet']      ?? '1';
 $receiptFooter    = $systemSettings['receipt_footer']      ?? 'Thank you for your purchase!';
 $autoPrintReceipt = $systemSettings['auto_print_receipt']  ?? '1';
+$logoPath         = $systemSettings['logo_path']           ?? ''; // ADD THIS LINE
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -352,12 +353,37 @@ body::after {
   border-radius: var(--radius);
   padding: 4px 14px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
+  gap: 8px;
   line-height: 1.15;
 }
-.logo-block .brand { font-family: var(--font-display); font-weight: 900; font-size: 13px; color: white; letter-spacing: 0.5px; }
-.logo-block .sub   { font-family: var(--font-display); font-size: 8px; color: rgba(255,255,255,0.82); letter-spacing: 2px; font-weight: 600; }
+.logo-block .logo-img {
+  max-height: 28px;
+  width: auto;
+  display: block;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.logo-block .logo-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.logo-block .brand { 
+  font-family: var(--font-display); 
+  font-weight: 900; 
+  font-size: 13px; 
+  color: white; 
+  letter-spacing: 0.5px; 
+}
+.logo-block .sub   { 
+  font-family: var(--font-display); 
+  font-size: 8px; 
+  color: rgba(255,255,255,0.82); 
+  letter-spacing: 2px; 
+  font-weight: 600; 
+}
 
 .topbar-title {
   font-family: var(--font-display);
@@ -1025,8 +1051,13 @@ body::after {
 <!-- ══ TOP STATUS BAR ══════════════════════════════════════════ -->
 <div class="sys-topbar">
   <div class="logo-block">
-    <span class="brand"><?= htmlspecialchars($businessName) ?></span>
-    <span class="sub"><?= htmlspecialchars($businessSubtitle) ?></span>
+    <?php if (!empty($logoPath) && file_exists($logoPath)): ?>
+      <img src="<?= htmlspecialchars($logoPath) ?>" alt="Logo" class="logo-img">
+    <?php endif; ?>
+    <div class="logo-text">
+      <span class="brand"><?= htmlspecialchars($businessName) ?></span>
+      <span class="sub"><?= htmlspecialchars($businessSubtitle) ?></span>
+    </div>
   </div>
   <span class="topbar-title">Terminal Access</span>
   <div class="topbar-spacer"></div>

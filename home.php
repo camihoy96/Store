@@ -21,7 +21,7 @@ $enableCash       = $systemSettings['enable_cash']         ?? '1';
 $enableEwallet    = $systemSettings['enable_ewallet']      ?? '1';
 $receiptFooter    = $systemSettings['receipt_footer']      ?? 'Thank you for your purchase!';
 $autoPrintReceipt = $systemSettings['auto_print_receipt']  ?? '1';
-
+$logoPath         = $systemSettings['logo_path']           ?? '';
 // ─── FETCH PAYMENT METHODS ─────────────────────────────────────────────────────
 $paymentMethods = [];
 $result = $conn->query("SELECT * FROM payment_methods WHERE is_active = 1 ORDER BY display_order ASC");
@@ -103,10 +103,38 @@ body {
 .logo-block {
   background: linear-gradient(135deg, #ff8800, #ff6000);
   border-radius: 6px; padding: 4px 12px;
-  display: flex; flex-direction: column; align-items: center; line-height: 1.1;
+  display: flex; 
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.1;
+  min-height: 32px;
 }
-.logo-block .brand { font-weight: 900; font-size: 13px; color: white; letter-spacing: 0.5px; }
-.logo-block .sub   { font-size: 8px; color: rgba(255,255,255,0.85); letter-spacing: 1.5px; font-weight: 600; }
+.logo-block .logo-img {
+  max-height: 28px;
+  width: auto;
+  display: block;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.logo-block .logo-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.logo-block .brand { 
+  font-weight: 900; 
+  font-size: 13px; 
+  color: white; 
+  letter-spacing: 0.5px; 
+  margin-bottom: 1px;
+}
+.logo-block .sub   { 
+  font-size: 9px; 
+  color: rgba(255,255,255,0.85); 
+  letter-spacing: 1.5px; 
+  font-weight: 600; 
+}
 .top-clock { color: #ffcc66; font-weight: 700; font-size: 12px; margin-left: 15px; }
 .top-spacer { flex: 1; }
 .top-icon-group { display: flex; gap: 3px; }
@@ -712,9 +740,14 @@ body {
 <div class="top-bar">
   <button class="menu-btn" id="menuBtn" onclick="toggleSidebar()">☰</button>
   <div class="logo-block">
-    <span class="brand"><?= htmlspecialchars($businessName) ?></span>
-    <span class="sub"><?= htmlspecialchars($businessSubtitle) ?></span>
-  </div>
+    <?php if (!empty($logoPath) && file_exists($logoPath)): ?>
+        <img src="<?= htmlspecialchars($logoPath) ?>" alt="Logo" class="logo-img">
+    <?php endif; ?>
+    <div class="logo-text">
+        <span class="brand"><?= htmlspecialchars($businessName) ?></span>
+        <span class="sub"><?= htmlspecialchars($businessSubtitle) ?></span>
+    </div>
+</div>
   <span class="top-clock" id="currentTime"></span>
   <div style="font-size:10px; margin-left:45px;"><?= htmlspecialchars($businessAddress) ?></div>
   <div class="top-spacer"></div>

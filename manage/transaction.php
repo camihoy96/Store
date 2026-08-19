@@ -371,22 +371,100 @@ if (isset($_SESSION['error_msg'])) {
 
 /* ══ TABLE ══════════════════════════════════════════════════════════════ */
 .table-wrap {
-  background: #242424; border-radius: 6px;
-  border: 1px solid #333; overflow: hidden;
+  background: #242424;
+  border-radius: 6px;
+  border: 1px solid #333;
+  position: relative;
+  overflow: hidden;
+  max-height: 600px;
+  display: flex;
+  flex-direction: column;
 }
-.tbl-scroll { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; min-width: 1020px; }
-thead tr { background: linear-gradient(180deg, #ff9900, #cc6600); }
+
+/* Scrollable container for horizontal scroll */
+.tbl-scroll {
+  overflow: auto;
+  flex: 1;
+  width: 100%;
+}
+
+.tbl-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.tbl-scroll::-webkit-scrollbar-track {
+  background: #1a1a1a;
+  border-radius: 3px;
+}
+.tbl-scroll::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 3px;
+}
+.tbl-scroll::-webkit-scrollbar-thumb:hover {
+  background: #ff8800;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1020px;
+  table-layout: auto;
+}
+
+/* Sticky header */
+thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+thead tr {
+  background: linear-gradient(180deg, #ff9900, #cc6600);
+}
 thead th {
-  padding: 9px 12px; font-size: 11px; font-weight: 700;
-  color: white; text-transform: uppercase; letter-spacing: 0.5px;
-  border-right: 1px solid rgba(255,255,255,0.15); white-space: nowrap;
+  padding: 9px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-right: 1px solid rgba(255,255,255,0.15);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: linear-gradient(180deg, #ff9900, #cc6600);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 thead th:last-child { border-right: none; }
-tbody tr { border-bottom: 1px solid #2e2e2e; transition: background 0.1s; }
+
+tbody tr {
+  border-bottom: 1px solid #2e2e2e;
+  transition: background 0.1s;
+}
 tbody tr:hover { background: #2d2d2d; }
 tbody tr.voided-row { opacity: 0.55; }
-tbody td { padding: 8px 12px; font-size: 12px; color: #d0d0d0; vertical-align: top; }
+tbody td {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #d0d0d0;
+  vertical-align: top;
+  background: #242424;
+}
+
+/* Make sure the totals row is not sticky */
+tbody tr.totals-row td {
+  background: #2a2a2a;
+  border-top: 2px solid #ff8800;
+  font-weight: 700;
+  color: #ffcc66;
+  padding: 10px 12px;
+}
+
+/* Breakdown row */
+.breakdown-row td {
+  background: #222;
+  padding: 12px;
+}
 tbody td .id-badge {
   background: #333; color: #ffcc66;
   border-radius: 3px; padding: 1px 6px; font-size: 11px; font-weight: 700;
