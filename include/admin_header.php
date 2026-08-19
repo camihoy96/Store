@@ -1,6 +1,10 @@
 <?php
 // include/admin_header.php
-session_start();
+// Only start session if not already active
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 require_once __DIR__ . '/../dbconn.php';
 
 if (!isset($_SESSION['loggedin']) || $_SESSION['user_type'] !== 'admin') {
@@ -21,9 +25,74 @@ $businessSubtitle = $systemSettings['business_subtitle'] ?? 'POS SYSTEM';
 $businessAddress = $systemSettings['business_address'] ?? 'Dumaguete City, Negros Oriental 6200';
 $businessPhone = $systemSettings['business_phone'] ?? '0905 615 2262';
 $currencySymbol = $systemSettings['currency_symbol'] ?? '₱';
+$logoPath = $systemSettings['logo_path'] ?? '';
 
 // Page title - can be overridden before including this file
 $pageTitle = $pageTitle ?? 'Dashboard';
+
+// Determine the correct base path for assets based on current file location
+// Get the current script path relative to the root
+$scriptPath = $_SERVER['SCRIPT_NAME'];
+// Remove the filename to get the directory path
+$scriptDir = dirname($scriptPath);
+// Count how many levels deep we are from the root
+$depth = substr_count(trim($scriptDir, '/'), '/');
+// Build the relative path to root
+$relativePath = str_repeat('../', $depth);
+// If we're at root level, use empty string
+if ($depth === 0) {
+    $relativePath = '';
+}
+
+// For logo path - use absolute path from root
+$logoFullPath = !empty($logoPath) ? '/Store/' . $logoPath : '';
+
+// For other assets (CSS, JS) - use relative path
+$assetPath = $relativePath;
+
+// Determine active page for highlighting
+$currentPage = basename($_SERVER['SCRIPT_NAME']);
+$currentDir = basename(dirname($_SERVER['SCRIPT_NAME']));
+
+// Map current file to active page identifier
+$activePage = $activePage ?? '';
+if (empty($activePage)) {
+    // Auto-detect based on current file
+    if ($currentPage === 'dashboard.php') {
+        $activePage = 'dashboard';
+    } elseif ($currentPage === 'user.php' && $currentDir === 'admin') {
+        $activePage = 'users';
+    } elseif ($currentPage === 'prof.php' && $currentDir === 'admin') {
+        $activePage = 'profile';
+    } elseif ($currentPage === 'settings.php' && $currentDir === 'admin') {
+        $activePage = 'settings';
+    } elseif ($currentPage === 'product.php' && $currentDir === 'product') {
+        $activePage = 'products';
+    } elseif ($currentPage === 'item_reserve.php' && $currentDir === 'product') {
+        $activePage = 'reserve';
+    } elseif ($currentPage === 'bread.php' && $currentDir === 'product') {
+        $activePage = 'breads';
+    } elseif ($currentPage === 'bleft.php' && $currentDir === 'admin') {
+        $activePage = 'bleft';
+    } elseif ($currentPage === 'record.php' && $currentDir === 'record') {
+        $activePage = 'records';
+    }
+}
+
+// Helper function to check if a page is active
+function isActive($pageId) {
+    global $activePage;
+    return $activePage === $pageId ? 'active' : '';
+}
+
+// Helper function to check if a page is the current page
+function isCurrentPage($href) {
+    $currentUrl = $_SERVER['REQUEST_URI'];
+    // Remove query string
+    $currentPath = strtok($currentUrl, '?');
+    // Check if the href matches the current path
+    return $currentPath === $href || $currentPath === '/Store' . $href;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -31,10 +100,9 @@ $pageTitle = $pageTitle ?? 'Dashboard';
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title><?= htmlspecialchars($pageTitle) ?> –St4nger POS</title>
-<!-- FIXED: Changed to ../ for subdirectory pages -->
-<link rel="stylesheet" href="../css/bootstrap-icons.css">
+<link rel="stylesheet" href="<?= $assetPath ?>css/bootstrap-icons.css">
 <script src="js/chart.js"></script>
-<script src="../js/sweetalert2.all.min.js"></script>
+<script src="<?= $assetPath ?>js/sweetalert2.all.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 :root {
@@ -82,11 +150,37 @@ body {
 .logo-pill {
   background: linear-gradient(135deg, var(--orange), #ff4400);
   border-radius: 8px; padding: 5px 14px;
-  display: flex; flex-direction: column; align-items: center; line-height: 1.2;
+  display: flex; 
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
   box-shadow: 0 0 20px rgba(255,136,0,0.3);
+  transition: all 0.3s ease;
+  min-height: 40px;
 }
-.logo-pill .lp-name { font-weight: 800; font-size: 11px; color: white; letter-spacing: 0.3px; }
-.logo-pill .lp-sub  { font-size: 7px; color: rgba(255,255,255,0.75); letter-spacing: 2px; font-weight: 600; text-transform: uppercase; }
+
+.logo-pill .logo-img {
+  max-height: 32px;
+  width: auto;
+  display: block;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.logo-pill .logo-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.2;
+}
+
+.logo-pill .lp-name { 
+  font-weight: 800; font-size: 11px; color: white; letter-spacing: 0.3px;
+}
+.logo-pill .lp-sub  { 
+  font-size: 7px; color: rgba(255,255,255,0.75); letter-spacing: 2px; 
+  font-weight: 600; text-transform: uppercase;
+}
 
 .tb-divider { width: 1px; height: 24px; background: var(--border2); margin: 0 4px; }
 
@@ -126,6 +220,14 @@ body {
   width: 7px; height: 7px; border-radius: 50%;
   background: var(--red); border: 1px solid var(--bg);
   box-shadow: 0 0 5px var(--red);
+}
+
+/* Active top bar icon */
+.tb-icon.active {
+  background: var(--orange);
+  border-color: var(--orange);
+  color: white;
+  box-shadow: 0 0 15px rgba(255,136,0,0.3);
 }
 
 /* ═══════════════════════════════════ SIDEBAR */
@@ -172,6 +274,14 @@ body {
 }
 .sb-sub a:hover { background: rgba(255,136,0,0.08); color: var(--orange-lt); border-left-color: var(--orange); }
 
+/* Active sidebar link */
+.sb-sub a.active {
+  background: rgba(255,136,0,0.12);
+  color: var(--orange-lt);
+  border-left-color: var(--orange);
+  font-weight: 600;
+}
+
 .sb-divider { height: 1px; background: var(--border); margin: 6px 14px; }
 
 /* ═══════════════════════════════════ MAIN */
@@ -193,6 +303,28 @@ body {
 .sb-conn.offline span  { color: var(--red); }
 
 .footer { text-align: center; padding: 7px; background: #0a0d14; color: var(--text3); font-size: 10px; border-top: 1px solid var(--border); }
+
+/* Disabled link styles */
+.tb-icon.disabled {
+  opacity: 0.6;
+  cursor: default;
+  pointer-events: none;
+}
+.tb-icon.disabled:hover {
+  background: var(--bg3);
+  border-color: var(--border);
+  color: var(--text2);
+}
+.sb-sub a.disabled {
+  opacity: 0.6;
+  cursor: default;
+  pointer-events: none;
+}
+.sb-sub a.disabled:hover {
+  background: transparent;
+  color: var(--text3);
+  border-left-color: transparent;
+}
 </style>
 </head>
 <body>
@@ -200,10 +332,17 @@ body {
 <!-- ═══════════════════════════════════ TOP BAR -->
 <div class="top-bar">
   <button class="menu-btn" id="menuBtn" onclick="toggleSidebar()">☰</button>
+  
   <div class="logo-pill">
-    <span class="lp-name"><?= htmlspecialchars($businessName) ?></span>
-    <span class="lp-sub"><?= htmlspecialchars($businessSubtitle) ?></span>
+    <?php if (!empty($logoPath) && file_exists(__DIR__ . '/../' . $logoPath)): ?>
+      <img src="/Store/<?= htmlspecialchars($logoPath) ?>" alt="Logo" class="logo-img">
+    <?php endif; ?>
+    <div class="logo-text">
+      <span class="lp-name"><?= htmlspecialchars($businessName) ?></span>
+      <span class="lp-sub"><?= htmlspecialchars($businessSubtitle) ?></span>
+    </div>
   </div>
+  
   <div class="tb-divider"></div>
   <span class="tb-title" id="topBarTitle"><?= htmlspecialchars($pageTitle) ?></span>
   <div class="tb-divider"></div>
@@ -216,21 +355,30 @@ body {
     <div class="dot"></div>
     <span><?= $lowStockCount+$expiringCount ?> Alerts</span>
   </div>
-  <?php else: ?>
-
   <?php endif; ?>
-  <a class="tb-icon" href="../dashboard.php" title="Sales Inventory">📊</a>
-  <a class="tb-icon" href="record/record.php" title="Sales Inventory">📝</a>
-  <a class="tb-icon" href="admin/user.php" title="User Management">👨‍👩‍👧‍👦</a>
-  <a class="tb-icon" href="admin/settings.php" title="Settings">⚙️</a>
-  <a class="tb-icon" href="product/product.php" title="Manage Products">📋</a>
-  <a class="tb-icon" href="product/item_reserve.php" title="Reserve Items">📦</a>
-  <a class="tb-icon" href="admin/prof.php" title="Profile">🙍🏻‍♂️
+
+  <!-- Top Bar Icons with active highlighting -->
+  <a class="tb-icon <?= $activePage === 'dashboard' ? 'active disabled' : '' ?>" 
+     href="/Store/dashboard.php" title="Dashboard">📊</a>
+  <a class="tb-icon <?= $activePage === 'records' ? 'active disabled' : '' ?>" 
+     href="/Store/record/record.php" title="Sales Inventory">📝</a>
+  <a class="tb-icon <?= $activePage === 'users' ? 'active disabled' : '' ?>" 
+     href="/Store/admin/user.php" title="User Management">👨‍👩‍👧‍👦</a>
+  <a class="tb-icon <?= $activePage === 'settings' ? 'active disabled' : '' ?>" 
+     href="/Store/admin/settings.php" title="Settings">⚙️</a>
+  <a class="tb-icon <?= $activePage === 'products' ? 'active disabled' : '' ?>" 
+     href="/Store/product/product.php" title="Manage Products">📋</a>
+  <a class="tb-icon <?= $activePage === 'reserve' ? 'active disabled' : '' ?>" 
+     href="/Store/product/item_reserve.php" title="Reserve Items">📦</a>
+  <a class="tb-icon <?= $activePage === 'profile' ? 'active disabled' : '' ?>" 
+     href="/Store/admin/prof.php" title="Profile">🙍🏻‍♂️
     <?php if(isset($lowStockCount) && isset($expiringCount) && ($lowStockCount>0||$expiringCount>0)): ?><span class="notif-dot"></span><?php endif; ?>
   </a>
-  <a class="tb-icon" href="product/bread.php" title="Manage Breads">💼</a>
-  <a class="tb-icon" href="admin/bleft.php" title="Bread Left">📋</a>
-  <a class="tb-icon" href="record/logout.php" title="Logout">🚪</a>
+  <a class="tb-icon <?= $activePage === 'breads' ? 'active disabled' : '' ?>" 
+     href="/Store/product/bread.php" title="Manage Breads">💼</a>
+  <a class="tb-icon <?= $activePage === 'bleft' ? 'active disabled' : '' ?>" 
+     href="/Store/admin/bleft.php" title="Bread Left">📋</a>
+  <a class="tb-icon" href="/Store/record/logout.php" title="Logout">🚪</a>
 </div>
 
 <!-- ═══════════════════════════════════ SIDEBAR -->
@@ -240,16 +388,16 @@ body {
   <button class="sb-group-btn" onclick="toggleSub(this)">
     <span class="sb-ico">📦</span><span>Product Category</span><span class="arrow">›</span>
   </button>
-  <div class="sb-sub">
-    <a href="product/product.php">📋 Manage Items</a>
-    <a href="product/item_reserve.php">🗃 Reserve Items</a>
+  <div class="sb-sub <?= ($activePage === 'products' || $activePage === 'reserve') ? 'open' : '' ?>">
+    <a href="/Store/product/product.php" class="<?= $activePage === 'products' ? 'active disabled' : '' ?>">📋 Manage Items</a>
+    <a href="/Store/product/item_reserve.php" class="<?= $activePage === 'reserve' ? 'active disabled' : '' ?>">🗃 Reserve Items</a>
   </div>
 
   <button class="sb-group-btn" onclick="toggleSub(this)">
     <span class="sb-ico">📊</span><span>Sales Inventory</span><span class="arrow">›</span>
   </button>
-  <div class="sb-sub">
-    <a href="record/record.php">🧾 Manage Sales</a>
+  <div class="sb-sub <?= $activePage === 'records' ? 'open' : '' ?>">
+    <a href="/Store/record/record.php" class="<?= $activePage === 'records' ? 'active disabled' : '' ?>">🧾 Manage Sales</a>
   </div>
 
   <div class="sb-divider"></div>
@@ -258,16 +406,30 @@ body {
   <button class="sb-group-btn" onclick="toggleSub(this)">
     <span class="sb-ico">👥</span><span>User Management</span><span class="arrow">›</span>
   </button>
-  <div class="sb-sub">
-    <a href="admin/user.php">⚙ Manage Users</a>
+  <div class="sb-sub <?= $activePage === 'users' ? 'open' : '' ?>">
+    <a href="/Store/admin/user.php" class="<?= $activePage === 'users' ? 'active disabled' : '' ?>">⚙ Manage Users</a>
   </div>
 
   <button class="sb-group-btn" onclick="toggleSub(this)">
     <span class="sb-ico">🍞</span><span>Bread Management</span><span class="arrow">›</span>
   </button>
+  <div class="sb-sub <?= ($activePage === 'breads' || $activePage === 'bleft') ? 'open' : '' ?>">
+    <a href="/Store/product/bread.php" class="<?= $activePage === 'breads' ? 'active disabled' : '' ?>">✍ Manage Breads</a>
+    <a href="/Store/admin/bleft.php" class="<?= $activePage === 'bleft' ? 'active disabled' : '' ?>">📋 Bread Left</a>
+  </div>
+
+  <div class="sb-divider"></div>
+  <button class="sb-group-btn" onclick="toggleSub(this)">
+    <span class="sb-ico">⚙️</span><span>Settings</span><span class="arrow">›</span>
+  </button>
+  <div class="sb-sub <?= $activePage === 'settings' ? 'open' : '' ?>">
+    <a href="/Store/admin/settings.php" class="<?= $activePage === 'settings' ? 'active disabled' : '' ?>">⚙️ System Settings</a>
+  </div>
+
+  <div class="sb-divider"></div>
+  <div class="sb-section-label">Account</div>
   <div class="sb-sub">
-    <a href="product/bread.php">✍ Manage Breads</a>
-    <a href="admin/bleft.php">📋 Bread Left</a>
+    <a href="/Store/admin/prof.php" class="<?= $activePage === 'profile' ? 'active disabled' : '' ?>">👤 My Profile</a>
   </div>
 </div>
 

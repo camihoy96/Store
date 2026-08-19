@@ -1,5 +1,8 @@
 <?php
-session_start();
+// Start session only if not already active (header will handle it, but safe to keep)
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require('../dbconn.php');
 
 if (!isset($_SESSION['loggedin']) || $_SESSION['user_type'] !== 'admin') {
@@ -43,28 +46,35 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='change_pass
     header("Location: prof.php"); exit;
 }
 
+// Get system settings
+$systemSettings = [];
+$result = $conn->query("SELECT setting_key, setting_value FROM system_settings");
+while ($row = $result->fetch_assoc()) {
+    $systemSettings[$row['setting_key']] = $row['setting_value'];
+}
+
 $q = $conn->prepare("SELECT * FROM new_user WHERE username=?");
 $q->bind_param("s",$username); $q->execute();
 $user = $q->get_result()->fetch_assoc();
 $q->close();
 
 $initials = strtoupper(substr($user['fullname']??$username,0,2));
-// Set defaults if not found
-$businessName = $systemSettings['business_name'] ?? 'Angel\'s Bakeshop';
-$businessSubtitle = $systemSettings['business_subtitle'] ?? 'POS SYSTEM';
-$businessAddress = $systemSettings['business_address'] ?? 'Upper Batinguel, Dumaguete City, Negros Oriental 6200';
-$businessPhone = $systemSettings['business_phone'] ?? '0905 615 2262';
-$currencySymbol = $systemSettings['currency_symbol'] ?? '₱';
+
+// Set page title for header (this will be used by admin_header.php)
+$pageTitle = 'My Profile';
+$activePage = 'prof';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin Profile – Angel's Bakeshop</title>
+<title>My Profile – <?= htmlspecialchars($businessName ?? 'St4nger POS') ?></title>
+<!-- These will be included by admin_header.php, but keep them here as fallback -->
 <link rel="stylesheet" href="../css/bootstrap-icons.css">
 <script src="../js/sweetalert2.all.min.js"></script>
 <style>
+/* Page-specific styles only (header/footer styles are in the includes) */
 :root{
   --orange:#ff8800;--orange-dk:#cc5500;--orange-lt:#ffaa44;
   --green:#00c853;--red:#ff4444;--yellow:#ffcc00;--blue:#4488ff;
@@ -76,37 +86,8 @@ $currencySymbol = $systemSettings['currency_symbol'] ?? '₱';
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;}
 
-/* TOP BAR */
-.top-bar{height:50px;background:linear-gradient(90deg,#0d1117,#161b27);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:8px;position:fixed;top:0;left:0;right:0;z-index:1000;box-shadow:0 1px 20px rgba(0,0,0,.6);}
-.logo-pill{background:linear-gradient(135deg,var(--orange),#ff4400);border-radius:7px;padding:4px 12px;display:flex;flex-direction:column;align-items:center;line-height:1.2;box-shadow:0 0 18px rgba(255,136,0,.3);}
-.logo-pill .lp-name{font-weight:800;font-size:11px;color:white;}
-.logo-pill .lp-sub{font-size:7px;color:rgba(255,255,255,.75);letter-spacing:2px;font-weight:600;text-transform:uppercase;}
-.tb-div{width:1px;height:22px;background:var(--border2);margin:0 2px;}
-.tb-title{font-size:14px;font-weight:700;color:var(--text);}
-.tb-clock{font-size:11px;color:var(--orange-lt);font-weight:600;}
-.tb-spacer{flex:1;}
-.menu-btn{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:16px;cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;transition:all .15s;}
-.menu-btn:hover{background:var(--orange);border-color:var(--orange);color:white;}
-.tb-icon{width:32px;height:32px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;text-decoration:none;color:var(--text2);transition:all .15s;}
-.tb-icon:hover{background:var(--orange);border-color:var(--orange);color:white;}
-
-/* SIDEBAR */
-.sidebar{width:230px;background:linear-gradient(180deg,#0f1419,#111822);position:fixed;top:50px;left:0;height:calc(100vh - 50px - 24px);display:none;flex-direction:column;z-index:800;border-right:1px solid var(--border);overflow-y:auto;}
-.sb-label{font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;padding:12px 14px 5px;}
-.sb-btn{width:100%;background:transparent;border:none;color:var(--text2);padding:9px 14px;text-align:left;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;gap:9px;transition:all .15s;border-left:3px solid transparent;}
-.sb-btn:hover,.sb-btn.open{background:rgba(255,136,0,.08);color:var(--orange-lt);border-left-color:var(--orange);}
-.sb-btn .arrow{margin-left:auto;font-size:10px;transition:transform .2s;color:var(--text3);}
-.sb-btn.open .arrow{transform:rotate(90deg);}
-.sb-sub{display:none;flex-direction:column;}
-.sb-sub.open{display:flex;}
-.sb-sub a{display:flex;align-items:center;gap:8px;padding:7px 14px 7px 40px;color:var(--text3);text-decoration:none;font-size:11px;border-left:3px solid transparent;transition:all .15s;}
-.sb-sub a:hover{background:rgba(255,136,0,.08);color:var(--orange-lt);border-left-color:var(--orange);}
-.sb-div{height:1px;background:var(--border);margin:5px 12px;}
-.sb-link{display:flex;align-items:center;gap:9px;padding:9px 14px;color:var(--text2);text-decoration:none;font-size:12px;font-weight:600;border-left:3px solid transparent;transition:all .15s;}
-.sb-link:hover,.sb-link.active{background:rgba(255,136,0,.08);color:var(--orange-lt);border-left-color:var(--orange);}
-
-/* MAIN */
-.main{margin-top:50px;padding:22px 18px;flex:1;}
+/* MAIN - adjusted margin for header */
+.main{margin-top:52px;padding:22px 18px;flex:1;}
 
 /* PROFILE HERO */
 .profile-hero{
@@ -134,13 +115,6 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
 .ic-val.green{color:#4dff88;}
 .ic-val.blue{color:#88bbff;}
 
-/* Reg key */
-.reg-key-row{display:flex;align-items:center;gap:8px;margin-top:5px;cursor:pointer;transition:opacity .15s;}
-.reg-key-row:hover{opacity:.8;}
-.reg-key-txt{background:var(--bg3);border:1.5px solid var(--border);border-radius:6px;padding:6px 11px;font-family:monospace;font-size:11px;color:var(--orange-lt);flex:1;}
-.copy-btn-sm{background:var(--border2);border:none;color:var(--text3);border-radius:5px;padding:6px 9px;cursor:pointer;font-size:11px;transition:all .15s;flex-shrink:0;}
-.copy-btn-sm:hover{background:var(--orange);color:white;}
-
 /* ACTION STRIP */
 .action-strip{display:flex;gap:10px;flex-wrap:wrap;}
 .act-btn{flex:1;min-width:10px;padding:12px 16px;border-radius:9px;cursor:pointer;display:flex;align-items:center;gap:10px;font-size:12px;font-weight:700;transition:all .18s;border:1.5px solid transparent;}
@@ -152,9 +126,6 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
 .ab-pw{background:var(--card2);border-color:var(--border);color:var(--text2);}
 .ab-pw .ab-sub{color:var(--text3);}
 .ab-pw:hover{border-color:var(--orange);color:var(--orange-lt);background:rgba(255,136,0,.07);}
-.ab-key{background:var(--card2);border-color:var(--border);color:var(--text2);}
-.ab-key .ab-sub{color:var(--text3);}
-.ab-key:hover{border-color:var(--blue);color:#88bbff;background:rgba(68,136,255,.07);}
 
 /* MODAL */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);backdrop-filter:blur(7px);z-index:9000;align-items:center;justify-content:center;}
@@ -176,7 +147,6 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
 .pw-wrap input{padding-right:40px;}
 .pw-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;transition:color .15s;}
 .pw-toggle:hover{color:var(--orange);}
-.info-box{background:rgba(255,136,0,.08);border:1px solid rgba(255,136,0,.2);border-radius:7px;padding:10px 13px;margin-bottom:14px;font-size:11px;color:var(--orange-lt);}
 
 /* Buttons */
 .btn{padding:7px 16px;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:all .15s;white-space:nowrap;}
@@ -185,68 +155,15 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
 .btn-dark{background:var(--bg3);border:1px solid var(--border);color:var(--text2);}
 .btn-dark:hover{background:var(--border2);filter:none;transform:none;}
 
-/* Copy toast */
-.copy-toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(10px);background:linear-gradient(135deg,var(--green),#007a2e);color:white;padding:8px 18px;border-radius:20px;font-size:11px;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.4);opacity:0;transition:all .3s;pointer-events:none;z-index:9999;}
-.copy-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-
-/* Status bar */
-.status-bar{background:#0a0d14;border-top:1px solid var(--border);padding:0 12px;height:24px;display:flex;align-items:center;gap:14px;font-size:10px;color:var(--text3);flex-shrink:0;}
-.s-sep{color:var(--border2);}
-.s-conn{display:flex;align-items:center;gap:4px;margin-left:auto;}
-.s-conn .cdot{width:6px;height:6px;border-radius:50%;}
-.s-conn.online .cdot{background:var(--green);box-shadow:0 0 5px var(--green);}
-.s-conn.offline .cdot{background:var(--red);box-shadow:0 0 5px var(--red);}
-.s-conn.online span{color:var(--green);}
-.s-conn.offline span{color:var(--red);}
-.footer{text-align:center;padding:7px;background:#0a0d14;color:var(--text3);font-size:10px;border-top:1px solid var(--border);}
-
 @media(max-width:600px){.profile-hero{flex-direction:column;text-align:center;}.act-btn{min-width:100%;}}
 </style>
 </head>
 <body>
 
-<!-- TOP BAR -->
-<div class="top-bar">
-  <button class="menu-btn" id="menuBtn" onclick="toggleSidebar()">☰</button>
-  <div class="logo-pill">
-    <span class="lp-name"><?= htmlspecialchars($businessName) ?></span>
-    <span class="lp-sub"><?= htmlspecialchars($businessSubtitle) ?></span>
-  </div>
-  <div class="tb-div"></div>
-  <span class="tb-title">My Profile</span>
-  <div class="tb-div"></div>
-  <span class="tb-clock" id="currentTime"></span>
-  <div class="tb-spacer"></div>
-  <a class="tb-icon" href="../Dashboard.php" title="Dashboard">📊</a>
-  <a class="tb-icon" href="../logout.php"     title="Logout">🚪</a>
-</div>
+<!-- Include Admin Header (handles topbar, sidebar, session, settings) -->
+<?php include('../include/admin_header.php'); ?>
 
-<!-- SIDEBAR -->
-<div class="sidebar" id="sidebar">
-  <div class="sb-label">Admin</div>
-  <a class="sb-link" href="../Dashboard.php">📊 Dashboard</a>
-  <div class="sb-div"></div>
-  <div class="sb-label">Products</div>
-  <button class="sb-btn" onclick="toggleSub(this)"><span>📦</span><span>Product Category</span><span class="arrow">›</span></button>
-  <div class="sb-sub">
-    <a href="../product/product.php">📋 Manage Items</a>
-    <a href="../product/item_reserve.php">🗃 Reserve Items</a>
-  </div>
-  <button class="sb-btn" onclick="toggleSub(this)"><span>🍞</span><span>Bread</span><span class="arrow">›</span></button>
-  <div class="sb-sub">
-    <a href="../product/bread.php">✏ Manage Bread Names</a>
-    <a href="bleft.php">🧺 Bread Inventory</a>
-  </div>
-  <div class="sb-div"></div>
-  <div class="sb-label">Records & Users</div>
-  <button class="sb-btn" onclick="toggleSub(this)"><span>📋</span><span>Sales Records</span><span class="arrow">›</span></button>
-  <div class="sb-sub"><a href="../record/record.php">🧾 Manage Records</a></div>
-  <a class="sb-link" href="user.php">👥 Manage Users</a>
-  <div class="sb-div"></div>
-  <a class="sb-link active" href="prof.php">👤 My Profile</a>
-</div>
-
-<!-- MAIN -->
+<!-- MAIN CONTENT -->
 <div class="main" id="mainContent">
 
   <!-- Profile Hero Banner -->
@@ -281,7 +198,6 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
       <div class="ic-label">📅 Member Since</div>
       <div class="ic-val"><?= date('F j, Y',strtotime($user['created_at'])) ?></div>
     </div>
-    
   </div>
 
   <!-- Action buttons -->
@@ -294,22 +210,12 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
       <span class="ab-icon">🔒</span>
       <span class="ab-text" style="color:var(--text);">Change Password<span class="ab-sub">Update your password</span></span>
     </button>
-   
   </div>
 
 </div><!-- end main -->
 
-<!-- STATUS BAR -->
-<div class="status-bar">
-  <span>ANGEL'S BAKESHOP POS v1.0</span><span class="s-sep">|</span>
-  <span>Admin Profile</span><span class="s-sep">|</span>
-  <span><?= date('F j, Y') ?></span>
-  <div class="s-conn offline" id="connStatus"><div class="cdot"></div><span>OFFLINE</span></div>
-</div>
-<div class="footer">&copy; <?= date('Y') ?> St4nger Dev. All rights reserved.</div>
-
-<!-- COPY TOAST -->
-<div class="copy-toast" id="copyToast">✓ Key copied to clipboard!</div>
+<!-- Include Admin Footer (handles status bar, connectivity, footer) -->
+<?php include('../include/admin_footer.php'); ?>
 
 <!-- EDIT PROFILE MODAL -->
 <div class="modal-overlay" id="editModal">
@@ -366,38 +272,17 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
 </div>
 
 <script>
-/* Clock */
-function updateClock(){document.getElementById('currentTime').textContent=new Date().toLocaleString('en-US',{timeZone:'Asia/Manila',weekday:'short',year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});}
-setInterval(updateClock,1000); updateClock();
+/* Clock - handled by admin_header.php */
+/* Sidebar - handled by admin_header.php */
+/* Connectivity - handled by admin_footer.php */
 
-/* Sidebar */
-function toggleSidebar(){const sb=document.getElementById('sidebar');sb.style.display=sb.style.display==='flex'?'none':'flex';document.getElementById('menuBtn').textContent=sb.style.display==='flex'?'✖':'☰';}
-function toggleSub(btn){const sub=btn.nextElementSibling;const o=sub.classList.toggle('open');btn.classList.toggle('open',o);}
-
-/* Connectivity */
-function checkConn(){
-  fetch('../record/ping.php',{cache:'no-store'})
-    .then(r=>{const el=document.getElementById('connStatus');el.className=r.ok?'s-conn online':'s-conn offline';el.querySelector('span').textContent=r.ok?'ONLINE':'OFFLINE';})
-    .catch(()=>{const el=document.getElementById('connStatus');el.className='s-conn offline';el.querySelector('span').textContent='OFFLINE';});
-}
-setInterval(checkConn,15000); checkConn();
-
-/* Modal */
+/* Modal helpers */
 function openModal(id){document.getElementById(id).classList.add('show');}
 function closeModal(id){document.getElementById(id).classList.remove('show');}
 document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',function(e){if(e.target===this)this.classList.remove('show');}));
 
 /* Password toggle */
 function togglePw(id,btn){const inp=document.getElementById(id);if(inp.type==='password'){inp.type='text';btn.textContent='🙈';}else{inp.type='password';btn.textContent='👁';}}
-
-/* Copy key */
-function copyKey(){
-  const key=document.getElementById('regKey').textContent.trim();
-  if(!key||key==='Not set') return;
-  navigator.clipboard.writeText(key).then(()=>{
-    const t=document.getElementById('copyToast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);
-  });
-}
 
 /* Session SweetAlert */
 <?php if(isset($_SESSION['swal'])): ?>

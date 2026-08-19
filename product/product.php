@@ -199,10 +199,10 @@ $totalPages  = ceil($countForCat/$limit);
   font-size: 14px;
   filter: drop-shadow(0 0 3px rgba(255,255,255,0.3));
 }
-.bell-wrap.ls .bi { color: #ff3b30; }   /* Low Stock - Bright Red */
+.bell-wrap.ls .bi { color: #2bff00; }   /* Low Stock - Bright Red */
 .bell-wrap.oos .bi { color: #ff2d95; }   /* Out of Stock - Hot Pink */
-.bell-wrap.exp .bi { color: #ffa500; }   /* Nearing Expiry - Orange */
-.bell-wrap.exd .bi { color: #ff0436; }   /* Expired - Crimson */
+.bell-wrap.exp .bi { color: #6200ff; }   /* Nearing Expiry - Orange */
+.bell-wrap.exd .bi { color: #ffffff; }   /* Expired - Crimson */
 .bell-wrap.both .bi { color: #ff1493; }  /* Both issues - Deep Pink */
 .bell-tip {
   visibility: hidden;
@@ -649,9 +649,13 @@ $totalPages  = ceil($countForCat/$limit);
               </form>
             </td>
             <td style="white-space:nowrap;">
-              <button class="btn btn-blue btn-sm" onclick="openEditModal(<?= $row['id'] ?>)">✏</button>
-              <button class="btn btn-red btn-sm"  onclick="confirmDelete(<?= $row['id'] ?>)">🗑</button>
-            </td>
+  <button class="btn btn-blue btn-sm" onclick="openEditModal(<?= $row['id'] ?>)">
+    <i class="bi bi-pencil"></i>
+  </button>
+  <button class="btn btn-red btn-sm" onclick="confirmDelete(<?= $row['id'] ?>)">
+    <i class="bi bi-trash3"></i>
+  </button>
+</td>
           </tr>
           <?php endwhile; ?>
           </tbody>
@@ -817,8 +821,6 @@ $totalPages  = ceil($countForCat/$limit);
 <div class="modal-overlay" id="editModal">
   <div class="modal-box" id="editModalBox">
     <div class="modal-hdr" id="editModalHdr">
-  <div class="modal-box">
-    <div class="modal-hdr">
       <div class="modal-hdr-top">
         <h3>✏ Edit Product</h3>
         <button class="mclose" onclick="closeModal('editModal')">✕</button>

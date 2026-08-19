@@ -308,7 +308,15 @@ body {
 .pm-btn.cancel  { background: linear-gradient(180deg, #888, #555); }
 .pm-btn.proceed { background: linear-gradient(180deg, #ff9900, #cc6600); }
 
-.err-modal { background: linear-gradient(180deg, #eee, #ddd); border: 2px solid #888; border-radius: 7px; width: 320px; box-shadow: 0 12px 40px rgba(0,0,0,0.6); overflow: hidden; }
+.err-modal {
+  background: linear-gradient(180deg, #eee, #ddd);
+  border: 2px solid #888;
+  border-radius: 7px;
+  width: 320px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+  overflow: hidden;
+  z-index: 99999 !important;
+}
 .err-bar { background: #cc2200; padding: 5px 14px; display: flex; justify-content: space-between; align-items: center; }
 .err-bar span { font-weight: 700; font-size: 12px; color: white; }
 .err-body { padding: 20px 16px; display: flex; gap: 14px; align-items: center; color: #222; }
@@ -535,7 +543,18 @@ body {
 }
 .success-modal-overlay.show { display: flex; }
 .modal-overlay#errModal {
-  z-index: 9998;
+  z-index: 99999 !important;
+  background: rgba(0, 0, 0, 0.6) !important;
+}
+#errModal .err-modal {
+  background: linear-gradient(180deg, #eee, #ddd);
+  border: 2px solid #888;
+  border-radius: 7px;
+  width: 320px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+  overflow: hidden;
+  z-index: 99999 !important;
+  position: relative;
 }
 .success-modal-overlay {
   z-index: 10002;
@@ -876,7 +895,7 @@ body {
   <div class="pm-change" id="pmChange">Change: <?= $currencySymbol ?>0.00</div>
   <div class="pm-btns">
     <button class="pm-btn cancel"  onclick="closePayModal()">Cancel</button>
-    <button class="pm-btn proceed" onclick="processPayment()">✓ Confirm Pay</button>
+    <button type="button" class="pm-btn proceed" onclick="processPayment()">✓ Confirm Pay</button>
   </div>
 </div>
   </div>
@@ -950,7 +969,7 @@ body {
       <div class="pm-change" id="wmStatus">Awaiting confirmation</div>
       <div class="pm-btns">
         <button class="pm-btn cancel"  onclick="closeWalletModal()">Cancel</button>
-        <button class="pm-btn proceed" onclick="processWalletPayment()">✓ Confirm</button>
+        <button type="button" class="pm-btn proceed" onclick="processWalletPayment()">✓ Confirm</button>
       </div>
       <div style="margin-top:10px;font-size:10px;color:#888;text-align:center;">
         💡 Ensure customer payment is completed before confirming.
@@ -962,16 +981,17 @@ body {
 <!-- ══ ERROR MODAL ════════════════════════════════════════════════════ -->
 <div class="modal-overlay" id="errModal">
   <div class="err-modal">
-    <div class="pay-modal-title">
-      <span>NOTICE</span>
+    <div class="err-bar">
+      <span>⚠️ NOTICE</span>
       <button class="modal-x" onclick="closeErr()">✕</button>
     </div>
-    <div class="err-bar"></div>
     <div class="err-body">
       <div class="err-icon">✕</div>
       <span class="err-msg" id="errMsg">An error occurred.</span>
     </div>
-    <div class="err-foot"><button class="ok-btn" onclick="closeErr()">OK</button></div>
+    <div class="err-foot">
+      <button class="ok-btn" onclick="closeErr()">OK</button>
+    </div>
   </div>
 </div>
 
@@ -1172,10 +1192,15 @@ function showErr(msg) {
     document.getElementById('successModal').classList.remove('show');
   }
   
+  // Set error message
   document.getElementById('errMsg').textContent = msg;
+  
+  // Show error modal on top without closing payment modals
   document.getElementById('errModal').classList.add('show');
+  
+  // Reset processing flag when showing error
+  isProcessingPayment = false;
 }
-
 function closeErr()   { document.getElementById('errModal').classList.remove('show'); }
 function openHelp()   { document.getElementById('helpModal').classList.add('show'); }
 function closeHelp()  { document.getElementById('helpModal').classList.remove('show'); }
@@ -1183,7 +1208,7 @@ document.getElementById('helpModal').addEventListener('click',function(e){ if(e.
 
 /* ── State ────────────────────────────────────────────────────────── */
 let checkout = [], currentCategory = 'ALL';
-
+let isProcessingPayment = false;
 /* ── Product grid ─────────────────────────────────────────────────── */
 function renderGrid(list) {
   const grid  = document.getElementById('menuGrid');
@@ -1326,12 +1351,17 @@ function updateItemQty(idx,newVal) {
 }
 // ── Handle Enter key in payment modals ───────────────────────────
 document.addEventListener('keydown', function(e) {
-  // Check if payment modal is open
-  if (e.key === 'Enter' && document.getElementById('payModal').classList.contains('show')) {
+  // Only handle Enter key
+  if (e.key !== 'Enter') return;
+  
+  const payModal = document.getElementById('payModal');
+  const walletModal = document.getElementById('walletModal');
+  const activeElement = document.activeElement;
+  
+  // ── CASH PAYMENT MODAL ──
+  if (payModal && payModal.classList.contains('show')) {
     e.preventDefault();
     e.stopPropagation();
-    
-    const activeElement = document.activeElement;
     
     // If focus is on the cash input OR confirm button, process payment
     if (activeElement && (activeElement.id === 'pmCash' || 
@@ -1342,25 +1372,27 @@ document.addEventListener('keydown', function(e) {
     }
   }
   
-  // Handle Enter key in wallet payment modal
-  if (e.key === 'Enter' && document.getElementById('walletModal').classList.contains('show')) {
-    const activeElement = document.activeElement;
+  // ── WALLET PAYMENT MODAL ──
+  if (walletModal && walletModal.classList.contains('show')) {
+    e.preventDefault();
+    e.stopPropagation();
     
+    // If focus is on reference number input, just blur it (don't submit)
     if (activeElement && activeElement.id === 'wmRefNo') {
-      e.preventDefault();
       activeElement.blur();
       return;
     }
     
-    if (activeElement && activeElement.classList && 
-        activeElement.classList.contains('pm-btn') && 
-        activeElement.classList.contains('proceed')) {
-      e.preventDefault();
+    // If focus is on confirm button OR if user presses Enter while in the modal
+    if (activeElement && 
+        ((activeElement.classList && activeElement.classList.contains('pm-btn') && 
+          activeElement.classList.contains('proceed')) ||
+         activeElement.closest('#walletModal'))) {
       processWalletPayment();
+      return;
     }
   }
 });
-
 /* ── Cash payment modal ───────────────────────────────────────────── */
 function openPayModal(method) {
   if (!checkout.length) return showErr('Please add items to the order first.🛒');
@@ -1381,8 +1413,10 @@ function openPayModal(method) {
     cashInput.select();
   }, 100);
 }
-function closePayModal() { document.getElementById('payModal').classList.remove('show'); }
-
+function closePayModal() { 
+  document.getElementById('payModal').classList.remove('show');
+  isProcessingPayment = false; // Reset flag when closing
+}
 function pmCalcChange() {
   const paid  = parseFloat(document.getElementById('pmCash').value)||0;
   const total = checkout.reduce((s,i)=>s+i.price*i.qty,0);
@@ -1412,8 +1446,9 @@ function openWalletModal() {
 function closeWalletModal() {
   document.getElementById('walletModal').classList.remove('show');
   document.getElementById('qrContainer').style.display = 'none';
-  document.getElementById('btnShowQR').innerHTML       = '📷 Show QR';
-  document.getElementById('btnShowQR').style.display   = 'none';
+  document.getElementById('btnShowQR').innerHTML = '📷 Show QR';
+  document.getElementById('btnShowQR').style.display = 'none';
+  isProcessingPayment = false; // Reset flag when closing
 }
 document.getElementById('walletModal').addEventListener('click',function(e){ if(e.target===this) closeWalletModal(); });
 
@@ -1550,45 +1585,65 @@ function printReceipt() {
     }, 100);
   };
 }
-let isProcessingPayment = false;
 /* ══════════════════════════════════════════════════════════════════
    CASH PAYMENT
 ══════════════════════════════════════════════════════════════════ */
 async function processPayment() {
   if (isProcessingPayment) return; // Prevent double execution
   isProcessingPayment = true;
+  
   const cashier = document.getElementById('activeCashier').textContent.trim();
-  if (!cashier || cashier==='Not logged in') return showErr('Please log in before processing payment.');
-  if (!checkout.length) return showErr('Cart is empty.');
+  if (!cashier || cashier === 'Not logged in') {
+    isProcessingPayment = false; // Reset flag
+    return showErr('Please log in before processing payment.');
+  }
+  if (!checkout.length) {
+    isProcessingPayment = false; // Reset flag
+    return showErr('Cart is empty.');
+  }
 
-  const total  = checkout.reduce((s,i)=>s+i.price*i.qty,0);
-  const paid   = parseFloat(document.getElementById('pmCash').value)||0;
-  if (paid < total) return showErr('Insufficient payment. Please enter the correct amount.');
+  const total = checkout.reduce((s, i) => s + i.price * i.qty, 0);
+  const paid = parseFloat(document.getElementById('pmCash').value) || 0;
+  if (paid < total) {
+    isProcessingPayment = false; // Reset flag
+    return showErr('Insufficient payment. Please enter the correct amount.');
+  }
 
-  const change = paid-total;
-  const now    = new Date();
-  const date   = now.toISOString().split('T')[0];
-  const time   = now.toTimeString().split(' ')[0];
+  const change = paid - total;
+  const now = new Date();
+  const date = now.toISOString().split('T')[0];
+  const time = now.toTimeString().split(' ')[0];
 
-  const itemsData = checkout.map(item=>({
-    id:item.id, name:item.name, qty:item.qty, price:item.price,
-    measurement_type:item.measurement_type, unit:item.unit,
-    total:(item.price*item.qty).toFixed(2)
+  const itemsData = checkout.map(item => ({
+    id: item.id,
+    name: item.name,
+    qty: item.qty,
+    price: item.price,
+    measurement_type: item.measurement_type,
+    unit: item.unit,
+    total: (item.price * item.qty).toFixed(2)
   }));
 
   try {
-    const res = await fetch('record/transaction.php',{
-      method:'POST', headers:{'Content-Type':'application/json'},
+    const res = await fetch('record/transaction.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        items:itemsData, total:total.toFixed(2),
-        paid:paid.toFixed(2), change:change.toFixed(2),
-        cashier, date, time,
-        payment_method:'Cash',
-        reference_no:''
+        items: itemsData,
+        total: total.toFixed(2),
+        paid: paid.toFixed(2),
+        change: change.toFixed(2),
+        cashier,
+        date,
+        time,
+        payment_method: 'Cash',
+        reference_no: ''
       })
     });
     const data = await res.json();
-    if (!res.ok||data.status!=='success') throw new Error(data.message||'Transaction failed.');
+    if (!res.ok || data.status !== 'success') {
+      throw new Error(data.message || 'Transaction failed.');
+    }
 
     // Close payment modal first
     closePayModal();
@@ -1601,30 +1656,45 @@ async function processPayment() {
 
     // Print receipt using custom function
     if (autoPrintReceipt) {
-      await new Promise(r=>setTimeout(r,100));
+      await new Promise(r => setTimeout(r, 100));
       printReceipt();
     }
 
     // Clear cart and cache AFTER printing
-    Cache.pushTransaction({ id:data.transaction_id||Date.now(), date, time, cashier, items:itemsData, total:total.toFixed(2), paid:paid.toFixed(2), change:change.toFixed(2), method:'Cash' });
+    Cache.pushTransaction({
+      id: data.transaction_id || Date.now(),
+      date,
+      time,
+      cashier,
+      items: itemsData,
+      total: total.toFixed(2),
+      paid: paid.toFixed(2),
+      change: change.toFixed(2),
+      method: 'Cash'
+    });
     clearCheckout();
 
     // NOW show success modal AFTER printing is done
-    await new Promise(r=>setTimeout(r,300)); // Delay for print window
-   openSuccessModal({
-    title: 'Payment Successful! 💵',
-    subtitle: 'Cash payment completed successfully',
-    txnId: data.transaction_id || 'N/A',
-    method: '💵 Cash',
-    cashier: cashier,
-    total: total.toFixed(2),
-    paid: paid.toFixed(2),
-    change: change.toFixed(2)
-  });
-} catch (err) {
-  // Silently handle any modal errors
-  console.log('Success modal error:', err);
-}
+    await new Promise(r => setTimeout(r, 300)); // Delay for print window
+    openSuccessModal({
+      title: 'Payment Successful! 💵',
+      subtitle: 'Cash payment completed successfully',
+      txnId: data.transaction_id || 'N/A',
+      method: '💵 Cash',
+      cashier: cashier,
+      total: total.toFixed(2),
+      paid: paid.toFixed(2),
+      change: change.toFixed(2)
+    });
+    
+    // Reset flag after successful payment
+    isProcessingPayment = false;
+    
+  } catch (err) {
+    // Reset flag on error
+    isProcessingPayment = false;
+    showErr(err.message || 'Payment failed. Please try again.');
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -1633,45 +1703,72 @@ async function processPayment() {
 async function processWalletPayment() {
   if (isProcessingPayment) return;
   isProcessingPayment = true;
+  
   const cashier = document.getElementById('activeCashier').textContent.trim();
-  if (!cashier || cashier==='Not logged in') return showErr('Please log in before processing payment.');
-  if (!checkout.length) return showErr('Cart is empty.');
+  if (!cashier || cashier === 'Not logged in') {
+    isProcessingPayment = false; // Reset flag
+    return showErr('Please log in before processing payment.');
+  }
+  if (!checkout.length) {
+    isProcessingPayment = false; // Reset flag
+    return showErr('Cart is empty.');
+  }
 
-  const sel          = document.getElementById('wmProvider');
-  const provider     = sel.value;
-  const selectedOpt  = sel.options[sel.selectedIndex];
+  const sel = document.getElementById('wmProvider');
+  const provider = sel.value;
+  const selectedOpt = sel.options[sel.selectedIndex];
   const providerName = selectedOpt.dataset.name || provider;
-  const refNo        = document.getElementById('wmRefNo').value.trim();
-  const total        = checkout.reduce((s,i)=>s+i.price*i.qty,0);
+  const refNo = document.getElementById('wmRefNo').value.trim();
+  const total = checkout.reduce((s, i) => s + i.price * i.qty, 0);
 
-  if (!provider)       return showErr('Please select an e-wallet provider.');
-  if (!refNo)          return showErr('Please enter the transaction reference number.');
-  if (refNo.length<5)  return showErr('Reference number seems too short. Please verify.');
+  if (!provider) {
+    isProcessingPayment = false; // Reset flag
+    return showErr('Please select an e-wallet provider.');
+  }
+  if (!refNo) {
+    isProcessingPayment = false; // Reset flag
+    return showErr('Please enter the transaction reference number.');
+  }
+  if (refNo.length < 5) {
+    isProcessingPayment = false; // Reset flag
+    return showErr('Reference number seems too short. Please verify.');
+  }
 
-  const now  = new Date();
+  const now = new Date();
   const date = now.toISOString().split('T')[0];
   const time = now.toTimeString().split(' ')[0];
 
-  const itemsData = checkout.map(item=>({
-    id:item.id, name:item.name, qty:item.qty, price:item.price,
-    measurement_type:item.measurement_type, unit:item.unit,
-    total:(item.price*item.qty).toFixed(2)
+  const itemsData = checkout.map(item => ({
+    id: item.id,
+    name: item.name,
+    qty: item.qty,
+    price: item.price,
+    measurement_type: item.measurement_type,
+    unit: item.unit,
+    total: (item.price * item.qty).toFixed(2)
   }));
 
   try {
-    const res = await fetch('record/transaction.php',{
-      method:'POST', headers:{'Content-Type':'application/json'},
+    const res = await fetch('record/transaction.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        items:itemsData, total:total.toFixed(2),
-        paid:total.toFixed(2), change:'0.00',
-        cashier, date, time,
-        payment_method:'wallet',
-        wallet_provider:providerName,
-        wallet_ref:refNo
+        items: itemsData,
+        total: total.toFixed(2),
+        paid: total.toFixed(2),
+        change: '0.00',
+        cashier,
+        date,
+        time,
+        payment_method: 'wallet',
+        wallet_provider: providerName,
+        wallet_ref: refNo
       })
     });
     const data = await res.json();
-    if (!res.ok||data.status!=='success') throw new Error(data.message||'Transaction failed.');
+    if (!res.ok || data.status !== 'success') {
+      throw new Error(data.message || 'Transaction failed.');
+    }
 
     // Close wallet modal first
     closeWalletModal();
@@ -1684,28 +1781,45 @@ async function processWalletPayment() {
 
     // Print receipt using custom function
     if (autoPrintReceipt) {
-      await new Promise(r=>setTimeout(r,100));
+      await new Promise(r => setTimeout(r, 100));
       printReceipt();
     }
 
     // Clear cart and cache AFTER printing
-    Cache.pushTransaction({ id:data.transaction_id||Date.now(), date, time, cashier, items:itemsData, total:total.toFixed(2), paid:total.toFixed(2), change:'0.00', method:providerName, ref:refNo });
+    Cache.pushTransaction({
+      id: data.transaction_id || Date.now(),
+      date,
+      time,
+      cashier,
+      items: itemsData,
+      total: total.toFixed(2),
+      paid: total.toFixed(2),
+      change: '0.00',
+      method: providerName,
+      ref: refNo
+    });
     clearCheckout();
 
     // NOW show success modal AFTER printing is done
-    await new Promise(r=>setTimeout(r,300)); // Delay for print window
-     openSuccessModal({
-    title: `${providerName} Payment Confirmed! 📱`,
-    subtitle: 'E-wallet payment completed successfully',
-    txnId: data.transaction_id || 'N/A',
-    method: `${providerName} 📱`,
-    cashier: cashier,
-    ref: refNo,
-    total: total.toFixed(2)
-  });
-} catch (err) {
-  console.log('Success modal error:', err);
-}
+    await new Promise(r => setTimeout(r, 300)); // Delay for print window
+    openSuccessModal({
+      title: `${providerName} Payment Confirmed! 📱`,
+      subtitle: 'E-wallet payment completed successfully',
+      txnId: data.transaction_id || 'N/A',
+      method: `${providerName} 📱`,
+      cashier: cashier,
+      ref: refNo,
+      total: total.toFixed(2)
+    });
+    
+    // Reset flag after successful payment
+    isProcessingPayment = false;
+    
+  } catch (err) {
+    // Reset flag on error
+    isProcessingPayment = false;
+    showErr(err.message || 'Payment failed. Please try again.');
+  }
 }
 /* ── Custom product ───────────────────────────────────────────────── */
 function ciPriceFromType() {

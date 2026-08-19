@@ -2,7 +2,10 @@
 error_reporting(0); // Disable error output to prevent breaking JSON
 ini_set('display_errors', 0);
 
-session_start();
+// Start session only if not already active
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require('../dbconn.php');
 
 if (!isset($_SESSION['loggedin']) || $_SESSION['user_type'] !== 'admin') {
@@ -263,6 +266,10 @@ $conn->query("CREATE TABLE IF NOT EXISTS registration_keys (
 $keyResult  = $conn->query("SELECT reg_key FROM registration_keys ORDER BY id DESC LIMIT 1");
 $currentKey = $keyResult->fetch_assoc()['reg_key'] ?? 'FOURACC';
 
+// ─── SET PAGE TITLE FOR HEADER ────────────────────────────────────────────────
+$pageTitle = 'System Settings';
+$activePage = 'settings';
+
 // ─── DISPLAY SWEETALERT FROM SESSION ───────────────────────────────────────────
 if (isset($_SESSION['swal'])) {
     $swal = $_SESSION['swal'];
@@ -271,17 +278,13 @@ if (isset($_SESSION['swal'])) {
             icon: '{$swal['type']}',
             title: '{$swal['title']}',
             text: '{$swal['text']}',
-            confirmButtonColor: '#ff8800'
+            confirmButtonColor: '#ff8800',
+            background: '#1e2330',
+            color: '#e8eaf0'
         });
     });</script>";
     unset($_SESSION['swal']);
 }
-// Set defaults if not found
-$businessName = $systemSettings['business_name'] ?? 'Angel\'s Bakeshop';
-$businessSubtitle = $systemSettings['business_subtitle'] ?? 'POS SYSTEM';
-$businessAddress = $systemSettings['business_address'] ?? 'Upper Batinguel, Dumaguete City, Negros Oriental 6200';
-$businessPhone = $systemSettings['business_phone'] ?? '0905 615 2262';
-$currencySymbol = $systemSettings['currency_symbol'] ?? '₱';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -292,9 +295,7 @@ $currencySymbol = $systemSettings['currency_symbol'] ?? '₱';
 <link rel="stylesheet" href="../css/bootstrap-icons.css">
 <script src="../js/sweetalert2.all.min.js"></script>
 <style>
-/* ... (keep all your existing CSS styles the same as before) ... */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
-
+/* Page-specific styles only (header/footer styles are in the includes) */
 :root {
   --orange: #ff8800;
   --orange-dk: #cc5500;
@@ -326,82 +327,12 @@ body {
   flex-direction: column;
 }
 
-/* ── Top Bar ── */
-.top-bar {
-  height: 52px;
-  background: linear-gradient(90deg, #0d1117 0%, #161b27 100%);
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  padding: 0 16px;
-  gap: 10px;
-  position: fixed;
-  top: 0; left: 0; right: 0;
-  z-index: 1000;
-}
-.logo-pill {
-  background: linear-gradient(135deg, var(--orange), #ff4400);
-  border-radius: 8px;
-  padding: 5px 14px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  line-height: 1.2;
-}
-.logo-pill .lp-name { font-weight: 800; font-size: 11px; color: white; }
-.logo-pill .lp-sub  { font-size: 7px; color: rgba(255,255,255,0.75); letter-spacing: 2px; }
-.tb-divider { width: 1px; height: 24px; background: var(--border2); margin: 0 4px; }
-.tb-title   { font-size: 14px; font-weight: 700; color: var(--text); }
-.tb-spacer  { flex: 1; }
-.menu-btn {
-  background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
-  color: var(--text2); font-size: 16px; cursor: pointer;
-  width: 34px; height: 34px;
-  display: flex; align-items: center; justify-content: center;
-  transition: all 0.15s;
-}
-.menu-btn:hover { background: var(--orange); border-color: var(--orange); color: white; }
-.tb-icon {
-  width: 34px; height: 34px;
-  background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; font-size: 14px; text-decoration: none; color: var(--text2);
-  transition: all 0.15s;
-}
-.tb-icon:hover { background: var(--orange); border-color: var(--orange); color: white; }
-
-/* ── Sidebar ── */
-.sidebar {
-  width: 240px;
-  background: linear-gradient(180deg, #0f1419 0%, #111822 100%);
-  position: fixed;
-  top: 52px; left: 0;
-  height: calc(100vh - 52px - 26px);
-  display: none; flex-direction: column;
-  z-index: 800;
-  border-right: 1px solid var(--border);
-  overflow-y: auto;
-}
-.sb-section-label {
-  font-size: 9px; font-weight: 700; color: var(--text3);
-  text-transform: uppercase; letter-spacing: 1.5px;
-  padding: 14px 16px 6px;
-}
-.sb-sub a {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 16px 8px 20px;
-  color: var(--text3); text-decoration: none; font-size: 11px;
-  transition: all 0.15s;
-}
-.sb-sub a:hover { background: rgba(255,136,0,0.08); color: var(--orange-lt); }
-
 /* ── Main ── */
 .main {
   margin-top: 52px;
   padding: 20px;
   flex: 1;
   margin-bottom: 26px;
-  transition: margin-left 0.3s;
 }
 .main.sidebar-open { margin-left: 240px; }
 
@@ -534,8 +465,6 @@ body {
 .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(255,136,0,0.3); }
 .btn-secondary { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); }
 .btn-secondary:hover { background: var(--border2); color: var(--text); }
-.tb-title { font-size: 14px; font-weight: 700; color: var(--text); letter-spacing: 0.2px; }
-.tb-clock { font-size: 11px; color: var(--orange-lt); font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* ── Modal ── */
 .modal {
@@ -571,19 +500,6 @@ body {
 }
 .qr-preview-box img { max-width: 150px; max-height: 150px; border-radius: 6px; }
 
-/* ── Status Bar ── */
-.status-bar {
-  background: #0a0d14; border-top: 1px solid var(--border);
-  padding: 0 14px; height: 26px;
-  display: flex; align-items: center; gap: 16px;
-  font-size: 10px; color: var(--text3);
-  position: fixed; bottom: 0; left: 0; right: 0;
-}
-.sb-conn { display: flex; align-items: center; gap: 4px; margin-left: auto; }
-.sb-conn .cdot { width: 6px; height: 6px; border-radius: 50%; }
-.sb-conn.online  .cdot { background: var(--green); box-shadow: 0 0 5px var(--green); }
-.sb-conn.offline .cdot { background: var(--red); }
-
 /* Logo Preview */
 .logo-preview { margin-top: 10px; padding: 10px; background: var(--bg3); border-radius: 8px; text-align: center; }
 .logo-preview img { max-width: 100%; max-height: 100px; border-radius: 4px; }
@@ -591,46 +507,8 @@ body {
 </head>
 <body>
 
-<!-- Top Bar -->
-<div class="top-bar">
-  <button class="menu-btn" id="menuBtn" onclick="toggleSidebar()">☰</button>
-  <div class="logo-pill">
-    <span class="lp-name"><?= htmlspecialchars($businessName) ?></span>
-    <span class="lp-sub"><?= htmlspecialchars($businessSubtitle) ?></span>
-  </div>
-  <div class="tb-divider"></div>
-  <span class="tb-title">System Settings</span>
-  <span class="tb-clock" id="currentTime"></span>
-  <div style="font-size:10px; margin-left:45px;"><?= htmlspecialchars($businessAddress) ?></div>
-  <div class="tb-spacer"></div>
-  <a class="tb-icon" href="../dashboard.php" title="Dashboard">📊</a>
-  <a class="tb-icon" href="../record/record.php" title="Sales Inventory">
-    📝
-  </a>
-  <a class="tb-icon" href="user.php" title="User Management">
-    👨‍👩‍👧‍👦
-  </a> 
-  <a class="tb-icon" href="prof.php" title="Profile">
-    🙍🏻‍♂️
-    <?php if($lowStockCount>0||$expiringCount>0): ?><span class="notif-dot"></span><?php endif; ?>
-  </a>
-  <a class="tb-icon" href="../logout.php"        title="Logout">🚪</a>
-</div>
-
-<!-- Sidebar -->
-<div class="sidebar" id="sidebar">
-  <div class="sb-section-label">Navigation</div>
-  <div class="sb-sub">
-    <a href="../dashboard.php">📊 Dashboard</a>
-    <a href="settings.php">⚙️ System Settings</a>
-  </div>
-  <div class="sb-section-label">Management</div>
-  <div class="sb-sub">
-    <a href="../product/product.php">📦 Products</a>
-    <a href="../record/record.php">📝 Transactions</a>
-    <a href="user.php">👥 Users</a>
-  </div>
-</div>
+<!-- Include Admin Header -->
+<?php include('../include/admin_header.php'); ?>
 
 <!-- Main -->
 <div class="main" id="mainContent">
@@ -791,7 +669,7 @@ body {
             <?php else: ?>
               <span style="color:var(--text3);font-size:11px;">No QR</span>
             <?php endif; ?>
-           </span>
+          </td>
           <td>
             <strong><?= htmlspecialchars($pm['name']) ?></strong>
             <?php if (!empty($pm['account_name'])): ?>
@@ -802,18 +680,18 @@ body {
                 <?php endif; ?>
               </div>
             <?php endif; ?>
-           </span>
-          <td><?= htmlspecialchars($pm['provider']) ?></span>
-          <td><?= $pm['display_order'] ?></span>
+          </td>
+          <td><?= htmlspecialchars($pm['provider']) ?></td>
+          <td><?= $pm['display_order'] ?></td>
           <td>
             <span class="badge <?= $pm['is_active'] ? 'badge-active' : 'badge-inactive' ?>">
               <?= $pm['is_active'] ? 'Active' : 'Inactive' ?>
             </span>
-           </span>
+          </td>
           <td>
             <button class="btn-icon btn-edit"   onclick="editPaymentMethod(<?= $pm['id'] ?>)" title="Edit">✏️</button>
             <button class="btn-icon btn-delete" onclick="deletePaymentMethod(<?= $pm['id'] ?>)" title="Delete">🗑️</button>
-           </span>
+          </td>
         </tr>
         <?php endforeach; ?>
         <?php if (empty($payment_methods)): ?>
@@ -844,6 +722,9 @@ body {
     </div>
   </div>
 </div><!-- end .main -->
+
+<!-- Include Admin Footer -->
+<?php include('../include/admin_footer.php'); ?>
 
 <!-- ══ REGISTRATION KEY MODAL ══════════════════════════════════════════════════ -->
 <div id="keyModal" class="modal">
@@ -958,28 +839,7 @@ body {
   </div>
 </div>
 
-<!-- Status Bar -->
-<div class="status-bar">
-  <span>ANGEL'S BAKESHOP POS v1.0</span>
-  <span>|</span>
-  <span id="currentTime"><?= date('F j, Y') ?></span>
-  <div class="sb-conn offline" id="connStatus">
-    <div class="cdot"></div>
-    <span>OFFLINE</span>
-  </div>
-</div>
-
 <script>
-/* ─── Sidebar ─── */
-function toggleSidebar(){
-  const sb   = document.getElementById('sidebar');
-  const main = document.getElementById('mainContent');
-  const open = sb.style.display === 'flex';
-  sb.style.display = open ? 'none' : 'flex';
-  main.classList.toggle('sidebar-open', !open);
-  document.getElementById('menuBtn').textContent = open ? '☰' : '✖';
-}
-
 /* ─── Tabs ─── */
 function switchTab(tab){
   document.querySelectorAll('.tab-btn').forEach((b,i) => {
@@ -998,10 +858,10 @@ function copyKey(){
   const keyText = document.getElementById('regKey').textContent;
   navigator.clipboard.writeText(keyText)
     .then(() => {
-      Swal.fire({ icon:'success', title:'Copied!', text:'Registration key copied to clipboard.', timer:1500, showConfirmButton:false });
+      Swal.fire({ icon:'success', title:'Copied!', text:'Registration key copied to clipboard.', timer:1500, showConfirmButton:false, background:'#1e2330', color:'#e8eaf0' });
     })
     .catch(() => {
-      Swal.fire({ icon:'error', title:'Failed', text:'Unable to copy key.', confirmButtonColor:'#ff8800' });
+      Swal.fire({ icon:'error', title:'Failed', text:'Unable to copy key.', confirmButtonColor:'#ff8800', background:'#1e2330', color:'#e8eaf0' });
     });
 }
 
@@ -1040,10 +900,12 @@ document.getElementById('generalSettingsForm').addEventListener('submit', async 
       icon: data.success ? 'success' : 'error',
       title: data.success ? 'Settings Saved' : 'Error',
       text: data.message, 
-      confirmButtonColor: '#ff8800' 
+      confirmButtonColor: '#ff8800',
+      background: '#1e2330',
+      color: '#e8eaf0'
     });
   } catch (error) {
-    Swal.fire({ icon:'error', title:'Error', text:'Failed to save settings: ' + error.message, confirmButtonColor:'#ff8800' });
+    Swal.fire({ icon:'error', title:'Error', text:'Failed to save settings: ' + error.message, confirmButtonColor:'#ff8800', background:'#1e2330', color:'#e8eaf0' });
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = originalText;
@@ -1130,30 +992,27 @@ document.getElementById('paymentMethodForm').addEventListener('submit', async fu
     const data = await res.json();
     
     if(data.success){
-      // Close modal first
       closePaymentModal();
-      
-      // Show success message
       await Swal.fire({ 
         icon: 'success', 
         title: 'Success', 
         text: data.message, 
         confirmButtonColor: '#ff8800',
         timer: 1500,
-        showConfirmButton: true
+        showConfirmButton: true,
+        background: '#1e2330',
+        color: '#e8eaf0'
       });
-      
-      // Reload page to show updated data
       location.reload();
     } else {
-      // Close modal on error too
       closePaymentModal();
-      
       await Swal.fire({ 
         icon: 'error', 
         title: 'Error', 
         text: data.message, 
-        confirmButtonColor: '#ff8800' 
+        confirmButtonColor: '#ff8800',
+        background: '#1e2330',
+        color: '#e8eaf0'
       });
     }
   } catch (error) {
@@ -1162,13 +1021,16 @@ document.getElementById('paymentMethodForm').addEventListener('submit', async fu
       icon: 'error', 
       title: 'Error', 
       text: 'Failed to save payment method: ' + error.message, 
-      confirmButtonColor: '#ff8800' 
+      confirmButtonColor: '#ff8800',
+      background: '#1e2330',
+      color: '#e8eaf0'
     });
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = originalText;
   }
 });
+
 /* ─── Delete Payment Method ─── */
 async function deletePaymentMethod(id){
   const result = await Swal.fire({
@@ -1178,7 +1040,9 @@ async function deletePaymentMethod(id){
     showCancelButton:true,
     confirmButtonColor:'#ff4444', 
     cancelButtonColor:'#5a6380', 
-    confirmButtonText:'Yes, delete'
+    confirmButtonText:'Yes, delete',
+    background:'#1e2330',
+    color:'#e8eaf0'
   });
   if(!result.isConfirmed) return;
   
@@ -1196,7 +1060,9 @@ async function deletePaymentMethod(id){
         text: data.message, 
         confirmButtonColor:'#ff8800',
         timer: 1500,
-        showConfirmButton: true
+        showConfirmButton: true,
+        background:'#1e2330',
+        color:'#e8eaf0'
       });
       location.reload();
     } else {
@@ -1204,7 +1070,9 @@ async function deletePaymentMethod(id){
         icon:'error', 
         title:'Error', 
         text: data.message, 
-        confirmButtonColor:'#ff8800' 
+        confirmButtonColor:'#ff8800',
+        background:'#1e2330',
+        color:'#e8eaf0'
       });
     }
   } catch (error) {
@@ -1212,7 +1080,9 @@ async function deletePaymentMethod(id){
       icon:'error', 
       title:'Error', 
       text:'Failed to delete: ' + error.message, 
-      confirmButtonColor:'#ff8800' 
+      confirmButtonColor:'#ff8800',
+      background:'#1e2330',
+      color:'#e8eaf0'
     });
   }
 }
@@ -1221,7 +1091,7 @@ async function deletePaymentMethod(id){
 async function uploadLogo(){
   const file = document.getElementById('logoUpload').files[0];
   if(!file){
-    Swal.fire({ icon:'warning', title:'No File', text:'Please select an image file', confirmButtonColor:'#ff8800' });
+    Swal.fire({ icon:'warning', title:'No File', text:'Please select an image file', confirmButtonColor:'#ff8800', background:'#1e2330', color:'#e8eaf0' });
     return;
   }
   
@@ -1238,45 +1108,18 @@ async function uploadLogo(){
     const res = await fetch('settings.php', { method: 'POST', body: fd });
     const data = await res.json();
     if(data.success){
-      Swal.fire({ icon:'success', title:'Logo Uploaded', text: data.message, confirmButtonColor:'#ff8800' })
+      Swal.fire({ icon:'success', title:'Logo Uploaded', text: data.message, confirmButtonColor:'#ff8800', background:'#1e2330', color:'#e8eaf0' })
           .then(() => location.reload());
     } else {
-      Swal.fire({ icon:'error', title:'Error', text: data.message, confirmButtonColor:'#ff8800' });
+      Swal.fire({ icon:'error', title:'Error', text: data.message, confirmButtonColor:'#ff8800', background:'#1e2330', color:'#e8eaf0' });
     }
   } catch (error) {
-    Swal.fire({ icon:'error', title:'Error', text:'Failed to upload logo: ' + error.message, confirmButtonColor:'#ff8800' });
+    Swal.fire({ icon:'error', title:'Error', text:'Failed to upload logo: ' + error.message, confirmButtonColor:'#ff8800', background:'#1e2330', color:'#e8eaf0' });
   } finally {
     uploadBtn.disabled = false;
     uploadBtn.textContent = originalText;
   }
 }
-
-/* ─── Connectivity ─── */
-function checkConn(){
-  const el = document.getElementById('connStatus');
-  fetch('../record/ping.php', { cache:'no-store' })
-    .then(r => {
-      el.className = r.ok ? 'sb-conn online' : 'sb-conn offline';
-      el.querySelector('span').textContent = r.ok ? 'ONLINE' : 'OFFLINE';
-    })
-    .catch(() => {
-      el.className = 'sb-conn offline';
-      el.querySelector('span').textContent = 'OFFLINE';
-    });
-}
-setInterval(checkConn, 15000);
-checkConn();
-
-/* ─── Clock ─── */
-function updateClock(){
-  const now = new Date();
-  document.getElementById('currentTime').textContent = now.toLocaleString('en-US',{
-    timeZone:'Asia/Manila', month:'short', day:'numeric',
-    hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true
-  });
-}
-setInterval(updateClock,1000);
-updateClock();
 
 /* ─── Close modals on backdrop click ─── */
 document.getElementById('paymentModal').addEventListener('click', function(e){

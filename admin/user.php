@@ -44,12 +44,23 @@ $adminCount   = count(array_filter($allUsers, fn($u) => $u['type']==='admin'));
 $cashierCount = count(array_filter($allUsers, fn($u) => $u['type']==='cashier'));
 $staffCount   = count(array_filter($allUsers, fn($u) => $u['type']==='staff'));
 $totalCount   = count($allUsers);
-// Set defaults if not found
+
+// Get system settings for header/footer
+$systemSettings = [];
+$result = $conn->query("SELECT setting_key, setting_value FROM system_settings");
+while ($row = $result->fetch_assoc()) {
+    $systemSettings[$row['setting_key']] = $row['setting_value'];
+}
+
 $businessName = $systemSettings['business_name'] ?? 'Angel\'s Bakeshop';
 $businessSubtitle = $systemSettings['business_subtitle'] ?? 'POS SYSTEM';
 $businessAddress = $systemSettings['business_address'] ?? 'Upper Batinguel, Dumaguete City, Negros Oriental 6200';
 $businessPhone = $systemSettings['business_phone'] ?? '0905 615 2262';
 $currencySymbol = $systemSettings['currency_symbol'] ?? '₱';
+
+// Set page title for header
+$pageTitle = 'User Management';
+$activePage = 'user';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -60,6 +71,7 @@ $currencySymbol = $systemSettings['currency_symbol'] ?? '₱';
 <link rel="stylesheet" href="../css/bootstrap-icons.css">
 <script src="../js/sweetalert2.all.min.js"></script>
 <style>
+/* Keep only the page-specific styles that aren't in admin_header.css */
 :root{
   --orange:#ff8800;--orange-dk:#cc5500;--orange-lt:#ffaa44;
   --green:#00c853;--red:#ff4444;--yellow:#ffcc00;--blue:#4488ff;
@@ -72,36 +84,7 @@ $currencySymbol = $systemSettings['currency_symbol'] ?? '₱';
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;}
 
-/* TOP BAR */
-.top-bar{height:50px;background:linear-gradient(90deg,#0d1117,#161b27);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:8px;position:fixed;top:0;left:0;right:0;z-index:1000;box-shadow:0 1px 20px rgba(0,0,0,.6);}
-.logo-pill{background:linear-gradient(135deg,var(--orange),#ff4400);border-radius:7px;padding:4px 12px;display:flex;flex-direction:column;align-items:center;line-height:1.2;box-shadow:0 0 18px rgba(255,136,0,.3);}
-.logo-pill .lp-name{font-weight:800;font-size:11px;color:white;}
-.logo-pill .lp-sub{font-size:7px;color:rgba(255,255,255,.75);letter-spacing:2px;font-weight:600;text-transform:uppercase;}
-.tb-div{width:1px;height:22px;background:var(--border2);margin:0 2px;}
-.tb-title{font-size:14px;font-weight:700;color:var(--text);}
-.tb-clock{font-size:11px;color:var(--orange-lt);font-weight:600;}
-.tb-spacer{flex:1;}
-.menu-btn{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:16px;cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;transition:all .15s;}
-.menu-btn:hover{background:var(--orange);border-color:var(--orange);color:white;}
-.tb-icon{width:32px;height:32px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;text-decoration:none;color:var(--text2);transition:all .15s;}
-.tb-icon:hover{background:var(--orange);border-color:var(--orange);color:white;}
-
-/* SIDEBAR */
-.sidebar{width:230px;background:linear-gradient(180deg,#0f1419,#111822);position:fixed;top:50px;left:0;height:calc(100vh - 50px - 24px);display:none;flex-direction:column;z-index:800;border-right:1px solid var(--border);overflow-y:auto;}
-.sb-label{font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;padding:12px 14px 5px;}
-.sb-btn{width:100%;background:transparent;border:none;color:var(--text2);padding:9px 14px;text-align:left;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;gap:9px;transition:all .15s;border-left:3px solid transparent;}
-.sb-btn:hover,.sb-btn.open{background:rgba(255,136,0,.08);color:var(--orange-lt);border-left-color:var(--orange);}
-.sb-btn .arrow{margin-left:auto;font-size:10px;transition:transform .2s;color:var(--text3);}
-.sb-btn.open .arrow{transform:rotate(90deg);}
-.sb-sub{display:none;flex-direction:column;}
-.sb-sub.open{display:flex;}
-.sb-sub a{display:flex;align-items:center;gap:8px;padding:7px 14px 7px 40px;color:var(--text3);text-decoration:none;font-size:11px;border-left:3px solid transparent;transition:all .15s;}
-.sb-sub a:hover{background:rgba(255,136,0,.08);color:var(--orange-lt);border-left-color:var(--orange);}
-.sb-div{height:1px;background:var(--border);margin:5px 12px;}
-.sb-link{display:flex;align-items:center;gap:9px;padding:9px 14px;color:var(--text2);text-decoration:none;font-size:12px;font-weight:600;border-left:3px solid transparent;transition:all .15s;}
-.sb-link:hover,.sb-link.active{background:rgba(255,136,0,.08);color:var(--orange-lt);border-left-color:var(--orange);}
-
-/* MAIN */
+/* MAIN - Adjusted for header/footer */
 .main{margin-top:50px;padding:18px;flex:1;}
 .page-hero{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
 .page-hero h2{font-size:18px;font-weight:800;color:var(--text);}
@@ -209,67 +192,14 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
 /* Signup iframe modal */
 .iframe-modal-box{width:92%;max-width:480px;}
 .iframe-modal-box iframe{width:100%;height:520px;border:none;border-radius:0 0 10px 10px;}
-
-/* Status bar */
-.status-bar{background:#0a0d14;border-top:1px solid var(--border);padding:0 12px;height:24px;display:flex;align-items:center;gap:14px;font-size:10px;color:var(--text3);flex-shrink:0;}
-.s-sep{color:var(--border2);}
-.s-conn{display:flex;align-items:center;gap:4px;margin-left:auto;}
-.s-conn .cdot{width:6px;height:6px;border-radius:50%;}
-.s-conn.online .cdot{background:var(--green);box-shadow:0 0 5px var(--green);}
-.s-conn.offline .cdot{background:var(--red);box-shadow:0 0 5px var(--red);}
-.s-conn.online span{color:var(--green);}
-.s-conn.offline span{color:var(--red);}
-.footer{text-align:center;padding:7px;background:#0a0d14;color:var(--text3);font-size:10px;border-top:1px solid var(--border);}
-
-@keyframes fadeout{to{opacity:0;transform:translateX(20px);}}
 </style>
 </head>
 <body>
 
-<!-- TOP BAR -->
-<div class="top-bar">
-  <button class="menu-btn" id="menuBtn" onclick="toggleSidebar()">☰</button>
-  <div class="logo-pill">
-    <span class="lp-name"><?= htmlspecialchars($businessName) ?></span>
-    <span class="lp-sub"><?= htmlspecialchars($businessSubtitle) ?></span>
-  </div>
-  <div class="tb-div"></div>
-  <span class="tb-title">User Management</span>
-  <div class="tb-div"></div>
-  <span class="tb-clock" id="currentTime"></span>
-  <div class="tb-spacer"></div>
-  <a class="tb-icon" href="../Dashboard.php" title="Dashboard">📊</a>
-  <a class="tb-icon" href="prof.php"          title="Profile">👤</a>
-  <a class="tb-icon" href="../logout.php"     title="Logout">🚪</a>
-</div>
+<!-- Include Admin Header -->
+<?php include('../include/admin_header.php'); ?>
 
-<!-- SIDEBAR -->
-<div class="sidebar" id="sidebar">
-  <div class="sb-label">Admin</div>
-  <a class="sb-link" href="../Dashboard.php">📊 Dashboard</a>
-  <div class="sb-div"></div>
-  <div class="sb-label">Products</div>
-  <button class="sb-btn" onclick="toggleSub(this)"><span>📦</span><span>Product Category</span><span class="arrow">›</span></button>
-  <div class="sb-sub">
-    <a href="../product/product.php">📋 Manage Items</a>
-    <a href="../product/item_reserve.php">🗃 Reserve Items</a>
-  </div>
-  <button class="sb-btn" onclick="toggleSub(this)"><span>🍞</span><span>Bread</span><span class="arrow">›</span></button>
-  <div class="sb-sub">
-    <a href="../product/bread.php">✏ Manage Bread Names</a>
-    <a href="bleft.php">🧺 Bread Inventory</a>
-  </div>
-  <div class="sb-div"></div>
-  <div class="sb-label">Records & Users</div>
-  <button class="sb-btn" onclick="toggleSub(this)"><span>📋</span><span>Sales Records</span><span class="arrow">›</span></button>
-  <div class="sb-sub"><a href="../record/record.php">🧾 Manage Records</a></div>
-  <a class="sb-link active" href="user.php">👥 Manage Users</a>
-  <div class="sb-div"></div>
-  <button class="sb-btn" onclick="toggleSub(this)"><span>👤</span><span>Profile</span><span class="arrow">›</span></button>
-  <div class="sb-sub"><a href="prof.php">👤 My Profile</a></div>
-</div>
-
-<!-- MAIN -->
+<!-- MAIN CONTENT -->
 <div class="main" id="mainContent">
 
   <div class="page-hero">
@@ -387,14 +317,8 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
 
 </div><!-- end main -->
 
-<!-- STATUS BAR -->
-<div class="status-bar">
-  <span>ANGEL'S BAKESHOP POS v1.0</span><span class="s-sep">|</span>
-  <span>User Management</span><span class="s-sep">|</span>
-  <span><?= date('F j, Y') ?></span>
-  <div class="s-conn offline" id="connStatus"><div class="cdot"></div><span>OFFLINE</span></div>
-</div>
-<div class="footer">&copy; <?= date('Y') ?> St4nger Dev. All rights reserved.</div>
+<!-- Include Admin Footer -->
+<?php include('../include/admin_footer.php'); ?>
 
 <!-- SIGNUP MODAL (iframe) -->
 <div class="modal-overlay" id="signupModal">
@@ -455,21 +379,9 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
 </div>
 
 <script>
-/* Clock */
-function updateClock(){document.getElementById('currentTime').textContent=new Date().toLocaleString('en-US',{timeZone:'Asia/Manila',weekday:'short',year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});}
-setInterval(updateClock,1000); updateClock();
+/* Clock is now handled by admin_header.php */
 
-/* Sidebar */
-function toggleSidebar(){const sb=document.getElementById('sidebar');sb.style.display=sb.style.display==='flex'?'none':'flex';document.getElementById('menuBtn').textContent=sb.style.display==='flex'?'✖':'☰';}
-function toggleSub(btn){const sub=btn.nextElementSibling;const o=sub.classList.toggle('open');btn.classList.toggle('open',o);}
-
-/* Connectivity */
-function checkConn(){
-  fetch('../record/ping.php',{cache:'no-store'})
-    .then(r=>{const el=document.getElementById('connStatus');el.className=r.ok?'s-conn online':'s-conn offline';el.querySelector('span').textContent=r.ok?'ONLINE':'OFFLINE';})
-    .catch(()=>{const el=document.getElementById('connStatus');el.className='s-conn offline';el.querySelector('span').textContent='OFFLINE';});
-}
-setInterval(checkConn,15000); checkConn();
+/* Connectivity - now handled by admin_footer.php */
 
 /* Session flash */
 <?php if(isset($_SESSION['swal'])): ?>

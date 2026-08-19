@@ -201,7 +201,7 @@ $healthyProducts = max(0, $totalProducts - $lowStockCount);
 .panel-body.no-pad { padding: 0; }
 
 /* ═══════════════════════════════════ CHART */
-.chart-box { height: 220px; position: relative; }
+.chart-box { height: 220px; position: relative; color: rgb(255, 255, 255);}
 
 /* ═══════════════════════════════════ TABLE */
 .data-table-wrap { overflow-x: auto; }
@@ -451,7 +451,7 @@ $healthyProducts = max(0, $totalProducts - $lowStockCount);
           <div class="pt-dot orange"></div>
           Weekly Sales Performance
         </div>
-        <span style="font-size:10px;color:var(--text3);">Last 7 days</span>
+        <span style="font-size:10px; color: rgb(255, 255, 255);">Last 7 days</span>
       </div>
       <div class="panel-body">
         <div class="chart-box"><canvas id="dailySalesChart"></canvas></div>
@@ -463,7 +463,7 @@ $healthyProducts = max(0, $totalProducts - $lowStockCount);
           <div class="pt-dot green"></div>
           Monthly Revenue Trend
         </div>
-        <span style="font-size:10px;color:var(--text3);">Last 12 months</span>
+        <span style="font-size:10px; color: rgb(255, 255, 255);">Last 12 months</span>
       </div>
       <div class="panel-body">
         <div class="chart-box"><canvas id="monthlySalesChart"></canvas></div>
@@ -813,8 +813,8 @@ new Chart(document.getElementById('dailySalesChart'),{
     maintainAspectRatio:false,
     plugins:{ legend:{display:false}, tooltip:tooltipDefaults },
     scales:{
-      x:{ grid:{display:false}, ticks:{color:'#5a6380',font:{size:10}} },
-      y:{ beginAtZero:true, grid:{color:'rgba(255,255,255,0.04)'}, ticks:{color:'#5a6380',font:{size:10},callback:v=>v>=1000?'₱'+(v/1000).toFixed(0)+'k':'₱'+v} }
+      x:{ grid:{display:false}, ticks:{color:'#ffffff',font:{size:10}} },
+      y:{ beginAtZero:true, grid:{color:'rgba(255, 255, 255, 0.09)'}, ticks:{color:'#ffffff',font:{size:10},callback:v=>v>=1000?'₱'+(v/1000).toFixed(0)+'k':'₱'+v} }
     }
   }
 });
@@ -836,7 +836,7 @@ new Chart(document.getElementById('monthlySalesChart'),{
       },
       borderColor:'rgba(0,200,83,1)',
       pointBackgroundColor:'rgba(0,200,83,1)',
-      pointBorderColor:'#1e2330',
+      pointBorderColor:'#f5f7fc',
       pointBorderWidth:2,
       pointRadius:4,
       pointHoverRadius:6,
@@ -847,8 +847,8 @@ new Chart(document.getElementById('monthlySalesChart'),{
     maintainAspectRatio:false,
     plugins:{ legend:{display:false}, tooltip:tooltipDefaults },
     scales:{
-      x:{ grid:{display:false}, ticks:{color:'#5a6380',font:{size:10}} },
-      y:{ beginAtZero:true, grid:{color:'rgba(255,255,255,0.04)'}, ticks:{color:'#5a6380',font:{size:10},callback:v=>v>=1000?'₱'+(v/1000).toFixed(0)+'k':'₱'+v} }
+      x:{ grid:{display:false}, ticks:{color:'#ffffff',font:{size:10}} },
+      y:{ beginAtZero:true, grid:{color:'rgba(255, 255, 255, 0.29)'}, ticks:{color:'#ffffff',font:{size:10},callback:v=>v>=1000?'₱'+(v/1000).toFixed(0)+'k':'₱'+v} }
     }
   }
 });
