@@ -105,19 +105,19 @@ $autoPrintReceipt = $systemSettings['auto_print_receipt'] ?? '1';
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Angel's Bakeshop – Login</title>
+<title>St4nger POS – Login</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 /* Your existing CSS remains the same */
 :root {
-  --orange:#ff8800; --orange-dk:#cc5500; --orange-lt:#ffaa44;
-  --green:#00c853;  --red:#ff4444;       --yellow:#ffcc00;
-  --blue:#4488ff;   --accent:#00bcd4;    --accent-dk:#008fa1;
-  --bg:#0d1017;     --bg2:#111520;       --bg3:#161c2a;
-  --card:#1a2030;   --card2:#1e2638;
-  --border:#252f44; --border2:#2e3b58;
-  --text:#e8edf8;   --text2:#8a9ab8;     --text3:#4a5875;
+  --orange: #ff8800; --orange-dk: #cc5500; --orange-lt: #ffaa44;
+  --green: #00c853;  --red: #ff4444;       --yellow: #ffcc00;
+  --blue: #4488ff;   --accent: #00bcd4;    --accent-dk: #008fa1;
+  --bg: #0d1017;     --bg2: #111520;       --bg3: #161c2a;
+  --card: #1a2030;   --card2: #1e2638;
+  --border: #252f44; --border2: #2e3b58;
+  --text: #e8edf8;   --text2: #8a9ab8;     --text3: #cfc5c5;;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -464,7 +464,7 @@ body {
     
     <div class="divider-v"></div>
     <button type="button" class="admin" onclick="window.location.href='index.php'">
-   ← back to index
+   ← back to Login
 </button>
   </div>
 

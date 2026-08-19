@@ -258,7 +258,6 @@ $autoPrintReceipt = $systemSettings['auto_print_receipt']  ?? '1';
    RESET & ROOT
 ═══════════════════════════════════════════════════════ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
 :root {
   --bg-void:     #111111;
   --bg-deep:     #171717;
@@ -430,9 +429,9 @@ body::after {
   inset: 0;
   background: linear-gradient(
     to top,
-    rgba(10,10,10,0.97) 0%,
-    rgba(10,10,10,0.7)  40%,
-    rgba(17,17,17,0.3)  100%
+    rgba(10, 10, 10, 0) 0%,
+    rgba(10, 10, 10, 0.03)  40%,
+    rgba(17, 17, 17, 0)  100%
   );
 }
 
@@ -456,7 +455,7 @@ body::after {
 .brand-eyebrow {
   font-family: var(--font-mono);
   font-size: 10px;
-  color: var(--amber);
+  color: rgba(0, 255, 13, 0.96);
   letter-spacing: 3px;
   text-transform: uppercase;
   margin-bottom: 10px;
@@ -485,7 +484,7 @@ body::after {
 
 .brand-name span {
     font-family: var(--font-mono);
-  color: var(--amber);
+  color: rgb(143, 252, 0);
   font-weight: 100;
   font-size: 15px;
 }
@@ -494,7 +493,7 @@ body::after {
   font-family: var(--font-body);
   font-size: 13px;
   font-weight: 300;
-  color: var(--text-mid);
+  color: #ffff;
   line-height: 1.6;
   max-width: 300px;
   margin-bottom: 28px;
@@ -559,7 +558,7 @@ body::after {
 .form-header-label {
   font-family: var(--font-mono);
   font-size: 10px;
-  color: var(--amber);
+  color: rgb(179, 255, 0);
   letter-spacing: 3px;
   text-transform: uppercase;
   margin-bottom: 6px;

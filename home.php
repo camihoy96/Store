@@ -523,20 +523,156 @@ body {
 .confirm-btn.stay {
   background: linear-gradient(180deg, #ff9900, #cc6600);
 }
+/* Custom Success Modal */
+.success-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 10002;
+}
+.success-modal-overlay.show { display: flex; }
+.modal-overlay#errModal {
+  z-index: 9998;
+}
+.success-modal-overlay {
+  z-index: 10002;
+}
+.success-modal {
+  background: #282828;
+  border: 2px solid #00c853;
+  border-radius: 12px;
+  padding: 30px;
+  width: 400px;
+  max-width: 90vw;
+  box-shadow: 0 20px 60px rgba(0,200,83,0.3);
+  text-align: center;
+  cursor: grab;
+  position: relative;
+  animation: successIn 0.3s ease;
+}
+.success-modal:active { cursor: grabbing; }
 
+@keyframes successIn {
+  from { opacity: 0; transform: scale(0.9) translateY(-20px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.success-modal .sm-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 20px;
+  background: linear-gradient(135deg, #00c853, #009624);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  animation: successPulse 2s ease-in-out infinite;
+}
+
+@keyframes successPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0,200,83,0.4); }
+  50% { box-shadow: 0 0 0 15px rgba(0,200,83,0); }
+}
+
+.success-modal h3 {
+  color: #f0f0f0;
+  font-size: 22px;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.success-modal .sm-subtitle {
+  color: #aaa;
+  font-size: 13px;
+  margin-bottom: 20px;
+}
+
+.success-modal .sm-details {
+  background: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.success-modal .sm-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 13px;
+  border-bottom: 1px solid #2a2a2a;
+}
+.success-modal .sm-row:last-child { border-bottom: none; }
+.success-modal .sm-label { color: #999; }
+.success-modal .sm-value { color: #f0f0f0; font-weight: 600; }
+.success-modal .sm-value.green { color: #4dff88; font-weight: 800; font-size: 16px; }
+
+.success-modal .sm-btn {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #00c853, #009624);
+  color: white;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.success-modal .sm-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
 .confirm-btn.void {
   background: linear-gradient(180deg, #cc0000, #990000);
 }
 /* ══ PRINT RECEIPT ═══════════════════════════════════════════════════ */
 @media print {
-  body * { visibility: hidden; }
-  #receipt, #receipt * { visibility: visible; }
+  body * { visibility: hidden !important; }
+  #receipt, #receipt * { visibility: visible !important; }
   #receipt {
-    position: absolute; left: 0; top: 0; width: 58mm;
-    font-family: monospace; font-size: 12px; padding: 5px; line-height: 1.3;
+    position: fixed !important;
+    left: 150% !important;
+    top: 0 !important;
+    transform: translateX(-50%) !important;
+    width: <?= htmlspecialchars($systemSettings['receipt_width'] ?? '58') ?>mm !important;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    padding: 8px;
+    line-height: 1.4;
+    z-index: 99999 !important;
+    margin: 0 !important;
+    background: white !important;
+    color: #000 !important;
   }
   #receipt .center { text-align: center; }
   #receipt hr { border: none; border-top: 1px dashed #000; margin: 4px 0; }
+  #receipt h2 { font-size: 14px; margin-bottom: 2px; }
+  #receipt div { font-size: 11px; }
+  
+  /* Hide all modals and overlays during print */
+  .modal-overlay,
+  .success-modal-overlay,
+  .logout-modal-overlay,
+  .confirm-overlay {
+    display: none !important;
+  }
+}
+/* Prevent Enter from submitting forms in modals */
+.pay-modal input[type="number"],
+.pay-modal input[type="text"],
+.pay-modal select {
+  -webkit-appearance: none;
+  appearance: none;
+}
+.success-modal .sm-btn:focus {
+  outline: 3px solid rgba(0,200,83,0.5);
+  outline-offset: 2px;
 }
 </style>
 </head>
@@ -732,18 +868,17 @@ body {
       <button class="modal-x" onclick="closePayModal()">✕</button>
     </div>
     <div class="pay-modal-body">
-      <div class="pm-summary" id="pmSummary"></div>
-      <div class="pm-row">
-        <span class="pm-label">Cash <?= $currencySymbol ?></span>
-        <input type="number" class="pm-input" id="pmCash"
-               placeholder="Enter amount" oninput="pmCalcChange()">
-      </div>
-      <div class="pm-change" id="pmChange">Change: <?= $currencySymbol ?>0.00</div>
-      <div class="pm-btns">
-        <button class="pm-btn cancel"  onclick="closePayModal()">Cancel</button>
-        <button class="pm-btn proceed" onclick="processPayment()">✓ Confirm Pay</button>
-      </div>
-    </div>
+  <div class="pm-summary" id="pmSummary"></div>
+<div class="pm-row">
+  <span class="pm-label">Cash <?= $currencySymbol ?></span>
+  <input type="number" class="pm-input" id="pmCash" placeholder="Enter amount" oninput="pmCalcChange()">
+</div>
+  <div class="pm-change" id="pmChange">Change: <?= $currencySymbol ?>0.00</div>
+  <div class="pm-btns">
+    <button class="pm-btn cancel"  onclick="closePayModal()">Cancel</button>
+    <button class="pm-btn proceed" onclick="processPayment()">✓ Confirm Pay</button>
+  </div>
+</div>
   </div>
 </div>
 
@@ -911,6 +1046,47 @@ body {
     </div>
   </div>
 </div>
+<!-- SUCCESS MODAL -->
+<div class="success-modal-overlay" id="successModal">
+  <div class="success-modal" id="successModalBox">
+    <div class="sm-icon">✓</div>
+    <h3 id="smTitle">Payment Successful!</h3>
+    <p class="sm-subtitle" id="smSubtitle">Transaction completed successfully</p>
+    <div class="sm-details">
+      <div class="sm-row">
+        <span class="sm-label">Transaction #</span>
+        <span class="sm-value" id="smTxnId">—</span>
+      </div>
+      <div class="sm-row">
+        <span class="sm-label">Payment Method</span>
+        <span class="sm-value" id="smMethod">—</span>
+      </div>
+      <div class="sm-row">
+        <span class="sm-label">Cashier</span>
+        <span class="sm-value" id="smCashier">—</span>
+      </div>
+      <div class="sm-row" id="smRefRow" style="display:none;">
+        <span class="sm-label">Reference No.</span>
+        <span class="sm-value" id="smRef">—</span>
+      </div>
+      <div class="sm-row">
+        <span class="sm-label">Total</span>
+        <span class="sm-value green" id="smTotal">—</span>
+      </div>
+      <div class="sm-row" id="smPaidRow">
+        <span class="sm-label">Paid</span>
+        <span class="sm-value" id="smPaid">—</span>
+      </div>
+      <div class="sm-row" id="smChangeRow">
+        <span class="sm-label">Change</span>
+        <span class="sm-value" id="smChange">—</span>
+      </div>
+    </div>
+    <button class="sm-btn" onclick="closeSuccessModal()">
+  ✓ Done <span style="font-size:10px;opacity:0.7;margin-left:6px;">(Enter)</span>
+</button>
+  </div>
+</div>
 <!-- ══════════════════════════════════════════════════════════════════
      JAVASCRIPT
 ══════════════════════════════════════════════════════════════════════ -->
@@ -990,7 +1166,16 @@ window.addEventListener('message',function(e){
   }
 });
 
-function showErr(msg) { document.getElementById('errMsg').textContent=msg; document.getElementById('errModal').classList.add('show'); }
+function showErr(msg) {
+  // Close any open success modal
+  if (document.getElementById('successModal').classList.contains('show')) {
+    document.getElementById('successModal').classList.remove('show');
+  }
+  
+  document.getElementById('errMsg').textContent = msg;
+  document.getElementById('errModal').classList.add('show');
+}
+
 function closeErr()   { document.getElementById('errModal').classList.remove('show'); }
 function openHelp()   { document.getElementById('helpModal').classList.add('show'); }
 function closeHelp()  { document.getElementById('helpModal').classList.remove('show'); }
@@ -1139,6 +1324,42 @@ function updateItemQty(idx,newVal) {
   item.qty = isKg ? parseFloat(parsed.toFixed(2)) : parsed;
   renderOrderPanel(); renderGrid();
 }
+// ── Handle Enter key in payment modals ───────────────────────────
+document.addEventListener('keydown', function(e) {
+  // Check if payment modal is open
+  if (e.key === 'Enter' && document.getElementById('payModal').classList.contains('show')) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const activeElement = document.activeElement;
+    
+    // If focus is on the cash input OR confirm button, process payment
+    if (activeElement && (activeElement.id === 'pmCash' || 
+        (activeElement.classList && activeElement.classList.contains('pm-btn') && 
+         activeElement.classList.contains('proceed')))) {
+      processPayment();
+      return;
+    }
+  }
+  
+  // Handle Enter key in wallet payment modal
+  if (e.key === 'Enter' && document.getElementById('walletModal').classList.contains('show')) {
+    const activeElement = document.activeElement;
+    
+    if (activeElement && activeElement.id === 'wmRefNo') {
+      e.preventDefault();
+      activeElement.blur();
+      return;
+    }
+    
+    if (activeElement && activeElement.classList && 
+        activeElement.classList.contains('pm-btn') && 
+        activeElement.classList.contains('proceed')) {
+      e.preventDefault();
+      processWalletPayment();
+    }
+  }
+});
 
 /* ── Cash payment modal ───────────────────────────────────────────── */
 function openPayModal(method) {
@@ -1152,7 +1373,13 @@ function openPayModal(method) {
   document.getElementById('pmChange').textContent = 'Change: '+currencySymbol+'0.00';
   document.getElementById('pmChange').className = 'pm-change';
   document.getElementById('payModal').classList.add('show');
-  setTimeout(()=>document.getElementById('pmCash').focus(),100);
+  
+  // Focus and select the cash input
+  setTimeout(()=>{
+    const cashInput = document.getElementById('pmCash');
+    cashInput.focus();
+    cashInput.select();
+  }, 100);
 }
 function closePayModal() { document.getElementById('payModal').classList.remove('show'); }
 
@@ -1264,11 +1491,72 @@ function _fillReceiptCommon(date, time, cashier, itemsData, total) {
     .map(i => `<div>${i.qty}${i.unit} × ${i.name} = ${currencySymbol}${i.total}</div>`)
     .join('');
 }
-
+let isPrinting = false;
+/* ─── Custom Print Function ─────────────────────────────────────── */
+function printReceipt() {
+  if (isPrinting) return; // Prevent double printing
+  isPrinting = true;
+  
+  const receiptWidth = '<?= htmlspecialchars($systemSettings['receipt_width'] ?? '58') ?>';
+  const receiptElement = document.getElementById('receipt');
+  
+  const printWindow = window.open('', '_blank', `width=${Math.round(receiptWidth * 3.78)},height=600`);
+  
+  if (!printWindow) {
+    isPrinting = false;
+    window.print();
+    return;
+  }
+  
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Receipt</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+          width: ${receiptWidth}mm;
+          font-family: 'Courier New', monospace;
+          font-size: 11px;
+          line-height: 1.4;
+          padding: 8px;
+          color: #000;
+          background: #fff;
+        }
+        .center { text-align: center; }
+        h2 { font-size: 14px; margin-bottom: 2px; }
+        hr { border: none; border-top: 1px dashed #000; margin: 4px 0; }
+        .item-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
+        .total-row { display: flex; justify-content: space-between; font-weight: bold; margin-top: 4px; }
+        .footer { text-align: center; margin-top: 8px; font-size: 10px; }
+      </style>
+    </head>
+    <body>
+      ${receiptElement.innerHTML}
+    </body>
+    </html>
+  `);
+  
+  printWindow.document.close();
+  
+  printWindow.onload = function() {
+    setTimeout(() => {
+      printWindow.print();
+      setTimeout(() => {
+        printWindow.close();
+        isPrinting = false; // Reset flag after printing
+      }, 500);
+    }, 100);
+  };
+}
+let isProcessingPayment = false;
 /* ══════════════════════════════════════════════════════════════════
    CASH PAYMENT
 ══════════════════════════════════════════════════════════════════ */
 async function processPayment() {
+  if (isProcessingPayment) return; // Prevent double execution
+  isProcessingPayment = true;
   const cashier = document.getElementById('activeCashier').textContent.trim();
   if (!cashier || cashier==='Not logged in') return showErr('Please log in before processing payment.');
   if (!checkout.length) return showErr('Cart is empty.');
@@ -1302,38 +1590,49 @@ async function processPayment() {
     const data = await res.json();
     if (!res.ok||data.status!=='success') throw new Error(data.message||'Transaction failed.');
 
+    // Close payment modal first
+    closePayModal();
+
     /* Fill receipt */
     _fillReceiptCommon(date, time, cashier, itemsData, total);
     document.getElementById('r-payment-line').innerHTML = `Cash: ${currencySymbol}${paid.toFixed(2)}`;
     document.getElementById('r-change-line').style.display = '';
     document.getElementById('r-change').textContent = change.toFixed(2);
 
-    const rcpt = document.getElementById('receipt');
-    rcpt.style.display = 'block';
-    await new Promise(r=>setTimeout(r,80));
-    if (autoPrintReceipt) window.print();
-    rcpt.style.display = 'none';
+    // Print receipt using custom function
+    if (autoPrintReceipt) {
+      await new Promise(r=>setTimeout(r,100));
+      printReceipt();
+    }
 
-    closePayModal();
-    if (typeof Swal!=='undefined')
-      await Swal.fire({
-        icon:'success', title:'Payment Successful! 💵',
-        html:`Txn <strong>#${data.transaction_id||'N/A'}</strong><br>
-              Total ${currencySymbol}${total.toFixed(2)} &nbsp;·&nbsp;
-              Cash ${currencySymbol}${paid.toFixed(2)} &nbsp;·&nbsp;
-              Change ${currencySymbol}${change.toFixed(2)}`,
-        confirmButtonColor:'#ff6600'
-      });
-
+    // Clear cart and cache AFTER printing
     Cache.pushTransaction({ id:data.transaction_id||Date.now(), date, time, cashier, items:itemsData, total:total.toFixed(2), paid:paid.toFixed(2), change:change.toFixed(2), method:'Cash' });
     clearCheckout();
-  } catch(err) { showErr(err.message); }
+
+    // NOW show success modal AFTER printing is done
+    await new Promise(r=>setTimeout(r,300)); // Delay for print window
+   openSuccessModal({
+    title: 'Payment Successful! 💵',
+    subtitle: 'Cash payment completed successfully',
+    txnId: data.transaction_id || 'N/A',
+    method: '💵 Cash',
+    cashier: cashier,
+    total: total.toFixed(2),
+    paid: paid.toFixed(2),
+    change: change.toFixed(2)
+  });
+} catch (err) {
+  // Silently handle any modal errors
+  console.log('Success modal error:', err);
+}
 }
 
 /* ══════════════════════════════════════════════════════════════════
    E-WALLET PAYMENT
 ══════════════════════════════════════════════════════════════════ */
 async function processWalletPayment() {
+  if (isProcessingPayment) return;
+  isProcessingPayment = true;
   const cashier = document.getElementById('activeCashier').textContent.trim();
   if (!cashier || cashier==='Not logged in') return showErr('Please log in before processing payment.');
   if (!checkout.length) return showErr('Cart is empty.');
@@ -1374,34 +1673,40 @@ async function processWalletPayment() {
     const data = await res.json();
     if (!res.ok||data.status!=='success') throw new Error(data.message||'Transaction failed.');
 
+    // Close wallet modal first
+    closeWalletModal();
+
     /* Fill receipt */
     _fillReceiptCommon(date, time, cashier, itemsData, total);
     document.getElementById('r-payment-line').innerHTML =
       `${providerName}: ${currencySymbol}${total.toFixed(2)}<br>Ref: ${refNo}`;
     document.getElementById('r-change-line').style.display = 'none';
 
-    const rcpt = document.getElementById('receipt');
-    rcpt.style.display = 'block';
-    await new Promise(r=>setTimeout(r,80));
-    if (autoPrintReceipt) window.print();
-    rcpt.style.display = 'none';
+    // Print receipt using custom function
+    if (autoPrintReceipt) {
+      await new Promise(r=>setTimeout(r,100));
+      printReceipt();
+    }
 
-    closeWalletModal();
-    if (typeof Swal!=='undefined')
-      await Swal.fire({
-        icon:'success', title:`${providerName} Payment Confirmed! 📱`,
-        html:`Txn <strong>#${data.transaction_id||'N/A'}</strong><br>
-              Provider: <strong>${providerName}</strong><br>
-              Ref: <strong>${refNo}</strong><br>
-              Total: <strong>${currencySymbol}${total.toFixed(2)}</strong>`,
-        confirmButtonColor:'#ff6600'
-      });
-
+    // Clear cart and cache AFTER printing
     Cache.pushTransaction({ id:data.transaction_id||Date.now(), date, time, cashier, items:itemsData, total:total.toFixed(2), paid:total.toFixed(2), change:'0.00', method:providerName, ref:refNo });
     clearCheckout();
-  } catch(err) { showErr(err.message); }
-}
 
+    // NOW show success modal AFTER printing is done
+    await new Promise(r=>setTimeout(r,300)); // Delay for print window
+     openSuccessModal({
+    title: `${providerName} Payment Confirmed! 📱`,
+    subtitle: 'E-wallet payment completed successfully',
+    txnId: data.transaction_id || 'N/A',
+    method: `${providerName} 📱`,
+    cashier: cashier,
+    ref: refNo,
+    total: total.toFixed(2)
+  });
+} catch (err) {
+  console.log('Success modal error:', err);
+}
+}
 /* ── Custom product ───────────────────────────────────────────────── */
 function ciPriceFromType() {
   const sel=document.getElementById('ciType'), priceEl=document.getElementById('ciPrice'),
@@ -1809,6 +2114,107 @@ document.addEventListener('DOMContentLoaded',function(){
   renderOrderPanel();
   ciPriceFromType();
 });
+/* ─── Success Modal ─────────────────────────────────────────────── */
+function openSuccessModal(data) {
+   if (document.getElementById('errModal').classList.contains('show')) {
+    document.getElementById('errModal').classList.remove('show');
+  }
+  document.getElementById('smTitle').textContent = data.title || 'Payment Successful!';
+  document.getElementById('smSubtitle').textContent = data.subtitle || 'Transaction completed successfully';
+  document.getElementById('smTxnId').textContent = '#' + (data.txnId || '—');
+  document.getElementById('smMethod').textContent = data.method || '—';
+  document.getElementById('smCashier').textContent = data.cashier || '—';
+  document.getElementById('smTotal').textContent = currencySymbol + (data.total || '0.00');
+  
+  // Show/hide reference row
+  if (data.ref) {
+    document.getElementById('smRefRow').style.display = 'flex';
+    document.getElementById('smRef').textContent = data.ref;
+  } else {
+    document.getElementById('smRefRow').style.display = 'none';
+  }
+  
+  // Show/hide paid/change rows
+  if (data.paid !== undefined) {
+    document.getElementById('smPaidRow').style.display = 'flex';
+    document.getElementById('smPaid').textContent = currencySymbol + data.paid;
+  } else {
+    document.getElementById('smPaidRow').style.display = 'none';
+  }
+  
+  if (data.change !== undefined && data.change > 0) {
+    document.getElementById('smChangeRow').style.display = 'flex';
+    document.getElementById('smChange').textContent = currencySymbol + data.change;
+  } else {
+    document.getElementById('smChangeRow').style.display = 'none';
+  }
+  
+  document.getElementById('successModal').classList.add('show');
+  
+  // Focus the Done button so Enter key works immediately
+  setTimeout(() => {
+    const doneBtn = document.querySelector('.success-modal .sm-btn');
+    if (doneBtn) doneBtn.focus();
+  }, 100);
+}
+
+function closeSuccessModal() {
+  document.getElementById('successModal').classList.remove('show');
+  // Reset position
+  const modalBox = document.getElementById('successModalBox');
+  if (modalBox) {
+    modalBox.style.position = '';
+    modalBox.style.left = '';
+    modalBox.style.top = '';
+    modalBox.style.margin = '';
+  }
+  
+  // Refocus search input for next transaction
+  setTimeout(() => {
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) searchInput.focus();
+  }, 100);
+}
+
+// Enter key to close success modal
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && document.getElementById('successModal').classList.contains('show')) {
+    e.preventDefault();
+    closeSuccessModal();
+  }
+});
+
+// Drag functionality for success modal
+(function() {
+  const modalBox = document.getElementById('successModalBox');
+  if (!modalBox) return;
+  let isDragging = false, startX, startY, initialX, initialY;
+  
+  modalBox.addEventListener('mousedown', function(e) {
+    if (e.target.closest('button')) return;
+    isDragging = true;
+    const rect = modalBox.getBoundingClientRect();
+    startX = e.clientX; startY = e.clientY;
+    initialX = rect.left; initialY = rect.top;
+    modalBox.style.position = 'fixed';
+    modalBox.style.left = initialX + 'px';
+    modalBox.style.top = initialY + 'px';
+    modalBox.style.margin = '0';
+    modalBox.style.cursor = 'grabbing';
+    e.preventDefault();
+  });
+  
+  document.addEventListener('mousemove', function(e) {
+    if (!isDragging) return;
+    modalBox.style.left = (initialX + e.clientX - startX) + 'px';
+    modalBox.style.top = (initialY + e.clientY - startY) + 'px';
+  });
+  
+  document.addEventListener('mouseup', function() {
+    isDragging = false;
+    modalBox.style.cursor = 'grab';
+  });
+})();
 </script>
 </body>
 </html>
