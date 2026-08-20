@@ -111,7 +111,7 @@ body {
   min-height: 32px;
 }
 .logo-block .logo-img {
-  max-height: 28px;
+  max-height: 35px;
   width: auto;
   display: block;
   border-radius: 3px;
@@ -137,7 +137,7 @@ body {
 }
 .top-clock { color: #ffcc66; font-weight: 700; font-size: 12px; margin-left: 15px; }
 .top-spacer { flex: 1; }
-.top-icon-group { display: flex; gap: 3px; }
+.top-icon-group { display: flex; gap: 10px; }
 .top-icon {
   width: 34px; height: 30px;
   background: linear-gradient(180deg, #e7d8d8, #e2dada);
@@ -678,6 +678,29 @@ body {
 .confirm-btn.void {
   background: linear-gradient(180deg, #cc0000, #990000);
 }
+/* QR Card responsive */
+@media (max-width: 640px) {
+  #qrCard > div {
+    flex-direction: column !important;
+  }
+  #qrCard > div > div:first-child {
+    border-right: none !important;
+    border-bottom: 1px solid #eee !important;
+    min-width: auto !important;
+    padding: 12px !important;
+  }
+  #qrCard > div > div:first-child > div {
+    width: 160px !important;
+    height: 160px !important;
+  }
+  #qrCard > div > div:last-child {
+    padding: 12px 14px !important;
+    min-width: auto !important;
+  }
+  #qrLogoText { font-size: 18px !important; }
+  #qrAccountName { font-size: 13px !important; }
+  #qrAccountNumber { font-size: 12px !important; }
+}
 /* ══ PRINT RECEIPT ═══════════════════════════════════════════════════ */
 @media print {
   body * { visibility: hidden !important; }
@@ -709,6 +732,17 @@ body {
   .confirm-overlay {
     display: none !important;
   }
+}
+/* Wallet modal overlay - prevent closing on outside click */
+#walletModal {
+  cursor: default !important;
+}
+#walletModal .pay-modal {
+  cursor: default;
+}
+/* Visual indicator when hovering outside the modal */
+#walletModal:hover .pay-modal {
+  box-shadow: 0 12px 40px rgba(255,136,0,0.15);
 }
 /* Prevent Enter from submitting forms in modals */
 .pay-modal input[type="number"],
@@ -752,20 +786,23 @@ body {
   <div style="font-size:10px; margin-left:45px;"><?= htmlspecialchars($businessAddress) ?></div>
   <div class="top-spacer"></div>
   <div class="top-icon-group">
-    <div class="top-icon" title="Records"    onclick="location.href='manage/transaction.php'">📋</div>
-    <div class="top-icon" title="Profile"    onclick="location.href='profile/prof.php'">👤</div>
-    <div class="top-icon" title="Bread Left" onclick="location.href='manage/remain.php'">🧺</div>
-    <div class="top-icon" title="Login"      onclick="openDashLogin()">🔑</div>
-    <div class="top-icon" title="Logout" onclick="openLogoutModal()">🚪</div>
+    <div class="top-icon" title="Home" onclick="location.href='home.php'">
+  <img src="image/icons/POS.png" alt="Home" style="width: 20px; height: 20px; object-fit:contain;">
+</div>
+    <div class="top-icon" title="Records"    onclick="location.href='manage/transaction.php'"><img src="image/icons/mail-attachment.png" alt="Records" style="width: 20px; height: 20px; object-fit:contain;"></div>
+    <div class="top-icon" title="Profile"    onclick="location.href='profile/prof.php'"><img src="image/icons/man.png" alt="Profile" style="width: 25px; height: 25px; object-fit:contain;"></div>
+    <div class="top-icon" title="Bread Left" onclick="location.href='manage/remain.php'"><img src="image/icons/inventory.png" alt="Bread Left" style="width: 25px; height: 25px; object-fit:contain;"></div>
+    <div class="top-icon" title="Login"      onclick="openDashLogin()"><img src="image/icons/login.png" alt="Login" style="width: 25px; height: 25px; object-fit:contain;"></div>
+    <div class="top-icon" title="Logout" onclick="openLogoutModal()"><img src="image/icons/power.png" alt="Logout" style="width: 20px; height: 20px; object-fit:contain;"></div>
   </div>
 </div>
 
 <!-- SIDEBAR -->
 <div class="sidebar" id="sidebar">
-  <a href="manage/transaction.php">📋 &nbsp;Manage Records</a>
-  <a href="profile/prof.php">👤 &nbsp;Manage Profile</a>
-  <a href="manage/remain.php">🧺 &nbsp;Record Bread Left</a>
- <a href="#" onclick="event.preventDefault(); openLogoutModal();">🚪 &nbsp;Logout</a>
+  <a href="manage/transaction.php"><img src="image/icons/mail-attachment.png" alt="Records" style="width: 20px; height: 20px; object-fit:contain;"> &nbsp;Manage Records</a>
+  <a href="profile/prof.php"><img src="image/icons/man.png" alt="Profile" style="width: 25px; height: 25px; object-fit:contain;"> &nbsp;Manage Profile</a>
+  <a href="manage/remain.php"><img src="image/icons/inventory.png" alt="Bread Left" style="width: 25px; height: 25px; object-fit:contain;"> &nbsp;Record Bread Left</a>
+ <a href="#" onclick="event.preventDefault(); openLogoutModal();"><img src="image/icons/power.png" alt="Logout" style="width: 20px; height: 20px; object-fit:contain;"> &nbsp;Logout</a>
 </div>
 
 <!-- MAIN WRAP -->
@@ -936,13 +973,14 @@ body {
 
 <!-- ══ E-WALLET PAYMENT MODAL ════════════════════════════════════════ -->
 <div class="modal-overlay" id="walletModal">
-  <div class="pay-modal">
+  <div class="pay-modal" style="width: 600px; max-width: 95vw; max-height: 90vh;">
     <div class="pay-modal-title">
       <span id="walletModalTitle">E-WALLET PAYMENT</span>
       <button class="modal-x" onclick="closeWalletModal()">✕</button>
     </div>
-    <div class="pay-modal-body">
+    <div class="pay-modal-body" style="max-height: calc(90vh - 60px); overflow-y: auto; padding: 16px;">
       <div class="pm-summary" id="wmSummary"></div>
+      
       <div class="pm-row">
         <span class="pm-label">Payment Method</span>
         <div style="display:flex;gap:6px;flex:1;">
@@ -967,28 +1005,34 @@ body {
         </div>
       </div>
 
-      <!-- QR Card -->
-      <div id="qrContainer" style="display:none;margin:4px 0 12px;">
-        <div id="qrCard" style="border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.2);max-width:260px;margin:0 auto;">
-          <div id="qrCardHeader" style="padding:14px 16px 12px;text-align:center;background:#0070e0;">
-            <div id="qrLogoText" style="font-size:20px;font-weight:900;color:white;letter-spacing:1px;margin-bottom:6px;"></div>
-            <div id="qrAccountName" style="font-size:15px;font-weight:800;color:white;letter-spacing:1.5px;margin-bottom:2px;"></div>
-            <div id="qrAccountNumber" style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.88);letter-spacing:1px;"></div>
-          </div>
-          <div style="background:white;padding:14px;text-align:center;">
-            <div style="width:200px;height:200px;margin:0 auto;border-radius:10px;border:3px solid #eee;display:flex;align-items:center;justify-content:center;overflow:hidden;background:white;">
-              <img id="qrImage" src="" alt="QR Code" style="width:100%;height:100%;object-fit:contain;display:none;">
-              <div id="qrPlaceholder" style="text-align:center;padding:10px;">
-                <div style="font-size:46px;">📱</div>
-                <div style="font-size:10px;color:#aaa;margin-top:6px;line-height:1.5;">No QR image configured.<br>Upload one in Settings → Payment Methods.</div>
-              </div>
-            </div>
-            <div id="qrAmountLabel" style="margin-top:10px;font-size:20px;font-weight:900;color:#006600;"></div>
-            <div style="margin-top:4px;font-size:11px;color:#888;">Ask customer to scan with their <strong id="qrScanLabel">e-wallet</strong> app</div>
-            <button type="button" onclick="toggleQRCode()" style="margin-top:10px;padding:5px 22px;background:#888;color:white;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;">✕ Hide QR</button>
+     <!-- QR Card - HORIZONTAL LAYOUT with full-size QR -->
+<div id="qrContainer" style="display:none;margin:4px 0 12px;">
+  <div id="qrCard" style="border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.2);width:100%;">
+    <div style="display:flex;flex-direction:row;align-items:stretch;">
+      <!-- Left: QR Code - Full size -->
+      <div style="flex:0 0 auto;background:white;padding:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:1px solid #eee;min-width:220px;">
+        <div style="width:200px;height:200px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:white;border-radius:10px;border:3px solid #eee;">
+          <img id="qrImage" src="" alt="QR Code" style="width:100%;height:100%;object-fit:contain;display:none;">
+          <div id="qrPlaceholder" style="text-align:center;padding:10px;">
+            <div style="font-size:46px;">📱</div>
+            <div style="font-size:10px;color:#aaa;margin-top:6px;line-height:1.5;">No QR configured<br>Upload in Settings</div>
           </div>
         </div>
+        <div id="qrAmountLabel" style="margin-top:10px;font-size:20px;font-weight:900;color:#006600;"></div>
       </div>
+      <!-- Right: Account Details -->
+      <div style="flex:1;padding:16px 20px;background:#f8f8f8;display:flex;flex-direction:column;justify-content:center;min-width:160px;">
+        <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;font-weight:600;margin-bottom:4px;">📱 Scan to Pay</div>
+        <div id="qrLogoText" style="font-size:22px;font-weight:900;color:#222;letter-spacing:0.5px;"></div>
+        <div id="qrAccountName" style="font-size:15px;font-weight:700;color:#444;margin-top:4px;"></div>
+        <div id="qrAccountNumber" style="font-size:14px;font-weight:600;color:#666;margin-top:3px;letter-spacing:0.5px;"></div>
+        <div style="margin-top:8px;font-size:11px;color:#888;">Scan with <strong id="qrScanLabel" style="color:#222;">e-wallet</strong> app</div>
+        <button type="button" onclick="toggleQRCode()" style="margin-top:10px;padding:5px 20px;background:linear-gradient(135deg,#666,#444);color:white;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;align-self:flex-start;transition:background 0.15s;">✕ Hide QR</button>
+      </div>
+    </div>
+    <div id="qrCardHeader" style="display:none;"></div>
+  </div>
+</div>
 
       <div class="pm-row">
         <span class="pm-label">Ref. No.</span>
@@ -1458,7 +1502,7 @@ function pmCalcChange() {
   else             { el.textContent='Short by: '+currencySymbol+(total-paid).toFixed(2); el.className='pm-change short'; }
 }
 
-/* ── E-wallet modal ───────────────────────────────────────────────── */
+// ── E-wallet modal ─────────────────────────────────────────────────
 function openWalletModal() {
   if (!checkout.length) return showErr('Please add items to the order first.');
   const total = checkout.reduce((s,i)=>s+i.price*i.qty,0);
@@ -1476,6 +1520,7 @@ function openWalletModal() {
   document.getElementById('walletModal').classList.add('show');
   setTimeout(()=>document.getElementById('wmProvider').focus(),100);
 }
+
 function closeWalletModal() {
   document.getElementById('walletModal').classList.remove('show');
   document.getElementById('qrContainer').style.display = 'none';
@@ -1483,8 +1528,27 @@ function closeWalletModal() {
   document.getElementById('btnShowQR').style.display = 'none';
   isProcessingPayment = false; // Reset flag when closing
 }
-document.getElementById('walletModal').addEventListener('click',function(e){ if(e.target===this) closeWalletModal(); });
 
+// Prevent closing when clicking outside the modal
+document.getElementById('walletModal').addEventListener('click', function(e) {
+  // If clicking on the overlay background (not the modal content)
+  if (e.target === this) {
+    // Prevent default behavior and stop propagation
+    e.preventDefault();
+    e.stopPropagation();
+    const modal = this.querySelector('.pay-modal');
+    if (modal) {
+      modal.style.transition = 'transform 0.1s ease, box-shadow 0.15s ease';
+      modal.style.transform = 'scale(0.98)';
+      modal.style.boxShadow = '0 0 0 2px #ff8800, 0 12px 40px rgba(0,0,0,0.6)';
+      setTimeout(() => {
+        modal.style.transform = 'scale(1)';
+        modal.style.boxShadow = '0 12px 40px rgba(0,0,0,0.6)';
+      }, 200);
+    }
+    return false;
+  }
+}, true); // Use capture phase to ensure it runs first
 const providerColors = {
   GCash:   '#0070e0',
   Maya:    '#008f4c',
@@ -1523,20 +1587,30 @@ function buildQRCard() {
   const displayName   = opt.dataset.name          || provider;
   const total         = document.getElementById('wmAmount').value;
   const color         = providerColors[provider]   || '#555555';
-  document.getElementById('qrCardHeader').style.background = color;
+  
+  // Set the text elements (the header is hidden, we use the right panel instead)
   document.getElementById('qrLogoText').textContent        = displayName;
   document.getElementById('qrAccountName').textContent     = accountName;
   document.getElementById('qrAccountNumber').textContent   = accountNumber;
   document.getElementById('qrScanLabel').textContent       = displayName;
   document.getElementById('qrAmountLabel').textContent     = total ? currencySymbol+parseFloat(total).toFixed(2) : '';
+  
+  // Set QR image
   const imgEl = document.getElementById('qrImage');
   const phEl  = document.getElementById('qrPlaceholder');
   if (qrPath) {
-    imgEl.src = qrPath; imgEl.style.display='block'; phEl.style.display='none';
-    imgEl.onerror = function(){ this.style.display='none'; phEl.style.display='block'; };
-  } else { imgEl.style.display='none'; phEl.style.display='block'; }
+    imgEl.src = qrPath; 
+    imgEl.style.display='block'; 
+    phEl.style.display='none';
+    imgEl.onerror = function(){ 
+      this.style.display='none'; 
+      phEl.style.display='block'; 
+    };
+  } else { 
+    imgEl.style.display='none'; 
+    phEl.style.display='block'; 
+  }
 }
-
 function toggleQRCode() {
   const qrBox = document.getElementById('qrContainer');
   const qrBtn = document.getElementById('btnShowQR');

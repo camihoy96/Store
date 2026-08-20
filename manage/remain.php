@@ -173,14 +173,13 @@ body {
 }
 .menu-btn:hover { background: linear-gradient(180deg, #ff8800, #cc5500); border-color: #ff8800; }
 
-.top-icon-group { display: flex; gap: 3px; }
+.top-icon-group { display: flex; gap: 10px; }
 .top-icon {
-  width: 32px; height: 28px;
-  background: linear-gradient(180deg, #555, #3a3a3a);
+  width: 34px; height: 30px;
+  background: linear-gradient(180deg, #e7d8d8, #e2dada);
   border: 1px solid #666; border-radius: 4px;
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer; font-size: 13px; color: #ccc;
-  text-decoration: none; transition: background 0.15s;
+  cursor: pointer; font-size: 14px; color: #ccc; transition: background 0.15s;
 }
 .top-icon:hover { background: linear-gradient(180deg, #ff8800, #cc5500); color: white; border-color: #ff8800; }
 
@@ -389,10 +388,10 @@ tbody td { padding: 8px 12px; font-size: 12px; color: #d0d0d0; vertical-align: m
   <div style="font-size:12px; margin-left:15px;"><?= htmlspecialchars($businessAddress) ?></div>
   <div class="top-spacer"></div>
   <div class="top-icon-group">
-    <a class="top-icon" href="../home.php"              title="POS Home">🏠</a>
-    <a class="top-icon" href="../profile/prof.php"      title="Profile">👤</a>
-    <a class="top-icon" href="transaction.php"          title="Records">📋</a>
-    <a class="top-icon" href="../logout.php"            title="Logout">🚪</a>
+    <a class="top-icon" href="../home.php"title="POS Home"><img src="../image/icons/POS.png" alt="Home" style="width: 20px; height:20px; object-fit:contain;"></a>
+    <a class="top-icon" href="../profile/prof.php"title="Profile"><img src="../image/icons/man.png" alt="Profile" style="width:20px; height:20px; object-fit:contain;"></a>
+    <a class="top-icon" href="transaction.php"itle="Records"><img src="../image/icons/inventory.png" alt="Records" style="width:25px; height:25px; object-fit:contain;"></a>
+    <a class="top-icon" href="../logout.php"title="Logout"><img src="../image/icons/power.png" alt="Logout" style="width:20px; height:20px; object-fit:contain;"></a>
   </div>
 </div>
 

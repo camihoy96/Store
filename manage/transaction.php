@@ -305,8 +305,13 @@ if (isset($_SESSION['error_msg'])) {
 
 <style>
 /* ══ MAIN ══════════════════════════════════════════════════════════════ */
-.main-content { margin-top: 44px; padding: 14px 16px; flex: 1; }
-
+.main-content { 
+  margin-top: 44px; 
+  padding: 14px 16px; 
+  flex: 1; 
+  overflow-y: auto; 
+  max-height: calc(100vh - 44px - 26px);
+}
 /* ══ PAGE HEADER ══════════════════════════════════════════════════════ */
 .page-header {
   display: flex; align-items: center; gap: 10px;
@@ -376,29 +381,28 @@ if (isset($_SESSION['error_msg'])) {
   border: 1px solid #333;
   position: relative;
   overflow: hidden;
-  max-height: 600px;
-  display: flex;
-  flex-direction: column;
+  height: 100%;
+  max-height: 550px;
 }
 
-/* Scrollable container for horizontal scroll */
 .tbl-scroll {
   overflow: auto;
-  flex: 1;
+  height: 100%;
+  max-height: 550px;
   width: 100%;
 }
 
 .tbl-scroll::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 .tbl-scroll::-webkit-scrollbar-track {
   background: #1a1a1a;
-  border-radius: 3px;
+  border-radius: 4px;
 }
 .tbl-scroll::-webkit-scrollbar-thumb {
   background: #555;
-  border-radius: 3px;
+  border-radius: 4px;
 }
 .tbl-scroll::-webkit-scrollbar-thumb:hover {
   background: #ff8800;
@@ -406,16 +410,17 @@ if (isset($_SESSION['error_msg'])) {
 
 table {
   width: 100%;
-  border-collapse: collapse;
-  min-width: 1020px;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 1200px;
   table-layout: auto;
 }
 
-/* Sticky header */
+/* Sticky header - THIS KEEPS HEADERS FIXED AT TOP */
 thead {
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 20;
 }
 thead tr {
   background: linear-gradient(180deg, #ff9900, #cc6600);
@@ -431,18 +436,43 @@ thead th {
   white-space: nowrap;
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 20;
   background: linear-gradient(180deg, #ff9900, #cc6600);
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 thead th:last-child { border-right: none; }
+
+/* Sticky first column (Trans #) - keeps it visible when scrolling horizontally */
+thead th:first-child,
+tbody td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  background: #242424;
+}
+thead th:first-child {
+  z-index: 25;
+  background: linear-gradient(180deg, #ff9900, #cc6600);
+}
+tbody td:first-child {
+  z-index: 10;
+  background: #242424;
+}
 
 tbody tr {
   border-bottom: 1px solid #2e2e2e;
   transition: background 0.1s;
 }
 tbody tr:hover { background: #2d2d2d; }
+tbody tr:hover td:first-child {
+  background: #2d2d2d;
+}
 tbody tr.voided-row { opacity: 0.55; }
+tbody tr.voided-row td:first-child {
+  background: #242424;
+  opacity: 0.55;
+}
+
 tbody td {
   padding: 8px 12px;
   font-size: 12px;
@@ -451,20 +481,28 @@ tbody td {
   background: #242424;
 }
 
-/* Make sure the totals row is not sticky */
-tbody tr.totals-row td {
-  background: #2a2a2a;
+/* Totals row - not sticky */
+.totals-row td {
+  background: #2a2a2a !important;
   border-top: 2px solid #ff8800;
   font-weight: 700;
   color: #ffcc66;
   padding: 10px 12px;
 }
+.totals-row td:first-child {
+  background: #2a2a2a !important;
+  z-index: 5;
+}
 
 /* Breakdown row */
 .breakdown-row td {
-  background: #222;
+  background: #222 !important;
   padding: 12px;
 }
+.breakdown-row td:first-child {
+  background: #222 !important;
+}
+
 tbody td .id-badge {
   background: #333; color: #ffcc66;
   border-radius: 3px; padding: 1px 6px; font-size: 11px; font-weight: 700;
@@ -502,15 +540,20 @@ tbody td .money-change { color: #88ccff; font-weight: 600; }
 .audit-detail { color: #888; font-size: 10px; line-height: 1.5; margin-top: 2px; }
 
 /* Items mini table */
-.items-mini { max-height: 140px; overflow-y: auto; }
+.items-mini { max-height: 140px; overflow-y: auto; display: block; width: max-content; max-width: 100%; }
 .items-mini::-webkit-scrollbar { width: 3px; }
 .items-mini::-webkit-scrollbar-thumb { background: #555; }
-.items-tbl { width: 100%; border-collapse: collapse; font-size: 11px; }
-.items-tbl th { background: #1a1a1a; color: #aaa; padding: 3px 5px; font-weight: 600; border-bottom: 1px solid #333; }
-.items-tbl td { padding: 3px 5px; border-bottom: 1px solid #2a2a2a; color: #ccc; }
-.badge-voided { background: #7a0000; color: #ffaaaa; border-radius: 3px; padding: 1px 5px; font-size: 10px; }
-.badge-edited { background: #7a5500; color: #ffe680; border-radius: 3px; padding: 1px 5px; font-size: 10px; }
-
+.items-tbl { width: max-content !important; min-width: 0 !important; border-collapse: collapse !important; border-spacing: 0 !important; table-layout: auto !important; font-size: 11px; }
+.items-tbl th, .items-tbl td { padding: 2px 3px !important; white-space: nowrap; width: auto !important; }
+.items-tbl th { background: #1a1a1a; color: #aaa; font-weight: 600; border-bottom: 1px solid #333; }
+.items-tbl td { color: #ccc; border-bottom: 1px solid #2a2a2a; }
+.items-tbl th:nth-child(1), .items-tbl td:nth-child(1) { text-align: left; padding-right: 5px !important; }
+.items-tbl th:nth-child(2), .items-tbl td:nth-child(2) { text-align: center; padding-left: 3px !important; padding-right: 3px !important; }
+.items-tbl th:nth-child(3), .items-tbl td:nth-child(3) { text-align: right; padding-left: 3px !important; padding-right: 3px !important; }
+.items-tbl th:nth-child(4), .items-tbl td:nth-child(4) { text-align: right; padding-left: 3px !important; padding-right: 3px !important; }
+.items-tbl th:nth-child(5), .items-tbl td:nth-child(5) { padding-left: 3px !important; padding-right: 0 !important; }
+.badge-voided { background: #7a0000; color: #ffaaaa; border-radius: 3px; padding: 1px 4px; font-size: 10px; }
+.badge-edited { background: #7a5500; color: #ffe680; border-radius: 3px; padding: 1px 4px; font-size: 10px; }
 /* Product breakdown */
 .breakdown-row td { background: #222; padding: 12px; }
 .breakdown-title { font-size: 11px; font-weight: 700; color: #ff8800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
@@ -523,9 +566,6 @@ tbody td .money-change { color: #88ccff; font-weight: 600; }
 .bc-label { color: #888; }
 .bc-val   { color: #ffcc66; font-weight: 600; }
 .bc-rev   { color: #66dd88; font-weight: 700; }
-
-/* Totals row */
-.totals-row td { background: #2a2a2a; border-top: 2px solid #ff8800; font-weight: 700; color: #ffcc66; padding: 10px 12px; }
 
 /* ══ MODAL ══════════════════════════════════════════════════════════ */
 .modal-overlay {
@@ -602,9 +642,42 @@ tbody td .money-change { color: #88ccff; font-weight: 600; }
 .ref-popup .rp-ref   { font-size: 15px; font-weight: 700; color: #ffcc66; background: #1e1e1e; border-radius: 5px; padding: 6px 14px; letter-spacing: 1px; display: inline-block; }
 .ref-popup .rp-close { margin-top: 14px; background: #444; border: none; color: #ccc; border-radius: 4px; padding: 6px 18px; cursor: pointer; font-size: 12px; }
 .ref-popup .rp-close:hover { background: #ff8800; color: white; }
+/* ══ FOOTER FIX ══════════════════════════════════════════════════════ */
+/* Ensure the status bar from footer.php displays properly */
+.status-bar {
+  background: #111;
+  border-top: 1px solid #222;
+  padding: 3px 12px;
+  font-size: 10px;
+  color: #fdf7f7;
+  display: flex;
+  gap: 14px;
+  height: 26px;
+  align-items: center;
+  flex-shrink: 0;
+  width: 100%;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+}
+.status-bar span {
+  border-right: 1px solid #2a2a2a;
+  padding-right: 14px;
+}
+.status-bar span:last-child {
+  border-right: none;
+  margin-left: auto;
+}
+.stat-offline { color: #ff4444 !important; font-weight: 700; }
+.stat-online  { color: #44ff88 !important; font-weight: 700; }
 
-/* footer */
-.footer { text-align: center; padding: 8px; background: #111; color: #ffffff; font-size: 11px; flex-shrink: 0; }
+/* Add bottom padding to main content to prevent content from being hidden behind status bar */
+.main-content {
+  padding-bottom: 40px;
+  max-height: calc(100vh - 44px - 26px - 10px);
+}
 </style>
 
 <!-- MAIN -->

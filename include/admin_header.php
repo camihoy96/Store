@@ -209,7 +209,7 @@ body {
 
 .tb-icon {
   width: 34px; height: 34px;
-  background: var(--bg3); border: 1px solid var(--border);
+  background: #ffffff; border: 1px solid var(--border);
   border-radius: 6px; display: flex; align-items: center; justify-content: center;
   cursor: pointer; font-size: 14px; text-decoration: none; color: var(--text2);
   transition: all 0.15s; position: relative;
@@ -224,10 +224,10 @@ body {
 
 /* Active top bar icon */
 .tb-icon.active {
-  background: var(--orange);
+  background: #78f701;
   border-color: var(--orange);
   color: white;
-  box-shadow: 0 0 15px rgba(255,136,0,0.3);
+  box-shadow: 0 0 15px rgb(255, 255, 255);
 }
 
 /* ═══════════════════════════════════ SIDEBAR */
@@ -325,6 +325,152 @@ body {
   color: var(--text3);
   border-left-color: transparent;
 }
+/* Top icon image styling */
+.tb-icon img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  transition: filter 0.15s;
+}
+.tb-icon:hover img {
+}
+.tb-icon.active img {
+}
+/* ═══════════════════════════════════ LOGOUT MODAL ═══════════════════════════════════ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 10001;
+}
+
+.modal-overlay.show {
+  display: flex;
+}
+
+.logout-modal {
+  background: #282828;
+  border: 2px solid #ff8800;
+  border-radius: 12px;
+  padding: 30px;
+  width: 400px;
+  max-width: 90vw;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+  text-align: center;
+  animation: logoutIn 0.3s ease;
+  cursor: grab;
+  position: relative;
+}
+
+.logout-modal:active {
+  cursor: grabbing;
+}
+
+@keyframes logoutIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.logout-modal .lm-icon {
+  width: 70px;
+  height: 70px;
+  margin: 0 auto 20px;
+  background: linear-gradient(135deg, #ff4444, #cc0000);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 35px;
+  pointer-events: none;
+}
+
+.logout-modal h3 {
+  color: #f0f0f0;
+  font-size: 20px;
+  font-weight: 800;
+  margin-bottom: 10px;
+  pointer-events: none;
+}
+
+.logout-modal p {
+  color: #aaa;
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 25px;
+  pointer-events: none;
+}
+
+.logout-modal p strong {
+  color: #ffcc66;
+}
+
+.logout-modal .lm-btns {
+  display: flex;
+  gap: 10px;
+}
+
+.logout-modal .lm-btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.logout-modal .lm-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.logout-modal .lm-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.logout-modal .lm-btn.cancel {
+  background: #444;
+  color: #ddd;
+}
+
+.logout-modal .lm-btn.confirm {
+  background: linear-gradient(135deg, #ff4444, #cc0000);
+  color: white;
+}
+/* Sidebar icon styling */
+.sb-group-btn .sb-ico img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  filter: brightness(0.8) invert(0.8);
+  transition: filter 0.15s;
+}
+.sb-group-btn:hover .sb-ico img,
+.sb-group-btn.open .sb-ico img {
+  filter: brightness(1) invert(1);
+}
+
+.sb-sub a img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  filter: brightness(0.6) invert(0.6);
+  transition: filter 0.15s;
+}
+.sb-sub a:hover img,
+.sb-sub a.active img {
+  filter: brightness(1) invert(1);
+}
 </style>
 </head>
 <body>
@@ -356,29 +502,100 @@ body {
     <span><?= $lowStockCount+$expiringCount ?> Alerts</span>
   </div>
   <?php endif; ?>
-
   <!-- Top Bar Icons with active highlighting -->
   <a class="tb-icon <?= $activePage === 'dashboard' ? 'active disabled' : '' ?>" 
-     href="/Store/dashboard.php" title="Dashboard">📊</a>
+     href="/Store/dashboard.php" title="Dashboard"><img src="image/icons/dashboard.png" alt="Profile" style="width: 25px; height: 25px; object-fit:contain;"></a>
   <a class="tb-icon <?= $activePage === 'records' ? 'active disabled' : '' ?>" 
-     href="/Store/record/record.php" title="Sales Inventory">📝</a>
+     href="/Store/record/record.php" title="Sales Inventory"><img src="image/icons/mail-attachment.png" alt="Records" style="width: 20px; height: 20px; object-fit:contain;"></a>
   <a class="tb-icon <?= $activePage === 'users' ? 'active disabled' : '' ?>" 
-     href="/Store/admin/user.php" title="User Management">👨‍👩‍👧‍👦</a>
+     href="/Store/admin/user.php" title="User Management"><img src="image/icons/management.png" alt="Users" style="width: 25px; height: 25px; object-fit:contain;"></a>
   <a class="tb-icon <?= $activePage === 'settings' ? 'active disabled' : '' ?>" 
-     href="/Store/admin/settings.php" title="Settings">⚙️</a>
+     href="/Store/admin/settings.php" title="Settings"><img src="image/icons/gear.png" alt="Settings" style="width: 25px; height: 25px; object-fit:contain;"></a>
   <a class="tb-icon <?= $activePage === 'products' ? 'active disabled' : '' ?>" 
-     href="/Store/product/product.php" title="Manage Products">📋</a>
+     href="/Store/product/product.php" title="Manage Products"><img src="image/icons/product-management.png" alt="Products" style="width: 26px; height: 26px; object-fit:contain;"></a>
   <a class="tb-icon <?= $activePage === 'reserve' ? 'active disabled' : '' ?>" 
-     href="/Store/product/item_reserve.php" title="Reserve Items">📦</a>
+     href="/Store/product/item_reserve.php" title="Reserve Items"><img src="image/icons/reserve.png" alt="Reserve Items" style="width: 25px; height: 25px; object-fit:contain;"></a>
   <a class="tb-icon <?= $activePage === 'profile' ? 'active disabled' : '' ?>" 
-     href="/Store/admin/prof.php" title="Profile">🙍🏻‍♂️
+     href="/Store/admin/prof.php" title="Profile"><img src="image/icons/man.png" alt="Profile" style="width: 25px; height: 25px; object-fit:contain;">
     <?php if(isset($lowStockCount) && isset($expiringCount) && ($lowStockCount>0||$expiringCount>0)): ?><span class="notif-dot"></span><?php endif; ?>
   </a>
   <a class="tb-icon <?= $activePage === 'breads' ? 'active disabled' : '' ?>" 
-     href="/Store/product/bread.php" title="Manage Breads">💼</a>
+     href="/Store/product/bread.php" title="Manage Breads"><img src="image/icons/bakery.png" alt="Breads" style="width: 20px; height: 20px; object-fit:contain;"></a>
   <a class="tb-icon <?= $activePage === 'bleft' ? 'active disabled' : '' ?>" 
-     href="/Store/admin/bleft.php" title="Bread Left">📋</a>
-  <a class="tb-icon" href="/Store/record/logout.php" title="Logout">🚪</a>
+     href="/Store/admin/bleft.php" title="Bread Left"><img src="image/icons/inventory.png" alt="Bread Left" style="width: 20px; height: 20px; object-fit:contain;"></a>
+  <a class="tb-icon" href="#" onclick="event.preventDefault(); openLogoutModal();" title="Logout"><img src="image/icons/power.png" alt="Logout" style="width: 20px; height: 20px; object-fit:contain;"></a>
+</div>
+
+
+<!-- ═══════════════════════════════════ TOP BAR -->
+<div class="top-bar">
+  <button class="menu-btn" id="menuBtn" onclick="toggleSidebar()">☰</button>
+  
+  <div class="logo-pill">
+    <?php if (!empty($logoPath) && file_exists(__DIR__ . '/../' . $logoPath)): ?>
+      <img src="/Store/<?= htmlspecialchars($logoPath) ?>" alt="Logo" class="logo-img">
+    <?php endif; ?>
+    <div class="logo-text">
+      <span class="lp-name"><?= htmlspecialchars($businessName) ?></span>
+      <span class="lp-sub"><?= htmlspecialchars($businessSubtitle) ?></span>
+    </div>
+  </div>
+  
+  <div class="tb-divider"></div>
+  <span class="tb-title" id="topBarTitle"><?= htmlspecialchars($pageTitle) ?></span>
+  <div class="tb-divider"></div>
+  <span class="tb-clock" id="currentTime"></span>
+  <div style="font-size:10px; margin-left:45px;"><?= htmlspecialchars($businessAddress) ?></div>
+  <div class="tb-spacer"></div>
+
+  <?php if(isset($lowStockCount) && isset($expiringCount) && ($lowStockCount>0||$expiringCount>0)): ?>
+  <div class="tb-badge warn" onclick="openAlertModal()" style="cursor:pointer;" title="View alerts">
+    <div class="dot"></div>
+    <span><?= $lowStockCount+$expiringCount ?> Alerts</span>
+  </div>
+  <?php endif; ?>
+
+  <!-- Top Bar Icons with active highlighting - Using absolute paths from /Store/ -->
+  <a class="tb-icon <?= $activePage === 'dashboard' ? 'active disabled' : '' ?>" 
+     href="/Store/dashboard.php" title="Dashboard">
+    <img src="/Store/image/icons/admin-panel.png" alt="Dashboard">
+  </a>
+  <a class="tb-icon <?= $activePage === 'records' ? 'active disabled' : '' ?>" 
+     href="/Store/record/record.php" title="Sales Inventory">
+    <img src="/Store/image/icons/mail-attachment.png" alt="Records">
+  </a>
+  <a class="tb-icon <?= $activePage === 'users' ? 'active disabled' : '' ?>" 
+     href="/Store/admin/user.php" title="User Management">
+    <img src="/Store/image/icons/management.png" alt="Users">
+  </a>
+  <a class="tb-icon <?= $activePage === 'settings' ? 'active disabled' : '' ?>" 
+     href="/Store/admin/settings.php" title="Settings">
+    <img src="/Store/image/icons/gear.png" alt="Settings">
+  </a>
+  <a class="tb-icon <?= $activePage === 'products' ? 'active disabled' : '' ?>" 
+     href="/Store/product/product.php" title="Manage Products">
+    <img src="/Store/image/icons/product-management.png" alt="Products">
+  </a>
+  <a class="tb-icon <?= $activePage === 'reserve' ? 'active disabled' : '' ?>" 
+     href="/Store/product/item_reserve.php" title="Reserve Items">
+    <img src="/Store/image/icons/reserve.png" alt="Reserve Items">
+  </a>
+  <a class="tb-icon <?= $activePage === 'profile' ? 'active disabled' : '' ?>" 
+     href="/Store/admin/prof.php" title="Profile">
+    <img src="/Store/image/icons/man.png" alt="Profile">
+    <?php if(isset($lowStockCount) && isset($expiringCount) && ($lowStockCount>0||$expiringCount>0)): ?><span class="notif-dot"></span><?php endif; ?>
+  </a>
+  <a class="tb-icon <?= $activePage === 'breads' ? 'active disabled' : '' ?>" 
+     href="/Store/product/bread.php" title="Manage Breads">
+    <img src="/Store/image/icons/bakery.png" alt="Breads">
+  </a>
+  <a class="tb-icon <?= $activePage === 'bleft' ? 'active disabled' : '' ?>" 
+     href="/Store/admin/bleft.php" title="Bread Left">
+    <img src="/Store/image/icons/inventory.png" alt="Bread Left">
+  </a>
+  <a class="tb-icon" href="#" onclick="event.preventDefault(); openLogoutModal();" title="Logout">
+  <img src="/Store/image/icons/power.png" alt="Logout">
+</a>
 </div>
 
 <!-- ═══════════════════════════════════ SIDEBAR -->
@@ -386,53 +603,109 @@ body {
   <div class="sb-section-label">Management</div>
 
   <button class="sb-group-btn" onclick="toggleSub(this)">
-    <span class="sb-ico">📦</span><span>Product Category</span><span class="arrow">›</span>
+    <span class="sb-ico">
+      <img src="/Store/image/icons/product-management.png" alt="Products">
+    </span>
+    <span>Product Category</span>
+    <span class="arrow">›</span>
   </button>
   <div class="sb-sub <?= ($activePage === 'products' || $activePage === 'reserve') ? 'open' : '' ?>">
-    <a href="/Store/product/product.php" class="<?= $activePage === 'products' ? 'active disabled' : '' ?>">📋 Manage Items</a>
-    <a href="/Store/product/item_reserve.php" class="<?= $activePage === 'reserve' ? 'active disabled' : '' ?>">🗃 Reserve Items</a>
+    <a href="/Store/product/product.php" class="<?= $activePage === 'products' ? 'active disabled' : '' ?>">
+      <img src="/Store/image/icons/mail-attachment.png" alt="Products"> Manage Items
+    </a>
+    <a href="/Store/product/item_reserve.php" class="<?= $activePage === 'reserve' ? 'active disabled' : '' ?>">
+      <img src="/Store/image/icons/reserve.png" alt="Reserve Items"> Reserve Items
+    </a>
   </div>
 
   <button class="sb-group-btn" onclick="toggleSub(this)">
-    <span class="sb-ico">📊</span><span>Sales Inventory</span><span class="arrow">›</span>
+    <span class="sb-ico">
+      <img src="/Store/image/icons/mail-attachment.png" alt="Records">
+    </span>
+    <span>Sales Inventory</span>
+    <span class="arrow">›</span>
   </button>
   <div class="sb-sub <?= $activePage === 'records' ? 'open' : '' ?>">
-    <a href="/Store/record/record.php" class="<?= $activePage === 'records' ? 'active disabled' : '' ?>">🧾 Manage Sales</a>
+    <a href="/Store/record/record.php" class="<?= $activePage === 'records' ? 'active disabled' : '' ?>">
+      <img src="/Store/image/icons/mail-attachment.png" alt="Records"> Manage Sales
+    </a>
   </div>
 
   <div class="sb-divider"></div>
   <div class="sb-section-label">Administration</div>
 
   <button class="sb-group-btn" onclick="toggleSub(this)">
-    <span class="sb-ico">👥</span><span>User Management</span><span class="arrow">›</span>
+    <span class="sb-ico">
+      <img src="/Store/image/icons/management.png" alt="Users">
+    </span>
+    <span>User Management</span>
+    <span class="arrow">›</span>
   </button>
   <div class="sb-sub <?= $activePage === 'users' ? 'open' : '' ?>">
-    <a href="/Store/admin/user.php" class="<?= $activePage === 'users' ? 'active disabled' : '' ?>">⚙ Manage Users</a>
+    <a href="/Store/admin/user.php" class="<?= $activePage === 'users' ? 'active disabled' : '' ?>">
+      <img src="/Store/image/icons/management.png" alt="Users"> Manage Users
+    </a>
   </div>
 
   <button class="sb-group-btn" onclick="toggleSub(this)">
-    <span class="sb-ico">🍞</span><span>Bread Management</span><span class="arrow">›</span>
+    <span class="sb-ico">
+      <img src="/Store/image/icons/bakery.png" alt="Breads">
+    </span>
+    <span>Bread Management</span>
+    <span class="arrow">›</span>
   </button>
   <div class="sb-sub <?= ($activePage === 'breads' || $activePage === 'bleft') ? 'open' : '' ?>">
-    <a href="/Store/product/bread.php" class="<?= $activePage === 'breads' ? 'active disabled' : '' ?>">✍ Manage Breads</a>
-    <a href="/Store/admin/bleft.php" class="<?= $activePage === 'bleft' ? 'active disabled' : '' ?>">📋 Bread Left</a>
+    <a href="/Store/product/bread.php" class="<?= $activePage === 'breads' ? 'active disabled' : '' ?>">
+      <img src="/Store/image/icons/bakery.png" alt="Breads"> Manage Breads
+    </a>
+    <a href="/Store/admin/bleft.php" class="<?= $activePage === 'bleft' ? 'active disabled' : '' ?>">
+      <img src="/Store/image/icons/inventory.png" alt="Bread Left"> Bread Left
+    </a>
   </div>
 
   <div class="sb-divider"></div>
+  
   <button class="sb-group-btn" onclick="toggleSub(this)">
-    <span class="sb-ico">⚙️</span><span>Settings</span><span class="arrow">›</span>
+    <span class="sb-ico">
+      <img src="/Store/image/icons/gear.png" alt="Settings">
+    </span>
+    <span>Settings</span>
+    <span class="arrow">›</span>
   </button>
   <div class="sb-sub <?= $activePage === 'settings' ? 'open' : '' ?>">
-    <a href="/Store/admin/settings.php" class="<?= $activePage === 'settings' ? 'active disabled' : '' ?>">⚙️ System Settings</a>
+    <a href="/Store/admin/settings.php" class="<?= $activePage === 'settings' ? 'active disabled' : '' ?>">
+      <img src="/Store/image/icons/gear.png" alt="Settings"> System Settings
+    </a>
   </div>
 
   <div class="sb-divider"></div>
+  
   <div class="sb-section-label">Account</div>
   <div class="sb-sub">
-    <a href="/Store/admin/prof.php" class="<?= $activePage === 'profile' ? 'active disabled' : '' ?>">👤 My Profile</a>
+    <a href="/Store/admin/prof.php" class="<?= $activePage === 'profile' ? 'active disabled' : '' ?>">
+      <img src="/Store/image/icons/man.png" alt="Profile"> My Profile
+    </a>
   </div>
 </div>
-
+<!-- ═══════════════════════════════════ LOGOUT CONFIRMATION MODAL -->
+<div class="modal-overlay" id="logoutModal">
+  <div class="logout-modal" id="logoutModalBox">
+    <div class="lm-icon">🚪</div>
+    <h3>Confirm Logout</h3>
+    <p>Are you sure you want to logout from <strong><?= htmlspecialchars($businessName) ?></strong>?<br>
+    You will need to login again to access the POS system.</p>
+    <div class="lm-btns">
+      <button class="lm-btn cancel" onclick="closeLogoutModal()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        Cancel
+      </button>
+      <button class="lm-btn confirm" onclick="confirmLogout()">
+        <svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+        Logout
+      </button>
+    </div>
+  </div>
+</div>
 <script>
 /* Clock */
 function updateClock(){
@@ -454,4 +727,38 @@ function toggleSub(btn){
   const open=sub.classList.toggle('open');
   btn.classList.toggle('open',open);
 }
+/* ─── Logout Modal ─────────────────────────────────────────────── */
+function openLogoutModal() {
+  document.getElementById('logoutModal').classList.add('show');
+}
+
+function closeLogoutModal() {
+  document.getElementById('logoutModal').classList.remove('show');
+  // Reset position
+  const modalBox = document.getElementById('logoutModalBox');
+  if (modalBox) {
+    modalBox.style.position = '';
+    modalBox.style.left = '';
+    modalBox.style.top = '';
+    modalBox.style.margin = '';
+  }
+}
+
+function confirmLogout() {
+  window.location.href = '/Store/record/logout.php';
+}
+
+// Close logout modal when clicking outside
+document.getElementById('logoutModal').addEventListener('click', function(e) {
+  if (e.target === this) {
+    closeLogoutModal();
+  }
+});
+
+// Close logout modal with Escape key
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('logoutModal').classList.contains('show')) {
+    closeLogoutModal();
+  }
+});
 </script>

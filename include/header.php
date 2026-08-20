@@ -79,7 +79,7 @@ body {
   min-height: 32px;
 }
 .logo-block .logo-img {
-  max-height: 28px;
+  max-height: 35px;
   width: auto;
   display: block;
   border-radius: 3px;
@@ -105,14 +105,13 @@ body {
 }
 .top-clock { color: #ffcc66; font-weight: 700; font-size: 12px; margin-left: 15px; }
 .top-spacer { flex: 1; }
-.top-icon-group { display: flex; gap: 3px; }
+.top-icon-group { display: flex; gap: 10px; }
 .top-icon {
   width: 34px; height: 30px;
-  background: linear-gradient(180deg, #e27272, #724a4a);
+  background: linear-gradient(180deg, #e7d8d8, #e2dada);
   border: 1px solid #666; border-radius: 4px;
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer; color: #ccc; transition: all 0.15s;
-  padding: 0;
+  cursor: pointer; font-size: 14px; color: #ccc; transition: background 0.15s;
 }
 .top-icon svg { width: 16px; height: 16px; fill: currentColor; }
 .top-icon:hover { background: linear-gradient(180deg, #ff8800, #cc5500); color: white; border-color: #ff8800; }
@@ -474,20 +473,20 @@ body {
   <div style="font-size:10px; margin-left:45px;"><?= htmlspecialchars($businessAddress) ?></div>
   <div class="top-spacer"></div>
   <div class="top-icon-group">
-    <div class="top-icon" title="Home" onclick="location.href='../home.php'">
-      <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-    </div>
+   <div class="top-icon" title="Home" onclick="location.href='../home.php'">
+  <img src="../image/icons/POS.png" alt="Home" style="width: 20px; height: 20px; object-fit:contain;">
+</div>
     <div class="top-icon" title="Records" onclick="location.href='../manage/transaction.php'">
-      <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+      <img src="../image/icons/mail-attachment.png" alt="Records" style="width: 20px; height: 20px; object-fit:contain;">
     </div>
     <div class="top-icon" title="Profile" onclick="location.href='../profile/prof.php'">
-      <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+      <img src="../image/icons/man.png" alt="Profile" style="width: 25px; height: 25px; object-fit:contain;">
     </div>
     <div class="top-icon" title="Bread Left" onclick="location.href='../manage/remain.php'">
-      <svg viewBox="0 0 24 24"><path d="M20 5H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 12H4V7h16v10zM6 9h2v2H6V9zm0 4h2v2H6v-2zm4-4h2v2h-2V9zm0 4h2v2h-2v-2zm4-4h2v2h-2V9zm0 4h2v2h-2v-2z"/></svg>
+      <img src="../image/icons/inventory.png" alt="Bread Left" style="width: 25px; height: 25px; object-fit:contain;">
     </div>
     <div class="top-icon" title="Logout" onclick="openLogoutModal()">
-      <svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+      <img src="../image/icons/power.png" alt="Logout" style="width: 20px; height: 20px; object-fit:contain;">
     </div>
   </div>
 </div>
@@ -495,23 +494,23 @@ body {
 <!-- SIDEBAR -->
 <div class="sidebar" id="sidebar">
   <a href="../home.php">
-    <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+    <img src="../image/icons/POS.png" alt="Home" style="width: 20px; height: 20px; object-fit:contain;">
     Home
   </a>
   <a href="../manage/transaction.php">
-    <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+    <img src="../image/icons/mail-attachment.png" alt="Records" style="width: 20px; height: 20px; object-fit:contain;">
     Manage Records
   </a>
   <a href="../profile/prof.php">
-    <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+    <img src="../image/icons/man.png" alt="Profile" style="width: 25px; height: 25px; object-fit:contain;">
     Manage Profile
   </a>
   <a href="../manage/remain.php">
-    <svg viewBox="0 0 24 24"><path d="M20 5H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 12H4V7h16v10zM6 9h2v2H6V9zm0 4h2v2H6v-2zm4-4h2v2h-2V9zm0 4h2v2h-2v-2zm4-4h2v2h-2V9zm0 4h2v2h-2v-2z"/></svg>
+    <img src="../image/icons/inventory.png" alt="Bread Left" style="width: 25px; height: 25px; object-fit:contain;">
     Record Bread Left
   </a>
   <a href="#" onclick="event.preventDefault(); openLogoutModal();">
-    <svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+    <img src="../image/icons/power.png" alt="Logout" style="width: 20px; height: 20px; object-fit:contain;">
     Logout
   </a>
 </div>
