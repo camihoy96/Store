@@ -128,20 +128,24 @@ body {
   box-shadow: 0 2px 10px rgba(0,0,0,0.5);
 }
 .logo-block {
-  background: linear-gradient(135deg, #ff8800, #ff5500);
-  border-radius: 5px; padding: 3px 12px;
+  background: linear-gradient(135deg, #ff8800, #ff6000);
+  border-radius: 6px;
+  padding: 3px 10px;
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 8px;
-  line-height: 1.15;
+  line-height: 1.1;
+  min-height: 36px;
 }
 .logo-block .logo-img {
-  max-height: 28px;
+  height: 60px;
   width: auto;
+  max-width: 120px;
   display: block;
   border-radius: 3px;
   flex-shrink: 0;
+  object-fit: contain;
 }
 .logo-block .logo-text {
   display: flex;

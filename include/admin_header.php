@@ -160,11 +160,13 @@ body {
 }
 
 .logo-pill .logo-img {
-  max-height: 32px;
+   height: 60px;
   width: auto;
+  max-width: 120px;
   display: block;
-  border-radius: 4px;
+  border-radius: 3px;
   flex-shrink: 0;
+  object-fit: contain;
 }
 
 .logo-pill .logo-text {
