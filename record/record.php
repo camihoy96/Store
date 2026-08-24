@@ -1,8 +1,24 @@
 <?php
-$pageTitle = 'Records';
-require_once __DIR__ . '/../include/admin_header.php';
+// record.php - FIXED VERSION
 
-/* ─── Check if payment columns exist ─── */
+// Start output buffering at the VERY beginning
+ob_start();
+
+// Check authentication FIRST (before any output)
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Get database connection
+require_once __DIR__ . '/../dbconn.php';
+
+// Check if user is logged in and is admin
+if (!isset($_SESSION['loggedin']) || $_SESSION['user_type'] !== 'admin') {
+    header("Location: /Store/access_denied.php");
+    exit();
+}
+
+// Check if payment columns exist
 $hasPaymentMethod = false;
 $hasReferenceNo   = false;
 $chk1 = $conn->query("SHOW COLUMNS FROM transactions LIKE 'payment_method'");
@@ -10,7 +26,7 @@ if ($chk1 && $chk1->num_rows > 0) $hasPaymentMethod = true;
 $chk2 = $conn->query("SHOW COLUMNS FROM transactions LIKE 'reference_no'");
 if ($chk2 && $chk2->num_rows > 0) $hasReferenceNo = true;
 
-/* ─── E-wallet color/icon map ─── */
+// E-wallet color/icon map
 $ewalletMeta = [
     'gcash'    => ['label'=>'GCash',    'color'=>'#0a6dff','icon'=>'💳'],
     'maya'     => ['label'=>'Maya',     'color'=>'#00b050','icon'=>'🎫'],
@@ -32,21 +48,45 @@ function getPaymentMeta($pm, $ewalletMeta) {
     return ['label'=>htmlspecialchars($pm),'color'=>'#7a5c00','icon'=>'📱','type'=>'ewallet'];
 }
 
-/* ═══════════ EXCEL EXPORT ══════════════════════════════════════════════ */
+/* ═══════════ EXCEL EXPORT - MOVED TO TOP ══════════════════════════════════════════════ */
 if (isset($_POST['export'])) {
+    // Clear any output buffers
+    ob_end_clean();
+    
     header('Content-Type: application/vnd.ms-excel');
     $exportType = $_POST['export'] === 'all' ? 'ALL_TRANSACTIONS' : 'FILTERED_TRANSACTIONS';
     $filename = 'transaction_records_' . date('Y-m-d') . ($_POST['export'] !== 'all' ? '_filtered' : '_all') . '.xls';
     header('Content-Disposition: attachment;filename=' . $filename);
-    ob_start();
+    
+    // Get filter values from POST
+    $filterDate    = $_POST['date'] ?? '';
+    $filterMonth   = $_POST['month'] ?? '';
+    $filterYear    = $_POST['year'] ?? '';
+    $filterTransId = $_POST['trans_id'] ?? '';
+
+    // Get business settings for the report header
+    $settings = [];
+    $businessName = 'Cozy Corner Café';
+    try {
+        $settingsQuery = "SELECT setting_key, setting_value FROM system_settings";
+        $settingsResult = $conn->query($settingsQuery);
+        if ($settingsResult) {
+            while ($setting = $settingsResult->fetch_assoc()) {
+                $settings[$setting['setting_key']] = $setting['setting_value'];
+            }
+            $businessName = $settings['business_name'] ?? 'Cozy Corner Café';
+        }
+    } catch (Exception $e) {
+        // Use default
+    }
 
     $filterInfo = '';
     if ($_POST['export'] !== 'all') {
         $filters = [];
-        if (!empty($_GET['date'])) $filters[] = 'Date: ' . $_GET['date'];
-        if (!empty($_GET['trans_id'])) $filters[] = 'Transaction #: ' . $_GET['trans_id'];
-        if (!empty($_GET['month'])) $filters[] = 'Month: ' . date('F', mktime(0,0,0,$_GET['month'],1));
-        if (!empty($_GET['year'])) $filters[] = 'Year: ' . $_GET['year'];
+        if (!empty($filterDate))    $filters[] = 'Date: ' . $filterDate;
+        if (!empty($filterTransId)) $filters[] = 'Transaction #: ' . $filterTransId;
+        if (!empty($filterMonth))   $filters[] = 'Month: ' . date('F', mktime(0,0,0,$filterMonth,1));
+        if (!empty($filterYear))    $filters[] = 'Year: ' . $filterYear;
         $filterInfo = !empty($filters) ? ' (Filtered: ' . implode(', ', $filters) . ')' : ' (Filtered)';
     } else {
         $filterInfo = ' (All Transactions)';
@@ -75,40 +115,42 @@ if (isset($_POST['export'])) {
 
     $q = "SELECT * FROM transactions WHERE (status IS NULL OR status != 'voided')";
     $params=[]; $types='';
-    if ($_POST['export']!=='all') {
-        if (!empty($_GET['date']))    { $q.=" AND date=?";        $params[]=$_GET['date'];            $types.='s'; }
-        if (!empty($_GET['trans_id'])){ $q.=" AND id = ?";        $params[]=intval($_GET['trans_id']); $types.='i'; }
-        if (!empty($_GET['month']))   { $q.=" AND MONTH(date)=?"; $params[]=intval($_GET['month']);    $types.='i'; }
-        if (!empty($_GET['year']))    { $q.=" AND YEAR(date)=?";  $params[]=intval($_GET['year']);     $types.='i'; }
+    if ($_POST['export'] !== 'all') {
+        if (!empty($filterDate))    { $q .= " AND date=?";        $params[] = $filterDate;            $types .= 's'; }
+        if (!empty($filterTransId)) { $q .= " AND id = ?";        $params[] = intval($filterTransId); $types .= 'i'; }
+        if (!empty($filterMonth))   { $q .= " AND MONTH(date)=?"; $params[] = intval($filterMonth);    $types .= 'i'; }
+        if (!empty($filterYear))    { $q .= " AND YEAR(date)=?";  $params[] = intval($filterYear);     $types .= 'i'; }
     }
-    $q.=" ORDER BY id DESC";
-    $stmt=$conn->prepare($q);
-    if(!empty($params)) $stmt->bind_param($types,...$params);
+    $q .= " ORDER BY id DESC";
+    $stmt = $conn->prepare($q);
+    if(!empty($params)) $stmt->bind_param($types, ...$params);
     $stmt->execute();
-    $res=$stmt->get_result();
-    $tS=0;$tP=0;$tC=0;$tPcs=0;$tKg=0;
+    $res = $stmt->get_result();
+    $tS=0; $tP=0; $tC=0; $tPcs=0; $tKg=0;
 
-    while($row=$res->fetch_assoc()){
-        $its=json_decode($row['items'],true); $fi='';
+    while($row = $res->fetch_assoc()){
+        $its = json_decode($row['items'], true); $fi = '';
         if(is_array($its)){
-            $fi='<table class="items-table" width="100%"><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead><tbody>';
+            $fi = '<table class="items-table" width="100%"><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead><tbody>';
             foreach($its as $it){
-                $n=htmlspecialchars($it['name']??''); $qty=$it['qty']??0; $pr=$it['price']??0;
-                $fi.='<tr><td>'.$n.'</td><td>'.$qty.'</td><td>&#8369;'.number_format($pr,2).'</td><td>&#8369;'.number_format($qty*$pr,2).'</td></tr>';
-                if(($it['measurement_type']??'')==='kg') $tKg+=(float)$qty; else $tPcs+=(int)$qty;
+                $n = htmlspecialchars($it['name'] ?? ''); 
+                $qty = $it['qty'] ?? 0; 
+                $pr = $it['price'] ?? 0;
+                $fi .= '<tr><td>'.$n.'</td><td>'.$qty.'</td><td>&#8369;'.number_format($pr,2).'</td><td>&#8369;'.number_format($qty*$pr,2).'</td></tr>';
+                if(($it['measurement_type'] ?? '') === 'kg') $tKg += (float)$qty; else $tPcs += (int)$qty;
             }
-            $fi.='</tbody></table>';
+            $fi .= '</tbody></table>';
         }
-        $tS+=$row['total'];$tP+=$row['paid'];$tC+=$row['change_due'];
+        $tS += $row['total']; $tP += $row['paid']; $tC += $row['change_due'];
         $pm  = $hasPaymentMethod ? ($row['payment_method'] ?? 'Cash') : 'Cash';
         $ref = $hasReferenceNo   ? ($row['reference_no']   ?? '')      : '';
-        if(!$pm) $pm='Cash';
-        $pmDisplay = htmlspecialchars(strtoupper($pm)).($ref?' (Ref: '.htmlspecialchars($ref).')':'');
+        if(!$pm) $pm = 'Cash';
+        $pmDisplay = htmlspecialchars(strtoupper($pm)) . ($ref ? ' (Ref: '.htmlspecialchars($ref).')' : '');
         echo '<tr>
                 <td style="text-align:center;">' . $row['id'] . '</td>
                 <td>' . htmlspecialchars($row['cashier_name']) . '</td>
-                <td>' . date("F j, Y",strtotime($row['date'])) . '</td>
-                <td>' . date("g:i A",strtotime($row['time'])) . '</td>
+                <td>' . date("F j, Y", strtotime($row['date'])) . '</td>
+                <td>' . date("g:i A", strtotime($row['time'])) . '</td>
                 <td>' . $pmDisplay . '</td>
                 <td style="text-align:right;">&#8369;' . number_format($row['total'],2) . '</td>
                 <td style="text-align:right;">&#8369;' . number_format($row['paid'],2) . '</td>
@@ -125,14 +167,32 @@ if (isset($_POST['export'])) {
             <td><strong>' . $tPcs . ' pc / ' . $kgDisplay . ' kg</strong></td>
           </tr></tbody></table>';
     echo '<div class="footer">End of Report - Generated on ' . date("F j, Y g:i A") . '</div></body></html>';
-    ob_end_flush();
     exit;
 }
 
-/* ═══════════ PDF EXPORT ════════════════════════════════════════════════ */
+/* ═══════════ PDF EXPORT - MOVED TO TOP ════════════════════════════════════════════════ */
 if (isset($_GET['export']) && in_array($_GET['export'],['pdf','pdf_all'])) {
-    require(__DIR__ . '/../fpdf.php');
+    // Clear any output buffers
     ob_end_clean();
+    
+    require(__DIR__ . '/../fpdf.php');
+    
+    // Get business settings for the report header
+    $settings = [];
+    $businessName = 'Cozy Corner Café';
+    try {
+        $settingsQuery = "SELECT setting_key, setting_value FROM system_settings";
+        $settingsResult = $conn->query($settingsQuery);
+        if ($settingsResult) {
+            while ($setting = $settingsResult->fetch_assoc()) {
+                $settings[$setting['setting_key']] = $setting['setting_value'];
+            }
+            $businessName = $settings['business_name'] ?? 'Cozy Corner Café';
+        }
+    } catch (Exception $e) {
+        // Use default
+    }
+    
     $filterInfo = '';
     if ($_GET['export'] === 'pdf' && !empty($_GET)) {
         $filters = [];
@@ -209,7 +269,10 @@ if (isset($_GET['export']) && in_array($_GET['export'],['pdf','pdf_all'])) {
     exit;
 }
 
-/* ═══════════ PAGE DATA ══════════════════════════════════════════════════ */
+// If we get here, it's not an export, so include the admin header
+$pageTitle = 'Records';
+require_once __DIR__ . '/../include/admin_header.php';
+
 $ipp = 10;
 
 // Active transactions
@@ -542,17 +605,24 @@ while($ed = $eAll->fetch_assoc()){
     </form>
 
     <div class="export-strip">
-      <form method="post" style="display:inline;">
-        <input type="hidden" name="date"     value="<?= htmlspecialchars($_GET['date']??'') ?>">
-        <input type="hidden" name="month"    value="<?= htmlspecialchars($_GET['month']??'') ?>">
-        <input type="hidden" name="year"     value="<?= htmlspecialchars($_GET['year']??'') ?>">
-        <input type="hidden" name="trans_id" value="<?= htmlspecialchars($_GET['trans_id']??'') ?>">
+       <form method="post" action="" style="display:inline;">
+        <input type="hidden" name="date"     value="<?= htmlspecialchars($_GET['date'] ?? '') ?>">
+        <input type="hidden" name="month"    value="<?= htmlspecialchars($_GET['month'] ?? '') ?>">
+        <input type="hidden" name="year"     value="<?= htmlspecialchars($_GET['year'] ?? '') ?>">
+        <input type="hidden" name="trans_id" value="<?= htmlspecialchars($_GET['trans_id'] ?? '') ?>">
         <button type="submit" name="export" value="filtered" class="btn btn-green">📊 Export Filtered (Excel)</button>
-      </form>
-      <form method="post" style="display:inline;">
+    </form>
+       <form method="post" action="" style="display:inline;">
         <button type="submit" name="export" value="all" class="btn btn-blue">📊 Export All (Excel)</button>
-      </form>
-      <a href="?export=pdf&date=<?= urlencode($_GET['date']??'') ?>&month=<?= urlencode($_GET['month']??'') ?>&year=<?= urlencode($_GET['year']??'') ?>&trans_id=<?= urlencode($_GET['trans_id']??'') ?>" class="btn btn-red">📄 Export Filtered (PDF)</a>
+    </form>
+      <?php
+    $pdfFilteredUrl = '?export=pdf';
+    if (!empty($_GET['date']))     $pdfFilteredUrl .= '&date=' . urlencode($_GET['date']);
+    if (!empty($_GET['month']))    $pdfFilteredUrl .= '&month=' . urlencode($_GET['month']);
+    if (!empty($_GET['year']))     $pdfFilteredUrl .= '&year=' . urlencode($_GET['year']);
+    if (!empty($_GET['trans_id'])) $pdfFilteredUrl .= '&trans_id=' . urlencode($_GET['trans_id']);
+    ?>
+     <a href="<?= $pdfFilteredUrl ?>" class="btn btn-red">📄 Export Filtered (PDF)</a>
       <a href="?export=pdf_all" class="btn btn-yellow">📄 Export All (PDF)</a>
     </div>
 

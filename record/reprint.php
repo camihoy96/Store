@@ -2,36 +2,39 @@
 require('dbconn.php');
 $id = $_GET['id'] ?? 0;
 
-// Get business settings from site_settings table
-$settingsQuery = "SELECT setting_key, setting_value FROM site_settings";
-$settingsResult = $conn->query($settingsQuery);
+// Get business settings from system_settings table
 $settings = [];
+$businessName = 'Cozy Corner Café';
+$addressLine1 = '';
+$addressLine2 = '';
+$phonePrimary = '';
+$siteLogo = '';
 
-if ($settingsResult) {
-    while ($setting = $settingsResult->fetch_assoc()) {
-        $settings[$setting['setting_key']] = $setting['setting_value'];
+try {
+    $settingsQuery = "SELECT setting_key, setting_value FROM system_settings";
+    $settingsResult = $conn->query($settingsQuery);
+    
+    if ($settingsResult) {
+        while ($setting = $settingsResult->fetch_assoc()) {
+            $settings[$setting['setting_key']] = $setting['setting_value'];
+        }
+        
+        // Use the same keys as your system_settings table
+        $businessName = $settings['business_name'] ?? 'Cozy Corner Café';
+        $addressLine1 = $settings['business_address'] ?? '';
+        $addressLine2 = $settings['business_address2'] ?? '';
+        $phonePrimary = $settings['business_phone'] ?? '';
+        $siteLogo = $settings['logo_path'] ?? '';
     }
+} catch (Exception $e) {
+    // Table doesn't exist or error, use defaults
+    // You can log the error if needed: error_log($e->getMessage());
 }
-
-$businessName = $settings['cafe_name'] ?? 'Cozy Corner Café';
-$addressLine1 = $settings['address_line1'] ?? '';
-$addressLine2 = $settings['address_line2'] ?? '';
-$phonePrimary = $settings['phone_primary'] ?? '';
-$siteLogo = $settings['site_logo'] ?? '';
 
 // Build full address
 $fullAddress = $addressLine1;
 if (!empty($addressLine2)) {
     $fullAddress .= ', ' . $addressLine2;
-}
-
-// Build logo path
-$logoPath = '';
-if (!empty($siteLogo)) {
-    $logoFullPath = __DIR__ . '/' . $siteLogo;
-    if (file_exists($logoFullPath)) {
-        $logoPath = $siteLogo;
-    }
 }
 
 // Get transaction
@@ -71,7 +74,7 @@ $items = json_decode($row['items'], true);
       text-align: center;
     }
 
-    img {
+    .logo-img {
       max-width: 30%;
       height: auto;
     }
@@ -95,8 +98,8 @@ $items = json_decode($row['items'], true);
 <body onload="window.print()">
   <div class="receipt">
     <div class="center">
-      <?php if (!empty($logoPath)): ?>
-        <img src="<?= htmlspecialchars($logoPath) ?>" alt="Logo">
+      <?php if (!empty($siteLogo) && file_exists(__DIR__ . '/../' . $siteLogo)): ?>
+        <img src="/Store/<?= htmlspecialchars($siteLogo) ?>" alt="Logo" class="logo-img">
       <?php else: ?>
         <div style="font-size: 40px; margin: 10px 0;">☕</div>
       <?php endif; ?>
