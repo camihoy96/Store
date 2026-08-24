@@ -1,23 +1,16 @@
 <?php
-// record.php - FIXED VERSION
-
-// Start output buffering at the VERY beginning
 ob_start();
-
 // Check authentication FIRST (before any output)
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-
 // Get database connection
 require_once __DIR__ . '/../dbconn.php';
-
 // Check if user is logged in and is admin
 if (!isset($_SESSION['loggedin']) || $_SESSION['user_type'] !== 'admin') {
     header("Location: /Store/access_denied.php");
     exit();
 }
-
 // Check if payment columns exist
 $hasPaymentMethod = false;
 $hasReferenceNo   = false;
@@ -52,7 +45,6 @@ function getPaymentMeta($pm, $ewalletMeta) {
 if (isset($_POST['export'])) {
     // Clear any output buffers
     ob_end_clean();
-    
     header('Content-Type: application/vnd.ms-excel');
     $exportType = $_POST['export'] === 'all' ? 'ALL_TRANSACTIONS' : 'FILTERED_TRANSACTIONS';
     $filename = 'transaction_records_' . date('Y-m-d') . ($_POST['export'] !== 'all' ? '_filtered' : '_all') . '.xls';
@@ -176,8 +168,6 @@ if (isset($_GET['export']) && in_array($_GET['export'],['pdf','pdf_all'])) {
     ob_end_clean();
     
     require(__DIR__ . '/../fpdf.php');
-    
-    // Get business settings for the report header
     $settings = [];
     $businessName = 'Cozy Corner Café';
     try {
