@@ -15,6 +15,97 @@ if (!isset($_SESSION['loggedin']) || $_SESSION['user_type'] !== 'admin') {
 
 date_default_timezone_set('Asia/Manila');
 
+// ─── DATABASE BACKUP ───────────────────────────────────────────────────────────
+if (isset($_GET['action']) && $_GET['action'] === 'backup_db') {
+    // Disable time limit for large databases
+    set_time_limit(300);
+    
+    // Get all tables
+    $tables = [];
+    $result = $conn->query("SHOW TABLES");
+    while ($row = $result->fetch_row()) {
+        $tables[] = $row[0];
+    }
+    
+    if (empty($tables)) {
+        die("No tables found in database.");
+    }
+    
+    // Start building the SQL dump
+    $sql = "-- --------------------------------------------------------\n";
+    $sql .= "-- Database Backup\n";
+    $sql .= "-- Generated: " . date('Y-m-d H:i:s') . "\n";
+    $sql .= "-- Database: " . $conn->database . "\n";
+    $sql .= "-- --------------------------------------------------------\n\n";
+    $sql .= "SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO';\n";
+    $sql .= "SET time_zone = '+00:00';\n\n";
+    
+    // Get database name for CREATE DATABASE statement
+    $dbResult = $conn->query("SELECT DATABASE()");
+    $dbName = $dbResult->fetch_row()[0];
+    $sql .= "CREATE DATABASE IF NOT EXISTS `" . $dbName . "`;\n";
+    $sql .= "USE `" . $dbName . "`;\n\n";
+    
+    foreach ($tables as $table) {
+        // Get CREATE TABLE statement
+        $createResult = $conn->query("SHOW CREATE TABLE `$table`");
+        $createRow = $createResult->fetch_row();
+        $sql .= "-- --------------------------------------------------------\n";
+        $sql .= "-- Table structure for `$table`\n";
+        $sql .= "-- --------------------------------------------------------\n\n";
+        $sql .= $createRow[1] . ";\n\n";
+        
+        // Get table data
+        $dataResult = $conn->query("SELECT * FROM `$table`");
+        if ($dataResult && $dataResult->num_rows > 0) {
+            $sql .= "--\n-- Dumping data for table `$table`\n--\n\n";
+            
+            $columns = [];
+            $colInfo = $conn->query("SHOW COLUMNS FROM `$table`");
+            while ($col = $colInfo->fetch_assoc()) {
+                $columns[] = $col['Field'];
+            }
+            
+            $rowCount = 0;
+            while ($row = $dataResult->fetch_assoc()) {
+                $rowCount++;
+                $sql .= "INSERT INTO `$table` (`" . implode('`, `', $columns) . "`) VALUES (";
+                $values = [];
+                foreach ($columns as $col) {
+                    $value = $row[$col];
+                    if ($value === null) {
+                        $values[] = "NULL";
+                    } else {
+                        // Escape the value
+                        $value = $conn->real_escape_string($value);
+                        $values[] = "'" . $value . "'";
+                    }
+                }
+                $sql .= implode(', ', $values) . ");\n";
+                
+                // Break into chunks to avoid memory issues
+                if ($rowCount % 1000 === 0) {
+                    $sql .= "\n";
+                }
+            }
+            $sql .= "\n";
+        }
+    }
+    
+    // Create filename
+    $filename = 'backup_' . date('Y-m-d_H-i-s') . '.sql';
+    
+    // Set headers for download
+    header('Content-Type: application/sql');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Content-Length: ' . strlen($sql));
+    header('Cache-Control: private, max-age=0, must-revalidate');
+    header('Pragma: public');
+    
+    echo $sql;
+    exit;
+}
+
 // ─── HANDLE REGISTRATION KEY UPDATE ───────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_key') {
     $newKey = trim($_POST['registration_key'] ?? '');
@@ -408,6 +499,16 @@ body {
   border-radius: 8px; padding: 12px; font-size: 12px;
   color: var(--text2); margin-bottom: 16px;
 }
+.info-box.warning {
+  background: rgba(255,204,0,0.1);
+  border-color: rgba(255,204,0,0.2);
+  color: var(--yellow);
+}
+.info-box.danger {
+  background: rgba(255,68,68,0.1);
+  border-color: rgba(255,68,68,0.2);
+  color: #ff8888;
+}
 
 /* ─── Form Groups ─── */
 .form-group { margin-bottom: 16px; }
@@ -460,11 +561,38 @@ body {
   font-size: 12px; font-weight: 600; cursor: pointer;
   transition: all 0.2s;
   display: inline-flex; align-items: center; gap: 6px;
+  text-decoration: none;
 }
 .btn-primary   { background: linear-gradient(135deg, var(--orange), var(--orange-dk)); color: white; }
 .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(255,136,0,0.3); }
 .btn-secondary { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); }
 .btn-secondary:hover { background: var(--border2); color: var(--text); }
+.btn-danger    { background: linear-gradient(135deg, var(--red), #aa1111); color: white; }
+.btn-danger:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(255,68,68,0.3); }
+.btn-success   { background: linear-gradient(135deg, var(--green), #007a2e); color: white; }
+.btn-success:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,200,83,0.3); }
+.btn-sm { padding: 4px 12px; font-size: 11px; }
+
+/* ── Backup Card ── */
+.backup-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 20px;
+  margin-top: 20px;
+}
+.backup-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 16px; color: var(--orange-lt); }
+.backup-info {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.backup-stat {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 16px;
+}
+.backup-stat .label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; }
+.backup-stat .value { font-size: 16px; font-weight: 700; color: var(--text); margin-top: 4px; }
+.backup-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
 /* ── Modal ── */
 .modal {
@@ -522,6 +650,7 @@ body {
     <button class="tab-btn active" onclick="switchTab('general')">General</button>
     <button class="tab-btn"        onclick="switchTab('payment')">Payment Methods</button>
     <button class="tab-btn"        onclick="switchTab('appearance')">Appearance</button>
+    <button class="tab-btn"        onclick="switchTab('backup')">💾 Backup</button>
   </div>
 
   <!-- ══ GENERAL TAB ══════════════════════════════════════════════════════════ -->
@@ -721,6 +850,105 @@ body {
       </div>
     </div>
   </div>
+
+  <!-- ══ BACKUP TAB ═══════════════════════════════════════════════════════════ -->
+  <div id="tab-backup" class="tab-content">
+    <div class="backup-card">
+      <h3>💾 Database Backup</h3>
+      
+      <div class="info-box warning">
+        ⚠️ Creating a backup will download your entire database as a SQL file. 
+        This file contains all your data including transactions, products, users, and settings.
+        Keep it secure and store it in a safe location.
+      </div>
+
+      <?php
+      // Get database statistics
+      $tableCount = 0;
+      $totalRows = 0;
+      $totalSize = 0;
+      
+      $tablesResult = $conn->query("SHOW TABLES");
+      if ($tablesResult) {
+          $tableCount = $tablesResult->num_rows;
+          while ($row = $tablesResult->fetch_row()) {
+              $tableName = $row[0];
+              $rowResult = $conn->query("SELECT COUNT(*) as count FROM `$tableName`");
+              if ($rowResult) {
+                  $totalRows += $rowResult->fetch_assoc()['count'];
+              }
+              $sizeResult = $conn->query("SHOW TABLE STATUS LIKE '$tableName'");
+              if ($sizeResult) {
+                  $sizeRow = $sizeResult->fetch_assoc();
+                  $totalSize += $sizeRow['Data_length'] + $sizeRow['Index_length'];
+              }
+          }
+      }
+      
+      $sizeFormatted = '';
+      if ($totalSize > 0) {
+          $units = ['B', 'KB', 'MB', 'GB'];
+          $i = 0;
+          while ($totalSize >= 1024 && $i < 3) {
+              $totalSize /= 1024;
+              $i++;
+          }
+          $sizeFormatted = round($totalSize, 2) . ' ' . $units[$i];
+      } else {
+          $sizeFormatted = '0 B';
+      }
+      ?>
+
+      <div class="backup-info">
+        <div class="backup-stat">
+          <div class="label">Tables</div>
+          <div class="value"><?= $tableCount ?></div>
+        </div>
+        <div class="backup-stat">
+          <div class="label">Total Records</div>
+          <div class="value"><?= number_format($totalRows) ?></div>
+        </div>
+        <div class="backup-stat">
+          <div class="label">Database Size</div>
+          <div class="value"><?= $sizeFormatted ?></div>
+        </div>
+        <div class="backup-stat">
+          <div class="label">Last Backup</div>
+          <div class="value" style="font-size:13px;color:var(--text3);">
+            <?php
+            // Check if backup directory exists and get latest backup file
+            $backupDir = '../backups/';
+            $latestBackup = null;
+            if (file_exists($backupDir)) {
+                $files = glob($backupDir . '*.sql');
+                if (!empty($files)) {
+                    $latestBackup = basename(end($files));
+                }
+            }
+            echo $latestBackup ? date('Y-m-d H:i:s', filemtime($backupDir . $latestBackup)) : 'No backup found';
+            ?>
+          </div>
+        </div>
+      </div>
+
+      <div class="backup-actions">
+        <a href="?action=backup_db" class="btn btn-success">
+          💾 Download Full Backup
+        </a>
+        <button class="btn btn-primary" onclick="backupWithTimestamp()">
+          ⏰ Backup with Timestamp
+        </button>
+      </div>
+      
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+        <div class="info-box" style="font-size:11px;">
+          💡 <strong>Tip:</strong> Regular backups are essential for data safety. 
+          We recommend backing up at least once a week, or before making major system changes.
+          The backup will be downloaded as a .sql file which can be imported using phpMyAdmin or MySQL command line.
+        </div>
+      </div>
+    </div>
+  </div>
 </div><!-- end .main -->
 
 <!-- Include Admin Footer -->
@@ -843,7 +1071,8 @@ body {
 /* ─── Tabs ─── */
 function switchTab(tab){
   document.querySelectorAll('.tab-btn').forEach((b,i) => {
-    b.classList.toggle('active', ['general','payment','appearance'][i] === tab);
+    const tabs = ['general', 'payment', 'appearance', 'backup'];
+    b.classList.toggle('active', tabs[i] === tab);
   });
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
@@ -1121,6 +1350,59 @@ async function uploadLogo(){
   }
 }
 
+/* ─── Database Backup ─── */
+function backupWithTimestamp() {
+  Swal.fire({
+    title: 'Create Backup?',
+    text: 'This will download a full database backup with timestamp in the filename.',
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonColor: '#00c853',
+    cancelButtonColor: '#5a6380',
+    confirmButtonText: 'Yes, Backup Now',
+    background: '#1e2330',
+    color: '#e8eaf0'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      // Show loading
+      Swal.fire({
+        title: 'Creating Backup...',
+        text: 'Please wait while the backup is being generated.',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        willOpen: () => {
+          Swal.showLoading();
+        },
+        background: '#1e2330',
+        color: '#e8eaf0'
+      });
+      
+      // Trigger download with timestamp
+      window.location.href = '?action=backup_db';
+      
+      // Close loading after a moment
+      setTimeout(() => {
+        Swal.close();
+      }, 2000);
+    }
+  });
+}
+
+// Add event listener for backup link to show loading feedback
+document.querySelector('a[href="?action=backup_db"]')?.addEventListener('click', function(e) {
+  // Let the download proceed naturally
+  Swal.fire({
+    title: 'Backup Starting...',
+    text: 'Your database backup will download shortly.',
+    icon: 'info',
+    timer: 2000,
+    showConfirmButton: false,
+    background: '#1e2330',
+    color: '#e8eaf0'
+  });
+});
+
 /* ─── Close modals on backdrop click ─── */
 document.getElementById('paymentModal').addEventListener('click', function(e){
   if(e.target === this) closePaymentModal();
@@ -1131,7 +1413,7 @@ document.getElementById('keyModal').addEventListener('click', function(e){
 
 /* ─── Handle URL tab parameter ─── */
 const urlTab = new URLSearchParams(window.location.search).get('tab');
-if(urlTab && ['general', 'payment', 'appearance'].includes(urlTab)){
+if(urlTab && ['general', 'payment', 'appearance', 'backup'].includes(urlTab)){
   switchTab(urlTab);
 }
 </script>
