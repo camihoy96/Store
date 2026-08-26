@@ -62,14 +62,7 @@ $currencySymbol = $systemSettings['currency_symbol'] ?? '₱';
 $pageTitle = 'User Management';
 $activePage = 'user';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>User Management – Admin</title>
-<link rel="stylesheet" href="../css/bootstrap-icons.css">
-<script src="../js/sweetalert2.all.min.js"></script>
+
 <style>
 /* Keep only the page-specific styles that aren't in admin_header.css */
 :root{
@@ -193,9 +186,6 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
 .iframe-modal-box{width:92%;max-width:480px;}
 .iframe-modal-box iframe{width:100%;height:520px;border:none;border-radius:0 0 10px 10px;}
 </style>
-</head>
-<body>
-
 <!-- Include Admin Header -->
 <?php include('../include/admin_header.php'); ?>
 
@@ -487,5 +477,3 @@ function updateVisible(q, role){
   document.getElementById('shownCount').textContent=visible;
 }
 </script>
-</body>
-</html>

@@ -64,15 +64,6 @@ $initials = strtoupper(substr($user['fullname']??$username,0,2));
 $pageTitle = 'My Profile';
 $activePage = 'prof';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>My Profile – <?= htmlspecialchars($businessName ?? 'St4nger POS') ?></title>
-<!-- These will be included by admin_header.php, but keep them here as fallback -->
-<link rel="stylesheet" href="../css/bootstrap-icons.css">
-<script src="../js/sweetalert2.all.min.js"></script>
 <style>
 /* Page-specific styles only (header/footer styles are in the includes) */
 :root{
@@ -157,12 +148,8 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
 
 @media(max-width:600px){.profile-hero{flex-direction:column;text-align:center;}.act-btn{min-width:100%;}}
 </style>
-</head>
-<body>
-
 <!-- Include Admin Header (handles topbar, sidebar, session, settings) -->
 <?php include('../include/admin_header.php'); ?>
-
 <!-- MAIN CONTENT -->
 <div class="main" id="mainContent">
 
@@ -175,7 +162,6 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
       <div class="ph-badge">🛡 <?= ucfirst(htmlspecialchars($user['type'])) ?></div>
     </div>
   </div>
-
   <!-- Info cards -->
   <div class="info-grid">
     <div class="info-card">
@@ -293,5 +279,3 @@ document.addEventListener('DOMContentLoaded',function(){
 });
 <?php unset($_SESSION['swal']); endif; ?>
 </script>
-</body>
-</html>

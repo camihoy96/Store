@@ -69,14 +69,6 @@ $minPrice   = $totalBreads > 0 ? min(array_column($breads,'price')) : 0;
 $pageTitle = 'Bread Management';
 $activePage = 'bread';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bread Management – Admin</title>
-<link rel="stylesheet" href="../css/bootstrap-icons.css">
-<script src="../js/sweetalert2.all.min.js"></script>
 <style>
 /* Page-specific styles only (header/footer styles are in the includes) */
 :root{
@@ -184,22 +176,16 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
 
 @keyframes fadeout{to{opacity:0;transform:translateX(20px);}}
 </style>
-</head>
-<body>
-
 <!-- Include Admin Header -->
 <?php include('../include/admin_header.php'); ?>
-
 <!-- MAIN CONTENT -->
 <div class="main" id="mainContent">
-
   <div class="page-hero">
     <div>
       <h2>🍞 Bread Management</h2>
       <p><?= $totalBreads ?> bread types registered</p>
     </div>
   </div>
-
   <!-- Stat tiles -->
   <div class="stat-grid">
     <div class="stat-tile">
@@ -468,5 +454,3 @@ document.querySelectorAll('.delete-btn').forEach(btn=>{
   });
 });
 </script>
-</body>
-</html>

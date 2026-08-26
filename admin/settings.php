@@ -377,14 +377,7 @@ if (isset($_SESSION['swal'])) {
     unset($_SESSION['swal']);
 }
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>System Settings – Angel's Bakeshop</title>
-<link rel="stylesheet" href="../css/bootstrap-icons.css">
-<script src="../js/sweetalert2.all.min.js"></script>
+
 <style>
 /* Page-specific styles only (header/footer styles are in the includes) */
 :root {
@@ -632,8 +625,6 @@ body {
 .logo-preview { margin-top: 10px; padding: 10px; background: var(--bg3); border-radius: 8px; text-align: center; }
 .logo-preview img { max-width: 100%; max-height: 100px; border-radius: 4px; }
 </style>
-</head>
-<body>
 
 <!-- Include Admin Header -->
 <?php include('../include/admin_header.php'); ?>
@@ -1417,5 +1408,3 @@ if(urlTab && ['general', 'payment', 'appearance', 'backup'].includes(urlTab)){
   switchTab(urlTab);
 }
 </script>
-</body>
-</html>

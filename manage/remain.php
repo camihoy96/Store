@@ -103,6 +103,19 @@ $logoPath = $systemSettings['logo_path'] ?? ''; // ADD THIS LINE
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>St4nger POS</title>
+<!-- ===== FAVICON ===== -->
+<link rel="icon" type="image/png" sizes="32x32" href="/Store/image/favicon/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/Store/image/favicon/favicon-16x16.png">
+<link rel="apple-touch-icon" href="/Store/image/favicon/apple-touch-icon.png">
+<link rel="shortcut icon" href="/Store/image/favicon/favicon.ico">
+<!-- For Android Chrome -->
+<link rel="icon" type="image/png" sizes="192x192" href="/Store/image/favicon/android-chrome-192x192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/Store/image/favicon/android-chrome-512x512.png">
+<!-- Web App Manifest (if you have one) -->
+<link rel="manifest" href="/Store/image/favicon/site.webmanifest">
+<meta name="msapplication-TileColor" content="#ff8800">
+<meta name="theme-color" content="#111318">
+<!-- ===== END FAVICON ===== -->
 <link rel="stylesheet" href="../css/bootstrap-icons.css">
 <script src="../js/sweetalert2.all.min.js"></script>
 <style>

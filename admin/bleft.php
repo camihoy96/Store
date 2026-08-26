@@ -96,17 +96,6 @@ $periodLabel = match($filterType) {
 $pageTitle = 'Bread Inventory';
 $activePage = 'bleft';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bread Inventory – Admin</title>
-<link rel="stylesheet" href="../css/bootstrap-icons.css">
-<script src="../js/sweetalert2.all.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 <style>
 /* Page-specific styles only (header/footer styles are in the includes) */
 :root{
@@ -233,15 +222,10 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
 /* Print receipt */
 @media print{body *{visibility:hidden;}#printArea,#printArea *{visibility:visible;}#printArea{position:absolute;left:0;top:0;width:100%;font-family:monospace;font-size:12px;}}
 </style>
-</head>
-<body>
-
 <!-- Include Admin Header -->
 <?php include('../include/admin_header.php'); ?>
-
 <!-- MAIN CONTENT -->
 <div class="main" id="mainContent">
-
   <div class="page-hero">
     <div>
       <h2>🧺 Bread Inventory</h2>
@@ -660,5 +644,3 @@ document.getElementById('confirmDeleteBtn').addEventListener('click',function(){
     .catch(e=>Swal.fire({icon:'error',title:'Network Error',text:e.toString(),background:'#1e2330',color:'#e8eaf0'}));
 });
 </script>
-</body>
-</html>

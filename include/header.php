@@ -44,7 +44,16 @@ date_default_timezone_set('Asia/Manila');
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>St4nger POS</title>
-<script src="js/sweetalert2.min.js"></script>
+
+<!-- Favicon -->
+<link rel="icon" type="image/png" sizes="32x32" href="/Store/image/favicon/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/Store/image/favicon/favicon-16x16.png">
+<link rel="apple-touch-icon" href="/Store/image/favicon/apple-touch-icon.png">
+<link rel="shortcut icon" href="/Store/image/favicon/favicon.ico">
+
+<link rel="stylesheet" href="<?= $assetPath ?>css/bootstrap-icons.css">
+<script src="js/chart.js"></script>
+<script src="<?= $assetPath ?>js/sweetalert2.all.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
