@@ -118,7 +118,7 @@ function isCurrentPage($href) {
 <!-- ===== END FAVICON ===== -->
 
 <link rel="stylesheet" href="<?= $assetPath ?>css/bootstrap-icons.css">
-<script src="js/chart.js"></script>
+<script src="/Store/js/chart.js"></script>
 <script src="<?= $assetPath ?>js/sweetalert2.all.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
@@ -522,27 +522,27 @@ body {
   </div>
   <?php endif; ?>
   <!-- Top Bar Icons with active highlighting -->
-  <a class="tb-icon <?= $activePage === 'dashboard' ? 'active disabled' : '' ?>" 
-     href="/Store/dashboard.php" title="Dashboard"><img src="image/icons/dashboard.png" alt="Profile" style="width: 25px; height: 25px; object-fit:contain;"></a>
-  <a class="tb-icon <?= $activePage === 'records' ? 'active disabled' : '' ?>" 
-     href="/Store/record/record.php" title="Sales Inventory"><img src="image/icons/mail-attachment.png" alt="Records" style="width: 20px; height: 20px; object-fit:contain;"></a>
-  <a class="tb-icon <?= $activePage === 'users' ? 'active disabled' : '' ?>" 
-     href="/Store/admin/user.php" title="User Management"><img src="image/icons/management.png" alt="Users" style="width: 25px; height: 25px; object-fit:contain;"></a>
-  <a class="tb-icon <?= $activePage === 'settings' ? 'active disabled' : '' ?>" 
-     href="/Store/admin/settings.php" title="Settings"><img src="image/icons/gear.png" alt="Settings" style="width: 25px; height: 25px; object-fit:contain;"></a>
-  <a class="tb-icon <?= $activePage === 'products' ? 'active disabled' : '' ?>" 
-     href="/Store/product/product.php" title="Manage Products"><img src="image/icons/product-management.png" alt="Products" style="width: 26px; height: 26px; object-fit:contain;"></a>
-  <a class="tb-icon <?= $activePage === 'reserve' ? 'active disabled' : '' ?>" 
-     href="/Store/product/item_reserve.php" title="Reserve Items"><img src="image/icons/reserve.png" alt="Reserve Items" style="width: 25px; height: 25px; object-fit:contain;"></a>
-  <a class="tb-icon <?= $activePage === 'profile' ? 'active disabled' : '' ?>" 
-     href="/Store/admin/prof.php" title="Profile"><img src="image/icons/man.png" alt="Profile" style="width: 25px; height: 25px; object-fit:contain;">
-    <?php if(isset($lowStockCount) && isset($expiringCount) && ($lowStockCount>0||$expiringCount>0)): ?><span class="notif-dot"></span><?php endif; ?>
-  </a>
-  <a class="tb-icon <?= $activePage === 'breads' ? 'active disabled' : '' ?>" 
-     href="/Store/product/bread.php" title="Manage Breads"><img src="image/icons/bakery.png" alt="Breads" style="width: 20px; height: 20px; object-fit:contain;"></a>
-  <a class="tb-icon <?= $activePage === 'bleft' ? 'active disabled' : '' ?>" 
-     href="/Store/admin/bleft.php" title="Bread Left"><img src="image/icons/inventory.png" alt="Bread Left" style="width: 20px; height: 20px; object-fit:contain;"></a>
-  <a class="tb-icon" href="#" onclick="event.preventDefault(); openLogoutModal();" title="Logout"><img src="image/icons/power.png" alt="Logout" style="width: 20px; height: 20px; object-fit:contain;"></a>
+<a class="tb-icon <?= $activePage === 'dashboard' ? 'active disabled' : '' ?>" 
+   href="/Store/dashboard.php" title="Dashboard"><img src="/Store/image/icons/dashboard.png" alt="Dashboard" style="width: 25px; height: 25px; object-fit:contain;"></a>
+<a class="tb-icon <?= $activePage === 'records' ? 'active disabled' : '' ?>" 
+   href="/Store/record/record.php" title="Sales Inventory"><img src="/Store/image/icons/mail-attachment.png" alt="Records" style="width: 20px; height: 20px; object-fit:contain;"></a>
+<a class="tb-icon <?= $activePage === 'users' ? 'active disabled' : '' ?>" 
+   href="/Store/admin/user.php" title="User Management"><img src="/Store/image/icons/management.png" alt="Users" style="width: 25px; height: 25px; object-fit:contain;"></a>
+<a class="tb-icon <?= $activePage === 'settings' ? 'active disabled' : '' ?>" 
+   href="/Store/admin/settings.php" title="Settings"><img src="/Store/image/icons/gear.png" alt="Settings" style="width: 25px; height: 25px; object-fit:contain;"></a>
+<a class="tb-icon <?= $activePage === 'products' ? 'active disabled' : '' ?>" 
+   href="/Store/product/product.php" title="Manage Products"><img src="/Store/image/icons/product-management.png" alt="Products" style="width: 26px; height: 26px; object-fit:contain;"></a>
+<a class="tb-icon <?= $activePage === 'reserve' ? 'active disabled' : '' ?>" 
+   href="/Store/product/item_reserve.php" title="Reserve Items"><img src="/Store/image/icons/reserve.png" alt="Reserve Items" style="width: 25px; height: 25px; object-fit:contain;"></a>
+<a class="tb-icon <?= $activePage === 'profile' ? 'active disabled' : '' ?>" 
+   href="/Store/admin/prof.php" title="Profile"><img src="/Store/image/icons/man.png" alt="Profile" style="width: 25px; height: 25px; object-fit:contain;">
+  <?php if(isset($lowStockCount) && isset($expiringCount) && ($lowStockCount>0||$expiringCount>0)): ?><span class="notif-dot"></span><?php endif; ?>
+</a>
+<a class="tb-icon <?= $activePage === 'breads' ? 'active disabled' : '' ?>" 
+   href="/Store/product/bread.php" title="Manage Breads"><img src="/Store/image/icons/bakery.png" alt="Breads" style="width: 20px; height: 20px; object-fit:contain;"></a>
+<a class="tb-icon <?= $activePage === 'bleft' ? 'active disabled' : '' ?>" 
+   href="/Store/admin/bleft.php" title="Bread Left"><img src="/Store/image/icons/inventory.png" alt="Bread Left" style="width: 20px; height: 20px; object-fit:contain;"></a>
+<a class="tb-icon" href="#" onclick="event.preventDefault(); openLogoutModal();" title="Logout"><img src="/Store/image/icons/power.png" alt="Logout" style="width: 20px; height: 20px; object-fit:contain;"></a>
 </div>
 
 

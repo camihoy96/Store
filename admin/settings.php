@@ -727,7 +727,62 @@ body {
                    value="<?= htmlspecialchars($settings['low_stock_threshold_kg'] ?? '20') ?>">
           </div>
         </div>
-
+    <div class="settings-card">
+    <h3>🛒 Custom Product Settings</h3>
+    <div class="form-group">
+        <label>Enable Custom Product Strip</label>
+        <select name="enable_custom_product">
+            <option value="1" <?= ($settings['enable_custom_product'] ?? '1') == '1' ? 'selected' : '' ?>>Yes - Show on POS</option>
+            <option value="0" <?= ($settings['enable_custom_product'] ?? '1') == '0' ? 'selected' : '' ?>>No - Hide from POS</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label>Custom Product Label</label>
+        <input type="text" name="custom_product_label" 
+               value="<?= htmlspecialchars($settings['custom_product_label'] ?? '➕ Add Custom Product') ?>">
+    </div>
+   <div class="form-group">
+    <label>Show Bread Dropdown</label>  <!-- This can be anything -->
+    <select name="enable_bread_type">   <!-- This MUST stay the same for saving -->
+        <option value="1" <?= ($settings['enable_bread_type'] ?? '1') == '1' ? 'selected' : '' ?>>Yes - Show Bread Type</option>
+        <option value="0" <?= ($settings['enable_bread_type'] ?? '1') == '0' ? 'selected' : '' ?>>No - Hide Bread Type</option>
+    </select>
+</div>
+    <hr style="border-color:var(--border);margin:16px 0;">
+    <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">
+        Field Labels
+    </div>
+    <div class="form-group">
+        <label>Custom Name Label</label>
+        <input type="text" name="custom_name_label" 
+               value="<?= htmlspecialchars($settings['custom_name_label'] ?? 'Custom Name') ?>">
+    </div>
+    <div class="form-group">
+        <label>Bread Type Label</label>
+        <input type="text" name="bread_type_label" 
+               value="<?= htmlspecialchars($settings['bread_type_label'] ?? 'Bread Type') ?>">
+    </div>
+    <div class="form-group">
+        <label>Price Label</label>
+        <input type="text" name="price_label" 
+               value="<?= htmlspecialchars($settings['price_label'] ?? 'Price') ?>">
+    </div>
+    <div class="form-group">
+        <label>Qty Label</label>
+        <input type="text" name="qty_label" 
+               value="<?= htmlspecialchars($settings['qty_label'] ?? 'Qty') ?>">
+    </div>
+    <div class="form-group">
+        <label>Unit Label</label>
+        <input type="text" name="unit_label" 
+               value="<?= htmlspecialchars($settings['unit_label'] ?? 'Unit') ?>">
+    </div>
+    <div class="form-group">
+        <label>Add Button Label</label>
+        <input type="text" name="add_button_label" 
+               value="<?= htmlspecialchars($settings['add_button_label'] ?? 'Add 🛒') ?>">
+    </div>
+</div>
         <div class="settings-card">
           <h3>🖨️ Receipt Settings</h3>
           <div class="form-group">

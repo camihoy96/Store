@@ -22,6 +22,16 @@ $enableEwallet    = $systemSettings['enable_ewallet']      ?? '1';
 $receiptFooter    = $systemSettings['receipt_footer']      ?? 'Thank you for your purchase!';
 $autoPrintReceipt = $systemSettings['auto_print_receipt']  ?? '1';
 $logoPath         = $systemSettings['logo_path']           ?? '';
+
+$enableCustomProduct = $systemSettings['enable_custom_product'] ?? '1';
+$customProductLabel  = $systemSettings['custom_product_label']  ?? '➕ Add Custom Product';
+$enableBreadType     = $systemSettings['enable_bread_type']     ?? '1';
+$customNameLabel     = $systemSettings['custom_name_label']     ?? 'Custom Name';
+$breadTypeLabel      = $systemSettings['bread_type_label']      ?? 'Bread Type';
+$priceLabel          = $systemSettings['price_label']           ?? 'Price';
+$qtyLabel            = $systemSettings['qty_label']             ?? 'Qty';
+$unitLabel           = $systemSettings['unit_label']            ?? 'Unit';
+$addButtonLabel      = $systemSettings['add_button_label']      ?? 'Add 🛒';
 // ─── FETCH PAYMENT METHODS ─────────────────────────────────────────────────────
 $paymentMethods = [];
 $result = $conn->query("SELECT * FROM payment_methods WHERE is_active = 1 ORDER BY display_order ASC");
@@ -41,9 +51,22 @@ if ($result) {
         $row['pieces']           = $row['pieces'] ?? 0;
         $row['kg']               = $row['kg'] ?? 0;
         $row['measurement_type'] = $row['measurement_type'] ?? 'pieces';
-        $row['image_path']       = !empty($row['image_path'])
-            ? 'product/' . $row['image_path']
-            : 'image/cake.jfif';
+        // Fix image path - handle both 'uploads/' and 'product/' prefixes
+if (!empty($row['image_path'])) {
+    // Check if image_path already has a prefix
+    if (strpos($row['image_path'], 'uploads/') === 0) {
+        // Already has uploads/ prefix
+        $row['image_path'] = $row['image_path'];
+    } elseif (strpos($row['image_path'], 'product/') === 0) {
+        // Already has product/ prefix
+        $row['image_path'] = $row['image_path'];
+    } else {
+        // Add uploads/ prefix (matching how admin saves images)
+        $row['image_path'] = 'uploads/' . $row['image_path'];
+    }
+} else {
+    $row['image_path'] = 'image/cake.jfif';
+}
         $row['is_low_stock']     = ($row['measurement_type'] === 'kg')
             ? ($row['kg'] < 5.0) : ($row['pieces'] < 5);
         $products[] = $row;
@@ -881,49 +904,52 @@ body {
     </div>
     <div class="menu-grid" id="menuGrid"></div>
 
-    <!-- Custom product strip -->
-    <div class="custom-strip">
-      <div class="custom-strip-title">➕ Add Custom Product</div>
-      <div class="custom-row">
+   <!-- Custom product strip -->
+<?php if ($enableCustomProduct == '1'): ?>
+<div class="custom-strip">
+    <div class="custom-strip-title"><?= htmlspecialchars($customProductLabel) ?></div>
+    <div class="custom-row">
         <div style="display:flex;flex-direction:column;gap:2px;flex:2;min-width:100px;">
-          <label style="font-size:9px;color:#fff;font-weight:600;text-transform:uppercase;letter-spacing:.8px;">Custom Name</label>
-          <input type="text" class="custom-input ci-name" id="ciName"
-                 placeholder="Enter product name…" oninput="onCustomNameInput()">
+            <label style="font-size:9px;color:#fff;font-weight:600;text-transform:uppercase;letter-spacing:.8px;"><?= htmlspecialchars($customNameLabel) ?></label>
+            <input type="text" class="custom-input ci-name" id="ciName"
+                   placeholder="Enter product name…" oninput="onCustomNameInput()">
         </div>
+        <?php if ($enableBreadType == '1'): ?>
         <div style="display:flex;flex-direction:column;gap:2px;flex:2;min-width:120px;">
-          <label style="font-size:9px;color:#fff;font-weight:600;text-transform:uppercase;letter-spacing:.8px;">Bread Type</label>
-          <select class="custom-input ci-type" id="ciType" onchange="ciPriceFromType()">
-            <option value="" data-price="0">-- Select Bread --</option>
-            <?php foreach ($breads as $b): ?>
-              <option value="<?= htmlspecialchars($b['name']) ?>"
-                      data-price="<?= htmlspecialchars($b['price']) ?>">
-                <?= htmlspecialchars($b['name']) ?> (<?= $currencySymbol ?><?= number_format($b['price'],2) ?>)
-              </option>
-            <?php endforeach; ?>
-          </select>
+            <label style="font-size:9px;color:#fff;font-weight:600;text-transform:uppercase;letter-spacing:.8px;"><?= htmlspecialchars($breadTypeLabel) ?></label>
+            <select class="custom-input ci-type" id="ciType" onchange="ciPriceFromType()">
+                <option value="" data-price="0">-- Select <?= htmlspecialchars($breadTypeLabel) ?> --</option>
+                <?php foreach ($breads as $b): ?>
+                    <option value="<?= htmlspecialchars($b['name']) ?>"
+                            data-price="<?= htmlspecialchars($b['price']) ?>">
+                        <?= htmlspecialchars($b['name']) ?> (<?= $currencySymbol ?><?= number_format($b['price'],2) ?>)
+                    </option>
+                <?php endforeach; ?>
+            </select>
         </div>
+        <?php endif; ?>
         <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:70px;">
-          <label style="font-size:9px;color:#fff;font-weight:600;text-transform:uppercase;letter-spacing:.8px;">Price (<?= $currencySymbol ?>)</label>
-          <input type="number" class="custom-input ci-price" id="ciPrice" placeholder="0.00" min="0" step="0.01">
+            <label style="font-size:9px;color:#fff;font-weight:600;text-transform:uppercase;letter-spacing:.8px;"><?= htmlspecialchars($priceLabel) ?> (<?= $currencySymbol ?>)</label>
+            <input type="number" class="custom-input ci-price" id="ciPrice" placeholder="0.00" min="0" step="0.01">
         </div>
         <div style="display:flex;flex-direction:column;gap:2px;width:60px;">
-          <label style="font-size:9px;color:#fff;font-weight:600;text-transform:uppercase;letter-spacing:.8px;">Qty</label>
-          <input type="number" class="custom-input ci-qty" id="ciQty" placeholder="Qty" min="1" step="1" value="1">
+            <label style="font-size:9px;color:#fff;font-weight:600;text-transform:uppercase;letter-spacing:.8px;"><?= htmlspecialchars($qtyLabel) ?></label>
+            <input type="number" class="custom-input ci-qty" id="ciQty" placeholder="Qty" min="1" step="1" value="1">
         </div>
         <div style="display:flex;flex-direction:column;gap:2px;width:90px;">
-          <label style="font-size:9px;color:#fff;font-weight:600;text-transform:uppercase;letter-spacing:.8px;">Unit</label>
-          <select class="custom-input ci-unit" id="ciUnit">
-            <option value="pcs">Pieces</option>
-            <option value="kg">Kilograms</option>
-          </select>
+            <label style="font-size:9px;color:#fff;font-weight:600;text-transform:uppercase;letter-spacing:.8px;"><?= htmlspecialchars($unitLabel) ?></label>
+            <select class="custom-input ci-unit" id="ciUnit">
+                <option value="pcs">Pieces</option>
+                <option value="kg">Kilograms</option>
+            </select>
         </div>
         <div style="display:flex;flex-direction:column;gap:2px;justify-content:flex-end;">
-          <label style="font-size:9px;color:transparent;letter-spacing:.8px;">_</label>
-          <button class="btn-custom-add" onclick="addCustomProduct()">Add 🛒</button>
+            <label style="font-size:9px;color:transparent;letter-spacing:.8px;">_</label>
+            <button class="btn-custom-add" onclick="addCustomProduct()"><?= htmlspecialchars($addButtonLabel) ?></button>
         </div>
-      </div>
     </div>
-
+</div>
+<?php endif; ?>
     <div class="customer-bar">
       <span>Cashier: <span class="cashier-name" id="activeCashier"><?= $cashierName ?></span></span>
       <span><?= date('F j, Y') ?></span>
@@ -1316,7 +1342,7 @@ function renderGrid(list) {
     el.className = 'menu-item'+(out?' out':'')+(low?' low-s':'');
     el.innerHTML = `
       ${low?'<span class="low-badge">Low</span>':''}
-      <div class="menu-item-img" style="background-image:url('${p.image_path}')" onerror="this.style.backgroundImage='url(image/cake.jfif)'"></div>
+     <div class="menu-item-img" style="background-image:url('${p.image_path}')" onerror="this.style.backgroundImage='url(image/cake.jfif)'"></div>
       <div class="menu-item-info">
         <div class="menu-item-name">${p.name}</div>
         <div class="menu-item-price">${currencySymbol}${parseFloat(p.price).toFixed(2)}</div>
@@ -1946,9 +1972,13 @@ async function processWalletPayment() {
 }
 /* ── Custom product ───────────────────────────────────────────────── */
 function ciPriceFromType() {
-  const sel=document.getElementById('ciType'), priceEl=document.getElementById('ciPrice'),
-        unitEl=document.getElementById('ciUnit'), qtyEl=document.getElementById('ciQty'),
-        nameEl=document.getElementById('ciName'), chosen=sel.value;
+  const sel = document.getElementById('ciType');
+  if (!sel) return;
+  const priceEl = document.getElementById('ciPrice');
+  const unitEl = document.getElementById('ciUnit');
+  const qtyEl = document.getElementById('ciQty');
+  const nameEl = document.getElementById('ciName');
+  const chosen = sel.value;
   if (chosen) {
     priceEl.value=sel.options[sel.selectedIndex].getAttribute('data-price')||'';
     priceEl.readOnly=true; priceEl.style.background='#2a2a2a'; priceEl.style.color='#888';
@@ -1964,47 +1994,116 @@ function ciPriceFromType() {
 }
 
 function onCustomNameInput() {
-  const nameEl=document.getElementById('ciName'), typeEl=document.getElementById('ciType'),
-        priceEl=document.getElementById('ciPrice'), unitEl=document.getElementById('ciUnit');
+  const nameEl = document.getElementById('ciName');
+  if (!nameEl) return;
+  const typeEl = document.getElementById('ciType'); // May be null if hidden
+  const priceEl = document.getElementById('ciPrice');
+  const unitEl = document.getElementById('ciUnit');
+  
   if (nameEl.value.trim()) {
-    typeEl.value=''; typeEl.disabled=true; typeEl.style.opacity='0.5';
-    priceEl.readOnly=false; priceEl.style.background=''; priceEl.style.color='';
-    unitEl.disabled=false; unitEl.style.opacity='';
-  } else { typeEl.disabled=false; typeEl.style.opacity=''; }
+    if (typeEl) { // Only if Bread Type exists
+      typeEl.value = '';
+      typeEl.disabled = true;
+      typeEl.style.opacity = '0.5';
+    }
+    priceEl.readOnly = false;
+    priceEl.style.background = '';
+    priceEl.style.color = '';
+    unitEl.disabled = false;
+    unitEl.style.opacity = '';
+  } else {
+    if (typeEl) { // Only if Bread Type exists
+      typeEl.disabled = false;
+      typeEl.style.opacity = '';
+    }
+  }
 }
 
-document.getElementById('ciUnit').addEventListener('change',function(){
-  const qtyEl=document.getElementById('ciQty'), typeEl=document.getElementById('ciType');
-  if (this.value==='kg') {
-    qtyEl.step='0.01'; qtyEl.setAttribute('min','0.01'); qtyEl.oninput=null; qtyEl.value='';
-    typeEl.value=''; typeEl.disabled=true; typeEl.style.opacity='0.5';
-    const priceEl=document.getElementById('ciPrice');
-    priceEl.readOnly=false; priceEl.style.background=''; priceEl.style.color='';
-  } else {
-    qtyEl.step='1'; qtyEl.setAttribute('min','1'); qtyEl.value='1';
-    qtyEl.oninput=function(){ this.value=this.value.replace(/[^0-9]/g,''); };
-    const nameEl=document.getElementById('ciName');
-    if (!nameEl.value.trim()) { typeEl.disabled=false; typeEl.style.opacity=''; }
-  }
-});
+const ciUnitEl = document.getElementById('ciUnit');
+if (ciUnitEl) {
+  ciUnitEl.addEventListener('change', function() {
+    const qtyEl = document.getElementById('ciQty');
+    const typeEl = document.getElementById('ciType'); // May be null
+    
+    if (this.value === 'kg') {
+      qtyEl.step = '0.01';
+      qtyEl.setAttribute('min', '0.01');
+      qtyEl.oninput = null;
+      qtyEl.value = '';
+      if (typeEl) { // Only if Bread Type exists
+        typeEl.value = '';
+        typeEl.disabled = true;
+        typeEl.style.opacity = '0.5';
+      }
+      const priceEl = document.getElementById('ciPrice');
+      priceEl.readOnly = false;
+      priceEl.style.background = '';
+      priceEl.style.color = '';
+    } else {
+      qtyEl.step = '1';
+      qtyEl.setAttribute('min', '1');
+      qtyEl.value = '1';
+      qtyEl.oninput = function() { this.value = this.value.replace(/[^0-9]/g, ''); };
+      const nameEl = document.getElementById('ciName');
+      if (!nameEl.value.trim() && typeEl) { // Only if Bread Type exists
+        typeEl.disabled = false;
+        typeEl.style.opacity = '';
+      }
+    }
+  });
+}
 
 function addCustomProduct() {
-  const nameEl=document.getElementById('ciName'), typeEl=document.getElementById('ciType'),
-        priceEl=document.getElementById('ciPrice'), qtyEl=document.getElementById('ciQty'),
-        unitEl=document.getElementById('ciUnit');
-  const name=nameEl.value.trim(), type=typeEl.value;
-  const price=parseFloat(priceEl.value), unit=unitEl.value;
-  const qty=(unit==='kg')?parseFloat(qtyEl.value):parseInt(qtyEl.value);
-  if (!name&&!type) return showErr('Please enter a custom product name OR select a bread type.');
-  if (isNaN(price)||price<=0) return showErr('Please enter a valid price greater than zero.');
-  if (isNaN(qty)||qty<=0) return showErr('Please enter a valid quantity greater than zero.');
-  const label = name ? (type?`${name} (${type})`:name) : type;
-  checkout.push({ id:'custom-'+Date.now(), name:label, price, qty, measurement_type:unit, unit, custom:true });
-  nameEl.value=''; nameEl.disabled=false; nameEl.style.opacity='';
-  typeEl.value=''; typeEl.disabled=false; typeEl.style.opacity='';
-  priceEl.value=''; priceEl.readOnly=false; priceEl.style.background=''; priceEl.style.color='';
-  qtyEl.value='1'; qtyEl.step='1'; qtyEl.oninput=function(){ this.value=this.value.replace(/[^0-9]/g,''); };
-  unitEl.value='pcs'; unitEl.disabled=false; unitEl.style.opacity='';
+  const nameEl = document.getElementById('ciName');
+  const typeEl = document.getElementById('ciType'); // May be null if hidden
+  const priceEl = document.getElementById('ciPrice');
+  const qtyEl = document.getElementById('ciQty');
+  const unitEl = document.getElementById('ciUnit');
+  
+  if (!nameEl || !priceEl || !qtyEl || !unitEl) return;
+  
+  const name = nameEl.value.trim();
+  const type = typeEl ? typeEl.value : ''; // Handle null typeEl
+  const price = parseFloat(priceEl.value);
+  const unit = unitEl.value;
+  const qty = (unit === 'kg') ? parseFloat(qtyEl.value) : parseInt(qtyEl.value);
+  
+  if (!name && !type) return showErr('Please enter a custom product name or select a bread type.');
+  if (isNaN(price) || price <= 0) return showErr('Please enter a valid price greater than zero.');
+  if (isNaN(qty) || qty <= 0) return showErr('Please enter a valid quantity greater than zero.');
+  
+  const label = name ? (type ? `${name} (${type})` : name) : type;
+  
+  checkout.push({ 
+    id: 'custom-' + Date.now(), 
+    name: label, 
+    price: price, 
+    qty: qty, 
+    measurement_type: unit, 
+    unit: unit, 
+    custom: true 
+  });
+  
+  // Reset form
+  nameEl.value = '';
+  nameEl.disabled = false;
+  nameEl.style.opacity = '';
+  if (typeEl) {
+    typeEl.value = '';
+    typeEl.disabled = false;
+    typeEl.style.opacity = '';
+  }
+  priceEl.value = '';
+  priceEl.readOnly = false;
+  priceEl.style.background = '';
+  priceEl.style.color = '';
+  qtyEl.value = '1';
+  qtyEl.step = '1';
+  qtyEl.oninput = function() { this.value = this.value.replace(/[^0-9]/g, ''); };
+  unitEl.value = 'pcs';
+  unitEl.disabled = false;
+  unitEl.style.opacity = '';
+  
   renderOrderPanel();
 }
 
@@ -2047,7 +2146,14 @@ document.addEventListener('keydown',function(e){
 
   if (e.key==='F1'||e.keyCode===112){ e.preventDefault(); openHelp(); return; }
   if (e.key==='F5'||e.keyCode===116){ e.preventDefault(); const s=document.getElementById('searchInput'); s.focus(); s.select(); return; }
-  if (e.key==='F8'||e.keyCode===119){ e.preventDefault(); document.getElementById('ciName').focus(); return; }
+  if (e.key==='F8'||e.keyCode===119){ 
+    e.preventDefault(); 
+    const ciName = document.getElementById('ciName');
+    if (ciName) {
+        ciName.focus();
+    }
+    return; 
+}
   if (typing) return;
   if (e.key==='Enter'||e.keyCode===13){ e.preventDefault(); openPayModal('Cash'); return; }
   if (e.key==='F2'||e.keyCode===113){ e.preventDefault(); clearCheckout(); return; }
@@ -2253,7 +2359,26 @@ clearCheckout = function() {
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', function() {
-  updateCartProtection();
+  const ciTypeEl = document.getElementById('ciType');
+  if (ciTypeEl) {
+    Cache.initBreads((() => {
+      const opts = ciTypeEl.options ?? [];
+      const arr = [];
+      for(let i=1; i<opts.length; i++) {
+        arr.push({ 
+          name: opts[i].value, 
+          price: parseFloat(opts[i].getAttribute('data-price')) || 0 
+        });
+      }
+      return arr;
+    })());
+    ciPriceFromType();
+  } else {
+    Cache.initBreads([]);
+  }
+  
+  renderGrid();
+  renderOrderPanel();
 });
 /* ─── Logout Modal ─────────────────────────────────────────────── */
 function openLogoutModal() {
@@ -2341,15 +2466,22 @@ document.addEventListener('keydown', function(e) {
 })();
 /* ── Init ─────────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded',function(){
-  Cache.initBreads((() => {
-    const opts=document.getElementById('ciType')?.options??[];
-    const arr=[];
-    for(let i=1;i<opts.length;i++) arr.push({ name:opts[i].value, price:parseFloat(opts[i].getAttribute('data-price'))||0 });
-    return arr;
-  })());
+  // Only initialize breads and custom product if the elements exist
+  const ciTypeEl = document.getElementById('ciType');
+  if (ciTypeEl) {
+    Cache.initBreads((() => {
+      const opts = ciTypeEl.options ?? [];
+      const arr = [];
+      for(let i=1;i<opts.length;i++) arr.push({ name:opts[i].value, price:parseFloat(opts[i].getAttribute('data-price'))||0 });
+      return arr;
+    })());
+    ciPriceFromType();
+  } else {
+    Cache.initBreads([]);
+  }
+  
   renderGrid();
   renderOrderPanel();
-  ciPriceFromType();
 });
 /* ─── Success Modal ─────────────────────────────────────────────── */
 function openSuccessModal(data) {
