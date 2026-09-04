@@ -244,6 +244,11 @@ $enableEwallet    = $systemSettings['enable_ewallet']      ?? '1';
 $receiptFooter    = $systemSettings['receipt_footer']      ?? 'Thank you for your purchase!';
 $autoPrintReceipt = $systemSettings['auto_print_receipt']  ?? '1';
 $logoPath         = $systemSettings['logo_path']           ?? ''; // ADD THIS LINE
+$themeBgColor = $systemSettings['theme_bg_color'] ?? '#111318';
+$themeCardColor = $systemSettings['theme_card_color'] ?? '#1e2330';
+$themeAccentColor = $systemSettings['theme_accent_color'] ?? '#ff8800';
+$logoPillBgColor = $systemSettings['logo_pill_bg_color'] ?? '#ff8800';
+$logoPillTextColor = $systemSettings['logo_pill_text_color'] ?? '#ffffff';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -362,7 +367,7 @@ body::after {
 }
 
 .logo-block {
-  background: linear-gradient(135deg, var(--amber), var(--amber-hot));
+  background: linear-gradient(135deg, <?= htmlspecialchars($logoPillBgColor) ?>, <?= htmlspecialchars($logoPillBgColor) ?>);
   border-radius: var(--radius);
   padding: 4px 14px;
   display: flex;
@@ -387,13 +392,13 @@ body::after {
   font-family: var(--font-display); 
   font-weight: 900; 
   font-size: 13px; 
-  color: white; 
+  color: <?= htmlspecialchars($logoPillTextColor) ?>;  
   letter-spacing: 0.5px; 
 }
 .logo-block .sub   { 
   font-family: var(--font-display); 
   font-size: 8px; 
-  color: rgba(255,255,255,0.82); 
+  color: <?= htmlspecialchars($logoPillTextColor) ?>; 
   letter-spacing: 2px; 
   font-weight: 600; 
 }

@@ -26,7 +26,11 @@ $businessAddress = $systemSettings['business_address'] ?? 'Dumaguete City, Negro
 $businessPhone = $systemSettings['business_phone'] ?? '0905 615 2262';
 $currencySymbol = $systemSettings['currency_symbol'] ?? '₱';
 $logoPath = $systemSettings['logo_path'] ?? '';
-
+$themeBgColor = $systemSettings['theme_bg_color'] ?? '#111318';
+$themeCardColor = $systemSettings['theme_card_color'] ?? '#1e2330';
+$themeAccentColor = $systemSettings['theme_accent_color'] ?? '#ff8800';
+$logoPillBgColor = $systemSettings['logo_pill_bg_color'] ?? '#ff8800';
+$logoPillTextColor = $systemSettings['logo_pill_text_color'] ?? '#ffffff';
 // Page title - can be overridden before including this file
 $pageTitle = $pageTitle ?? 'Dashboard';
 
@@ -126,6 +130,8 @@ function isCurrentPage($href) {
   --orange:     #ff8800;
   --orange-dk:  #cc5500;
   --orange-lt:  #ffaa33;
+  --logo-pill-bg: #ff8800; 
+  --logo-pill-text: #ffffff; 
   --green:      #00c853;
   --green-dk:   #009624;
   --red:        #ff4444;
@@ -165,8 +171,9 @@ body {
 }
 
 .logo-pill {
-  background: linear-gradient(135deg, var(--orange), #ff4400);
-  border-radius: 8px; padding: 5px 14px;
+  background: linear-gradient(135deg, var(--logo-pill-bg, var(--orange)), var(--logo-pill-bg, #ff4400));
+  border-radius: 8px; 
+  padding: 5px 14px;
   display: flex; 
   flex-direction: row;
   align-items: center;
@@ -174,6 +181,20 @@ body {
   box-shadow: 0 0 20px rgba(255,136,0,0.3);
   transition: all 0.3s ease;
   min-height: 40px;
+}
+.logo-pill .lp-name { 
+  font-weight: 800; 
+  font-size: 11px; 
+  color: var(--logo-pill-text, white); 
+  letter-spacing: 0.3px;
+}
+.logo-pill .lp-sub  { 
+  font-size: 7px; 
+  color: var(--logo-pill-text, rgba(255,255,255,0.75)); 
+  letter-spacing: 2px; 
+  font-weight: 600; 
+  text-transform: uppercase;
+  opacity: 0.85;
 }
 
 .logo-pill .logo-img {
@@ -191,14 +212,6 @@ body {
   flex-direction: column;
   align-items: flex-start;
   line-height: 1.2;
-}
-
-.logo-pill .lp-name { 
-  font-weight: 800; font-size: 11px; color: white; letter-spacing: 0.3px;
-}
-.logo-pill .lp-sub  { 
-  font-size: 7px; color: rgba(255,255,255,0.75); letter-spacing: 2px; 
-  font-weight: 600; text-transform: uppercase;
 }
 
 .tb-divider { width: 1px; height: 24px; background: var(--border2); margin: 0 4px; }
@@ -491,6 +504,18 @@ body {
   filter: brightness(1) invert(1);
 }
 </style>
+<style>
+:root {
+  --bg: <?= htmlspecialchars($themeBgColor) ?>;
+  --card: <?= htmlspecialchars($themeCardColor) ?>;
+  --card2: <?= htmlspecialchars($themeCardColor) ?>;
+  --orange: <?= htmlspecialchars($themeAccentColor) ?>;
+  --orange-dk: <?= htmlspecialchars($themeAccentColor) ?>;
+  --orange-lt: <?= htmlspecialchars($themeAccentColor) ?>;
+  --logo-pill-bg: <?= htmlspecialchars($logoPillBgColor) ?>;
+  --logo-pill-text: <?= htmlspecialchars($logoPillTextColor) ?>;
+}
+</style>
 </head>
 <body>
 
@@ -544,8 +569,6 @@ body {
    href="/Store/admin/bleft.php" title="Bread Left"><img src="/Store/image/icons/inventory.png" alt="Bread Left" style="width: 20px; height: 20px; object-fit:contain;"></a>
 <a class="tb-icon" href="#" onclick="event.preventDefault(); openLogoutModal();" title="Logout"><img src="/Store/image/icons/power.png" alt="Logout" style="width: 20px; height: 20px; object-fit:contain;"></a>
 </div>
-
-
 <!-- ═══════════════════════════════════ TOP BAR -->
 <div class="top-bar">
   <button class="menu-btn" id="menuBtn" onclick="toggleSidebar()">☰</button>
@@ -559,21 +582,18 @@ body {
       <span class="lp-sub"><?= htmlspecialchars($businessSubtitle) ?></span>
     </div>
   </div>
-  
   <div class="tb-divider"></div>
   <span class="tb-title" id="topBarTitle"><?= htmlspecialchars($pageTitle) ?></span>
   <div class="tb-divider"></div>
   <span class="tb-clock" id="currentTime"></span>
   <div style="font-size:10px; margin-left:45px;"><?= htmlspecialchars($businessAddress) ?></div>
   <div class="tb-spacer"></div>
-
   <?php if(isset($lowStockCount) && isset($expiringCount) && ($lowStockCount>0||$expiringCount>0)): ?>
   <div class="tb-badge warn" onclick="openAlertModal()" style="cursor:pointer;" title="View alerts">
     <div class="dot"></div>
     <span><?= $lowStockCount+$expiringCount ?> Alerts</span>
   </div>
   <?php endif; ?>
-
   <!-- Top Bar Icons with active highlighting - Using absolute paths from /Store/ -->
   <a class="tb-icon <?= $activePage === 'dashboard' ? 'active disabled' : '' ?>" 
      href="/Store/dashboard.php" title="Dashboard">
@@ -616,7 +636,6 @@ body {
   <img src="/Store/image/icons/power.png" alt="Logout">
 </a>
 </div>
-
 <!-- ═══════════════════════════════════ SIDEBAR -->
 <div class="sidebar" id="sidebar">
   <div class="sb-section-label">Management</div>
@@ -636,7 +655,6 @@ body {
       <img src="/Store/image/icons/reserve.png" alt="Reserve Items"> Reserve Items
     </a>
   </div>
-
   <button class="sb-group-btn" onclick="toggleSub(this)">
     <span class="sb-ico">
       <img src="/Store/image/icons/mail-attachment.png" alt="Records">
@@ -649,7 +667,6 @@ body {
       <img src="/Store/image/icons/mail-attachment.png" alt="Records"> Manage Sales
     </a>
   </div>
-
   <div class="sb-divider"></div>
   <div class="sb-section-label">Administration</div>
 
@@ -665,7 +682,6 @@ body {
       <img src="/Store/image/icons/management.png" alt="Users"> Manage Users
     </a>
   </div>
-
   <button class="sb-group-btn" onclick="toggleSub(this)">
     <span class="sb-ico">
       <img src="/Store/image/icons/bakery.png" alt="Breads">
@@ -681,9 +697,7 @@ body {
       <img src="/Store/image/icons/inventory.png" alt="Bread Left"> Bread Left
     </a>
   </div>
-
   <div class="sb-divider"></div>
-  
   <button class="sb-group-btn" onclick="toggleSub(this)">
     <span class="sb-ico">
       <img src="/Store/image/icons/gear.png" alt="Settings">
@@ -696,9 +710,7 @@ body {
       <img src="/Store/image/icons/gear.png" alt="Settings"> System Settings
     </a>
   </div>
-
   <div class="sb-divider"></div>
-  
   <div class="sb-section-label">Account</div>
   <div class="sb-sub">
     <a href="/Store/admin/prof.php" class="<?= $activePage === 'profile' ? 'active disabled' : '' ?>">

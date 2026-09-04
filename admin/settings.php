@@ -376,10 +376,29 @@ if (isset($_SESSION['swal'])) {
     });</script>";
     unset($_SESSION['swal']);
 }
+
+// Save theme colors
+$themeColors = [
+    'theme_bg_color',
+    'theme_card_color',
+    'theme_accent_color'
+];
+
+foreach ($themeColors as $colorKey) {
+    if (isset($_POST[$colorKey])) {
+        $colorValue = $_POST[$colorKey];
+        // Validate hex color
+        if (preg_match('/^#[0-9a-fA-F]{6}$/', $colorValue)) {
+            // Save to system_settings
+            $stmt = $conn->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+            $stmt->bind_param("ss", $colorKey, $colorValue);
+            $stmt->execute();
+        }
+    }
+}
 ?>
 
 <style>
-/* Page-specific styles only (header/footer styles are in the includes) */
 :root {
   --orange: #ff8800;
   --orange-dk: #cc5500;
@@ -877,25 +896,138 @@ body {
   </div>
 
   <!-- ══ APPEARANCE TAB ════════════════════════════════════════════════════════ -->
-  <div id="tab-appearance" class="tab-content">
-    <div class="settings-grid">
-      <div class="settings-card">
-        <h3>🎨 Logo & Branding</h3>
-        <div class="form-group">
-          <label>Upload Logo</label>
-          <input type="file" id="logoUpload" accept="image/*" onchange="previewLogo(this)">
-          <div class="logo-preview" id="logoPreview">
-            <?php if (!empty($settings['logo_path']) && file_exists('../' . $settings['logo_path'])): ?>
-              <img src="../<?= htmlspecialchars($settings['logo_path']) ?>" alt="Logo">
-            <?php else: ?>
-              <p style="color:var(--text3);">No logo uploaded</p>
-            <?php endif; ?>
-          </div>
+<div id="tab-appearance" class="tab-content">
+  <div class="settings-grid">
+    <div class="settings-card">
+      <h3>🎨 Logo & Branding</h3>
+      <div class="form-group">
+        <label>Upload Logo</label>
+        <input type="file" id="logoUpload" accept="image/*" onchange="previewLogo(this)">
+        <div class="logo-preview" id="logoPreview">
+          <?php if (!empty($settings['logo_path']) && file_exists('../' . $settings['logo_path'])): ?>
+            <img src="../<?= htmlspecialchars($settings['logo_path']) ?>" alt="Logo">
+          <?php else: ?>
+            <p style="color:var(--text3);">No logo uploaded</p>
+          <?php endif; ?>
         </div>
-        <button class="btn btn-primary" onclick="uploadLogo()">⬆ Upload Logo</button>
+      </div>
+      <button class="btn btn-primary" onclick="uploadLogo()">⬆ Upload Logo</button>
+    </div>
+    <!-- ✅ NEW: Theme Color Settings -->
+    <div class="settings-card">
+      <h3>🎨 Theme Colors</h3>
+      <div class="form-group">
+        <label>Background Color</label>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <input type="color" id="themeBgColor" 
+                 name="theme_bg_color"
+                 value="<?= htmlspecialchars($settings['theme_bg_color'] ?? '#111318') ?>"
+                 style="width:60px;height:40px;border:2px solid var(--border);border-radius:6px;cursor:pointer;background:none;padding:2px;">
+          <input type="text" id="themeBgColorText" 
+                 value="<?= htmlspecialchars($settings['theme_bg_color'] ?? '#111318') ?>"
+                 style="font-family:monospace;font-size:12px;background:var(--bg3);border:1.5px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text3);width:120px;"
+                 onchange="document.getElementById('themeBgColor').value = this.value; updateThemePreview();">
+        </div>
+        <small style="color:var(--text3);display:block;margin-top:4px;">
+          Main page background color (dark themes recommended)
+        </small>
+      </div>
+      <div class="form-group">
+        <label>Card/Surface Color</label>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <input type="color" id="themeCardColor" 
+                 name="theme_card_color"
+                 value="<?= htmlspecialchars($settings['theme_card_color'] ?? '#1e2330') ?>"
+                 style="width:60px;height:40px;border:2px solid var(--border);border-radius:6px;cursor:pointer;background:none;padding:2px;">
+          <input type="text" id="themeCardColorText" 
+                 value="<?= htmlspecialchars($settings['theme_card_color'] ?? '#1e2330') ?>"
+                 style="font-family:monospace;font-size:12px;background:var(--bg3);border:1.5px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text3);width:120px;"
+                 onchange="document.getElementById('themeCardColor').value = this.value; updateThemePreview();">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Accent Color</label>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <input type="color" id="themeAccentColor" 
+                 name="theme_accent_color"
+                 value="<?= htmlspecialchars($settings['theme_accent_color'] ?? '#ff8800') ?>"
+                 style="width:60px;height:40px;border:2px solid var(--border);border-radius:6px;cursor:pointer;background:none;padding:2px;">
+          <input type="text" id="themeAccentColorText" 
+                 value="<?= htmlspecialchars($settings['theme_accent_color'] ?? '#ff8800') ?>"
+                 style="font-family:monospace;font-size:12px;background:var(--bg3);border:1.5px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text3);width:120px;"
+                 onchange="document.getElementById('themeAccentColor').value = this.value; updateThemePreview();">
+        </div>
+      </div>
+    <div class="form-group">
+    <label>Logo Pill Background</label>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <input type="color" id="logoPillBgColor" 
+             name="logo_pill_bg_color"
+             value="<?= htmlspecialchars($settings['logo_pill_bg_color'] ?? '#ff8800') ?>"
+             style="width:60px;height:40px;border:2px solid var(--border);border-radius:6px;cursor:pointer;background:none;padding:2px;">
+      <input type="text" id="logoPillBgColorText" 
+             value="<?= htmlspecialchars($settings['logo_pill_bg_color'] ?? '#ff8800') ?>"
+             style="font-family:monospace;font-size:12px;background:var(--bg3);border:1.5px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text3);width:120px;"
+             onchange="document.getElementById('logoPillBgColor').value = this.value; updateThemePreview();">
+    </div>
+    <small style="color:var(--text3);display:block;margin-top:4px;">
+      Background color for the logo/branding pill in the header
+    </small>
+  </div>
+  <!-- ✅ ADD THIS: Logo Pill Text Color -->
+  <div class="form-group">
+    <label>Logo Pill Text Color</label>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <input type="color" id="logoPillTextColor" 
+             name="logo_pill_text_color"
+             value="<?= htmlspecialchars($settings['logo_pill_text_color'] ?? '#ffffff') ?>"
+             style="width:60px;height:40px;border:2px solid var(--border);border-radius:6px;cursor:pointer;background:none;padding:2px;">
+      <input type="text" id="logoPillTextColorText" 
+             value="<?= htmlspecialchars($settings['logo_pill_text_color'] ?? '#ffffff') ?>"
+             style="font-family:monospace;font-size:12px;background:var(--bg3);border:1.5px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text3);width:120px;"
+             onchange="document.getElementById('logoPillTextColor').value = this.value; updateThemePreview();">
+    </div>
+    <small style="color:var(--text3);display:block;margin-top:4px;">
+      Text color for the logo/branding text
+    </small>
+  </div>
+  <!-- Update preset buttons to include logo colors -->
+    <div style="margin-top:16px;">
+        <label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;display:block;">
+          Quick Presets
+        </label>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          <button type="button" class="btn btn-secondary" style="font-size:10px;padding:6px 12px;"
+                  onclick="applyThemePreset('#111318', '#1e2330', '#ff8800', '#ff8800', '#ffffff')">
+            🟠 Orange Dark
+          </button>
+          <button type="button" class="btn btn-secondary" style="font-size:10px;padding:6px 12px;"
+                  onclick="applyThemePreset('#0a0e14', '#1a2029', '#00c853', '#00c853', '#ffffff')">
+            🟢 Green Dark
+          </button>
+          <button type="button" class="btn btn-secondary" style="font-size:10px;padding:6px 12px;"
+                  onclick="applyThemePreset('#0d1117', '#161b22', '#4488ff', '#4488ff', '#ffffff')">
+            🔵 Blue Dark
+          </button>
+          <button type="button" class="btn btn-secondary" style="font-size:10px;padding:6px 12px;"
+                  onclick="applyThemePreset('#1a0a0a', '#261515', '#ff4444', '#ff4444', '#ffffff')">
+            🔴 Red Dark
+          </button>
+          <button type="button" class="btn btn-secondary" style="font-size:10px;padding:6px 12px;"
+                  onclick="applyThemePreset('#ffffff', '#f5f5f5', '#ff8800', '#ff8800', '#ffffff')">
+            ⚪ Light Mode
+          </button>
+        </div>
+      </div>
+      <!-- ✅ ADD THIS: Save Button for Appearance Settings -->
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;">
+        <button type="button" class="btn btn-secondary" onclick="resetThemeColors()">🔄 Reset to Default</button>
+        <button type="button" class="btn btn-primary" onclick="saveThemeColors()">💾 Save Theme Colors</button>
       </div>
     </div>
   </div>
+</div>
+</div>
 
   <!-- ══ BACKUP TAB ═══════════════════════════════════════════════════════════ -->
   <div id="tab-backup" class="tab-content">
@@ -1217,7 +1349,110 @@ function openPaymentModal(){
   document.getElementById('qrPreviewBox').style.display = 'none';
   document.getElementById('paymentModal').classList.add('show');
 }
+function updateThemePreview() {
+  const bgColor = document.getElementById('themeBgColor').value;
+  const cardColor = document.getElementById('themeCardColor').value;
+  const accentColor = document.getElementById('themeAccentColor').value;
+  const logoPillBg = document.getElementById('logoPillBgColor').value;
+  const logoPillText = document.getElementById('logoPillTextColor').value;
+  
+  // Update text inputs
+  document.getElementById('themeBgColorText').value = bgColor;
+  document.getElementById('themeCardColorText').value = cardColor;
+  document.getElementById('themeAccentColorText').value = accentColor;
+  document.getElementById('logoPillBgColorText').value = logoPillBg;
+  document.getElementById('logoPillTextColorText').value = logoPillText;
+  
+  // Apply live preview
+  document.documentElement.style.setProperty('--bg', bgColor);
+  document.documentElement.style.setProperty('--card', cardColor);
+  document.documentElement.style.setProperty('--card2', cardColor);
+  document.documentElement.style.setProperty('--orange', accentColor);
+  document.documentElement.style.setProperty('--orange-dk', accentColor);
+  document.documentElement.style.setProperty('--orange-lt', accentColor);
+  document.documentElement.style.setProperty('--logo-pill-bg', logoPillBg);
+  document.documentElement.style.setProperty('--logo-pill-text', logoPillText);
+}
 
+function applyThemePreset(bg, card, accent, logoBg, logoText) {
+  document.getElementById('themeBgColor').value = bg;
+  document.getElementById('themeCardColor').value = card;
+  document.getElementById('themeAccentColor').value = accent;
+  document.getElementById('logoPillBgColor').value = logoBg;
+  document.getElementById('logoPillTextColor').value = logoText;
+  updateThemePreview();
+}
+
+// Color picker event listeners
+document.getElementById('themeBgColor').addEventListener('input', updateThemePreview);
+document.getElementById('themeCardColor').addEventListener('input', updateThemePreview);
+document.getElementById('themeAccentColor').addEventListener('input', updateThemePreview);
+document.getElementById('logoPillBgColor').addEventListener('input', updateThemePreview);
+document.getElementById('logoPillTextColor').addEventListener('input', updateThemePreview);
+/* ─── Save Theme Colors Separately ─── */
+async function saveThemeColors() {
+  const submitBtn = event.target;
+  const originalText = submitBtn.textContent;
+  submitBtn.disabled = true;
+  submitBtn.textContent = '⏳ Saving...';
+  
+  const settings = {
+    theme_bg_color: document.getElementById('themeBgColor').value,
+    theme_card_color: document.getElementById('themeCardColor').value,
+    theme_accent_color: document.getElementById('themeAccentColor').value,
+    logo_pill_bg_color: document.getElementById('logoPillBgColor').value,
+    logo_pill_text_color: document.getElementById('logoPillTextColor').value
+  };
+  
+  const requestData = new FormData();
+  requestData.append('ajax_action', 'save_settings');
+  requestData.append('settings', JSON.stringify(settings));
+  
+  try {
+    const res = await fetch('settings.php', { method: 'POST', body: requestData });
+    const data = await res.json();
+    
+    Swal.fire({ 
+      icon: data.success ? 'success' : 'error',
+      title: data.success ? 'Theme Saved!' : 'Error',
+      text: data.message, 
+      confirmButtonColor: '#ff8800',
+      background: '#1e2330',
+      color: '#e8eaf0'
+    }).then(() => {
+      if (data.success) {
+        // Reload to apply the new theme globally
+        location.reload();
+      }
+    });
+  } catch (error) {
+    Swal.fire({ 
+      icon: 'error', 
+      title: 'Error', 
+      text: 'Failed to save theme: ' + error.message, 
+      confirmButtonColor: '#ff8800',
+      background: '#1e2330',
+      color: '#e8eaf0'
+    });
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = originalText;
+  }
+}
+
+/* ─── Reset Theme Colors to Default ─── */
+function resetThemeColors() {
+  applyThemePreset('#111318', '#1e2330', '#ff8800', '#ff8800', '#ffffff');
+  
+  Swal.fire({
+    icon: 'info',
+    title: 'Theme Reset',
+    text: 'Colors reset to default. Click "Save Theme Colors" to apply.',
+    confirmButtonColor: '#ff8800',
+    background: '#1e2330',
+    color: '#e8eaf0'
+  });
+}
 /* ─── Payment Modal: Open (Edit) ─── */
 function editPaymentMethod(id){
   const row = document.querySelector(`tr[data-id="${id}"]`);

@@ -23,7 +23,11 @@ $enableEwallet    = $systemSettings['enable_ewallet']      ?? '1';
 $receiptFooter    = $systemSettings['receipt_footer']      ?? 'Thank you for your purchase!';
 $autoPrintReceipt = $systemSettings['auto_print_receipt']  ?? '1';
 $logoPath         = $systemSettings['logo_path']           ?? '';
-
+$themeBgColor = $systemSettings['theme_bg_color'] ?? '#111318';
+$themeCardColor = $systemSettings['theme_card_color'] ?? '#1e2330';
+$themeAccentColor = $systemSettings['theme_accent_color'] ?? '#ff8800';
+$logoPillBgColor = $systemSettings['logo_pill_bg_color'] ?? '#ff8800';
+$logoPillTextColor = $systemSettings['logo_pill_text_color'] ?? '#ffffff';
 // ─── FETCH PAYMENT METHODS ─────────────────────────────────────────────────────
 $paymentMethods = [];
 $result = $conn->query("SELECT * FROM payment_methods WHERE is_active = 1 ORDER BY display_order ASC");
@@ -78,7 +82,7 @@ body {
   flex-shrink: 0; gap: 6px;
 }
 .logo-block {
-  background: linear-gradient(135deg, #ff8800, #ff6000);
+  background: linear-gradient(135deg, <?= htmlspecialchars($logoPillBgColor) ?>, <?= htmlspecialchars($logoPillBgColor) ?>);
   border-radius: 6px;
   padding: 3px 10px;
   display: flex;
@@ -105,13 +109,13 @@ body {
 .logo-block .brand { 
   font-weight: 900; 
   font-size: 13px; 
-  color: white; 
+  color: <?= htmlspecialchars($logoPillTextColor) ?>; 
   letter-spacing: 0.5px; 
   margin-bottom: 1px;
 }
 .logo-block .sub   { 
   font-size: 9px; 
-  color: rgba(255,255,255,0.85); 
+  color: <?= htmlspecialchars($logoPillTextColor) ?>; 
   letter-spacing: 1.5px; 
   font-weight: 600; 
 }
@@ -419,6 +423,18 @@ body {
 
 .draggable-modal .drag-handle:active {
   cursor: grabbing;
+}
+</style>
+<style>
+:root {
+  --bg: <?= htmlspecialchars($themeBgColor) ?>;
+  --card: <?= htmlspecialchars($themeCardColor) ?>;
+  --card2: <?= htmlspecialchars($themeCardColor) ?>;
+  --orange: <?= htmlspecialchars($themeAccentColor) ?>;
+  --orange-dk: <?= htmlspecialchars($themeAccentColor) ?>;
+  --orange-lt: <?= htmlspecialchars($themeAccentColor) ?>;
+  --logo-pill-bg: <?= htmlspecialchars($logoPillBgColor) ?>;
+  --logo-pill-text: <?= htmlspecialchars($logoPillTextColor) ?>;
 }
 </style>
 </head>
