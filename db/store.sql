@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Aug 18, 2026 at 11:46 AM
+-- Generation Time: Sep 05, 2026 at 11:48 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -41,7 +41,8 @@ CREATE TABLE `breads` (
 INSERT INTO `breads` (`id`, `name`, `price`, `created_at`) VALUES
 (2, 'Pandesal', 2.00, '2025-08-03 14:02:52'),
 (4, 'Meat Bread', 15.00, '2025-08-03 14:04:07'),
-(5, 'Pandecoco', 5.00, '2025-08-04 03:11:17');
+(5, 'Pandecoco', 5.00, '2025-08-04 03:11:17'),
+(6, 'Tinalay', 25.00, '2026-08-19 06:28:05');
 
 -- --------------------------------------------------------
 
@@ -70,7 +71,8 @@ INSERT INTO `bread_remain` (`id`, `bread_id`, `quantity`, `price`, `date_recorde
 (30, 4, 25, 15.00, '2025-08-14', 7, '2025-08-14 14:39:10'),
 (31, 4, 10, 15.00, '2025-08-25', 7, '2025-08-25 06:07:28'),
 (33, 4, 20, 15.00, '2026-08-18', 7, '2026-08-18 02:46:10'),
-(34, 4, 20, 15.00, '2026-08-18', 7, '2026-08-18 03:29:09');
+(34, 4, 20, 15.00, '2026-08-18', 7, '2026-08-18 03:29:09'),
+(36, 5, 20, 5.00, '2026-08-19', 7, '2026-08-19 09:43:39');
 
 -- --------------------------------------------------------
 
@@ -101,6 +103,63 @@ CREATE TABLE `employees` (
   `phone` varchar(20) NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `expired_products`
+--
+
+CREATE TABLE `expired_products` (
+  `id` int(11) NOT NULL,
+  `batch_id` int(11) NOT NULL,
+  `product_id` int(11) NOT NULL,
+  `code` varchar(50) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `category` varchar(100) DEFAULT NULL,
+  `brand` varchar(100) DEFAULT NULL,
+  `seller_store` varchar(255) DEFAULT NULL,
+  `purchase_price` decimal(10,2) DEFAULT NULL,
+  `price` decimal(10,2) DEFAULT NULL,
+  `quantity` int(11) DEFAULT 0,
+  `kg` decimal(10,2) DEFAULT 0.00,
+  `measurement_type` enum('pieces','kg') DEFAULT 'pieces',
+  `purchase_date` date DEFAULT NULL,
+  `expiry_date` date DEFAULT NULL,
+  `expired_date` date DEFAULT NULL,
+  `days_expired` int(11) DEFAULT NULL,
+  `batch_date` datetime DEFAULT NULL,
+  `moved_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `inventory_audit`
+--
+
+CREATE TABLE `inventory_audit` (
+  `id` int(11) NOT NULL,
+  `batch_id` int(11) DEFAULT NULL,
+  `product_id` int(11) DEFAULT NULL,
+  `action` enum('restock','sold','expired_moved','expired_removed','batch_merged') DEFAULT NULL,
+  `previous_quantity` int(11) DEFAULT 0,
+  `new_quantity` int(11) DEFAULT 0,
+  `previous_kg` decimal(10,2) DEFAULT 0.00,
+  `new_kg` decimal(10,2) DEFAULT 0.00,
+  `seller_store` varchar(255) DEFAULT NULL,
+  `purchase_price` decimal(10,2) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `inventory_audit`
+--
+
+INSERT INTO `inventory_audit` (`id`, `batch_id`, `product_id`, `action`, `previous_quantity`, `new_quantity`, `previous_kg`, `new_kg`, `seller_store`, `purchase_price`, `notes`, `created_at`) VALUES
+(2, 2, 2, 'restock', 0, 100, 0.00, 0.00, 'Lee Plaza', 500.00, 'Initial product creation', '2026-08-27 14:40:38'),
+(3, 3, 2, 'restock', 0, 150, 0.00, 0.00, '', 750.00, 'New stock arrival', '2026-08-27 14:49:06');
 
 -- --------------------------------------------------------
 
@@ -186,26 +245,41 @@ CREATE TABLE `products` (
 --
 
 INSERT INTO `products` (`id`, `code`, `name`, `category`, `price`, `brand`, `seller_store`, `expiry_date`, `purchase_date`, `pieces`, `kg`, `measurement_type`, `purchase_price`, `image_path`, `date_added`) VALUES
-(1, 'P1', 'Swack', 'Goods', 12.00, 'Bear Brand', 'Cangz', '2026-08-09', '2025-07-01', 2109, NULL, NULL, 865.00, NULL, '2025-07-11 00:00:51'),
-(2, 'P2', 'Coke ', 'Drinks', 40.00, 'Coca Cola', 'Lee Plaza', '2026-07-10', '0000-00-00', 32, NULL, NULL, 954.00, NULL, '2025-07-11 00:00:51'),
-(3, 'P3', 'Sprite', 'Drinks', 40.00, 'Coca Cola', 'Lee Plaza', '2026-07-02', '0000-00-00', 35, NULL, NULL, 850.00, NULL, '2025-07-11 00:00:51'),
-(4, 'P4', 'Coke Sakto', 'Drinks', 15.00, 'Coca Cola', 'Lee Plaza', '2026-07-09', '0000-00-00', 66, NULL, NULL, 750.00, NULL, '2025-07-11 00:00:51'),
-(5, 'P5', 'Royal', 'Drinks', 40.00, 'Coca Cola', 'Lee Plaza', '2026-07-09', '0000-00-00', 23, NULL, NULL, 580.00, NULL, '2025-07-11 00:00:51'),
-(6, 'P6', 'Sprite Sakto', 'Drinks', 15.00, 'Coca Cola', 'Lee Plaza', '2026-07-09', '2025-07-02', 70, NULL, NULL, 700.00, NULL, '2025-07-11 00:00:51'),
-(7, 'P7', 'Royal Sakto', 'Drinks', 15.00, 'Coca Cola', 'Lee Plaza', '2026-07-09', '2025-07-02', 96, NULL, NULL, 600.00, NULL, '2025-07-11 00:00:51'),
-(12, NULL, 'Royal Sakto', 'Drinks', 15.00, 'Coca Cola', 'Lee Plaza', '2026-07-09', '2025-07-02', 100, NULL, NULL, 600.00, NULL, '2025-07-11 00:00:51'),
-(13, NULL, 'Royal Sakto', 'Drinks', 15.00, 'Coca Cola', 'Lee Plaza', '2026-07-09', '2025-07-02', 89, NULL, NULL, 600.00, NULL, '2025-07-11 00:00:51'),
-(14, NULL, 'Cellphone', 'Mobile', 9000.00, 'Infinix', '7-11', '2026-07-16', '2025-07-06', 2, NULL, 'pieces', 14000.00, NULL, '2025-07-11 00:00:51'),
-(15, NULL, 'Volt', 'Aluminum', 20.00, 'Rolex', 'Beton Volts', NULL, '2025-07-06', 250, NULL, 'pieces', 500.00, 'uploads/prod_686e6d587d5757.26847650.png', '2025-07-11 00:00:51'),
-(32, NULL, 'Carne Norte', 'Goods', 45.00, 'Sardines', 'Lee Plaza', '2025-11-12', '2025-07-11', 85, NULL, 'pieces', 1800.00, 'uploads/prod_687a005e907df2.97738693.jpg', '2025-07-18 03:05:50'),
-(33, NULL, 'Ganador', 'Bugas', 2000.00, 'Rice ', 'Acme Traders', NULL, '2025-07-15', -2, 738.00, 'kg', 22500.00, 'uploads/prod_687a027f34dbe5.88907356.jpg', '2025-07-18 03:14:55'),
-(34, NULL, 'Mais', 'Goods', 51.00, 'Corn and Grits', 'Acme Traders', 'N/A', '2025-07-16', -3, 247.00, 'kg', 8000.00, 'uploads/prod_687a48f96cc6d8.89263075.jpg', '2025-07-18 21:15:37'),
-(36, '', 'Milo', 'Powder Drinks', 13.00, 'Nestle', 'Unitops', '2025-12-09', '2025-07-16', 14, 0.00, 'pieces', 700.00, 'uploads/prod_687a6421aaa114.86455761.jfif', '2025-07-18 22:43:58'),
-(37, 'P43', 'Noddles', 'Goods', 13.00, 'Nestle', 'Lee Plaza', '2025-12-09', '2025-07-16', 1, 0.00, 'pieces', 700.00, 'uploads/prod_687a6bfc0656f1.46124442.jfif', '2025-07-18 23:07:10'),
-(48, 'P50', 'Luckey Me', 'Goods', 13.00, 'Nestle', 'Lee Plaza', '2025-12-09', '2025-07-16', 18, 0.00, 'pieces', 700.00, 'uploads/prod_687b060232d145.08444802.jpg', '2025-07-19 00:11:58'),
-(55, 'P56', 'Redhorse ', 'Liquer', 150.00, 'Redhorse', 'Lee Plaza', '2027-07-20', '2025-07-16', 47, 0.00, 'pieces', 2500.00, 'uploads/prod_698819a33be4b3.29610480.png', '2025-07-19 01:46:59'),
-(57, 'P58', 'Sardines', 'Goods', 25.00, 'Mega', 'Lee Plaza', '2026-01-05', '2025-07-17', 78, 0.00, 'pieces', 1700.00, 'uploads/prod_687b4f1ef09904.25285599.jpg', '2025-07-19 02:53:39'),
-(58, 'P59', 'Bugas', 'Goods', 250.00, 'Rice', 'Acme Traders', NULL, '2025-07-17', -2, 9.00, 'kg', 500.00, 'uploads/prod_687bb1b90852f3.13313996.jpeg', '2025-07-19 03:55:05');
+(2, 'P1', 'Coke', 'Drinks', 15.00, 'Coca Cola', 'Lee Plaza', '2028-11-30', '2026-08-24', 246, 0.00, 'pieces', 500.00, 'uploads/prod_6a8fdbe5d75e87.04210523.jpeg', '2026-08-27 14:40:37');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `product_batches`
+--
+
+CREATE TABLE `product_batches` (
+  `id` int(11) NOT NULL,
+  `product_id` int(11) NOT NULL,
+  `code` varchar(50) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `category` varchar(100) DEFAULT NULL,
+  `brand` varchar(100) DEFAULT NULL,
+  `seller_store` varchar(255) DEFAULT NULL,
+  `purchase_price` decimal(10,2) DEFAULT NULL,
+  `price` decimal(10,2) DEFAULT NULL,
+  `quantity` int(11) DEFAULT 0,
+  `kg` decimal(10,2) DEFAULT 0.00,
+  `measurement_type` enum('pieces','kg') DEFAULT 'pieces',
+  `purchase_date` date DEFAULT NULL,
+  `expiry_date` date DEFAULT NULL,
+  `batch_date` datetime DEFAULT current_timestamp(),
+  `status` enum('active','expired','soldout') DEFAULT 'active',
+  `image_path` varchar(255) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `product_batches`
+--
+
+INSERT INTO `product_batches` (`id`, `product_id`, `code`, `name`, `category`, `brand`, `seller_store`, `purchase_price`, `price`, `quantity`, `kg`, `measurement_type`, `purchase_date`, `expiry_date`, `batch_date`, `status`, `image_path`) VALUES
+(2, 2, 'P1', 'Coke', 'Drinks', 'Coca Cola', 'Lee Plaza', 500.00, 15.00, 100, 0.00, 'pieces', '2026-08-24', '2028-11-30', '2026-08-27 14:40:37', 'active', 'uploads/prod_6a8fdbe5d75e87.04210523.jpeg'),
+(3, 2, 'P1', 'Coke', 'Drinks', 'Coca Cola', '', 750.00, 15.00, 150, 0.00, 'pieces', '2026-08-27', '2029-02-13', '2026-08-27 14:49:06', 'active', 'uploads/prod_6a8fdbe5d75e87.04210523.jpeg');
 
 -- --------------------------------------------------------
 
@@ -224,7 +298,7 @@ CREATE TABLE `registration_keys` (
 --
 
 INSERT INTO `registration_keys` (`id`, `reg_key`, `updated_at`) VALUES
-(1, 'ANGEL', '2026-04-04 07:31:38');
+(1, 'POS', '2026-08-19 06:51:01');
 
 -- --------------------------------------------------------
 
@@ -262,6 +336,33 @@ INSERT INTO `reserved_items` (`id`, `code`, `name`, `price`, `category`, `brand`
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `restock_requests`
+--
+
+CREATE TABLE `restock_requests` (
+  `id` int(11) NOT NULL,
+  `product_id` int(11) NOT NULL,
+  `code` varchar(50) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `category` varchar(100) DEFAULT NULL,
+  `brand` varchar(100) DEFAULT NULL,
+  `seller_store` varchar(255) NOT NULL,
+  `purchase_price` decimal(10,2) NOT NULL,
+  `price` decimal(10,2) NOT NULL,
+  `quantity` int(11) DEFAULT 0,
+  `kg` decimal(10,2) DEFAULT 0.00,
+  `measurement_type` enum('pieces','kg') DEFAULT 'pieces',
+  `purchase_date` date DEFAULT NULL,
+  `expiry_date` date DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `status` enum('pending','approved','rejected') DEFAULT 'pending',
+  `requested_at` datetime DEFAULT current_timestamp(),
+  `approved_at` datetime DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `system_settings`
 --
 
@@ -289,11 +390,25 @@ INSERT INTO `system_settings` (`id`, `setting_key`, `setting_value`, `setting_ty
 (7, 'tax_rate', '0', 'decimal', 'Tax rate percentage', '2026-03-29 07:34:53', NULL),
 (8, 'low_stock_threshold_pieces', '20', 'number', 'Low stock threshold for pieces', '2026-03-29 07:34:53', NULL),
 (9, 'low_stock_threshold_kg', '20', 'decimal', 'Low stock threshold for kilograms', '2026-03-29 07:34:53', NULL),
-(10, 'auto_print_receipt', '0', 'boolean', 'Automatically print receipt after payment', '2026-04-04 07:59:30', NULL),
+(10, 'auto_print_receipt', '0', 'boolean', 'Automatically print receipt after payment', '2026-08-20 03:05:19', NULL),
 (11, 'receipt_width', '58', 'number', 'Receipt print width in mm', '2026-03-29 07:34:53', NULL),
 (12, 'enable_ewallet', '1', 'boolean', 'Enable e-wallet payments', '2026-03-29 07:34:53', NULL),
 (13, 'enable_cash', '1', 'boolean', 'Enable cash payments', '2026-03-29 07:34:53', NULL),
-(27, 'logo_path', 'image/logo_1775288910.png', 'text', NULL, '2026-04-04 07:48:30', NULL);
+(27, 'logo_path', 'image/logo_1787122417.png', 'text', NULL, '2026-08-19 06:53:37', NULL),
+(156, 'enable_custom_product', '1', 'text', NULL, '2026-08-27 07:36:59', NULL),
+(157, 'custom_product_label', '➕ Add Custom Product', 'text', NULL, '2026-08-27 07:29:14', NULL),
+(173, 'enable_bread_type', '0', 'text', NULL, '2026-08-27 07:43:03', NULL),
+(190, 'custom_name_label', 'Custom Name', 'text', NULL, '2026-08-27 07:40:31', NULL),
+(191, 'bread_type_label', 'Others', 'text', NULL, '2026-08-27 07:40:31', NULL),
+(192, 'price_label', 'Price', 'text', NULL, '2026-08-27 07:40:31', NULL),
+(193, 'qty_label', 'Qty', 'text', NULL, '2026-08-27 07:40:31', NULL),
+(194, 'unit_label', 'Unit', 'text', NULL, '2026-08-27 07:40:31', NULL),
+(195, 'add_button_label', 'Add 🛒', 'text', NULL, '2026-08-27 07:40:31', NULL),
+(243, 'theme_bg_color', '#111318', 'text', NULL, '2026-09-04 03:42:39', NULL),
+(244, 'theme_card_color', '#1e2330', 'text', NULL, '2026-09-04 03:42:39', NULL),
+(245, 'theme_accent_color', '#ff8800', 'text', NULL, '2026-09-04 03:42:39', NULL),
+(246, 'logo_pill_bg_color', '#ff8800', 'text', NULL, '2026-09-04 04:43:43', NULL),
+(247, 'logo_pill_text_color', '#ffffff', 'text', NULL, '2026-09-04 04:43:43', NULL);
 
 -- --------------------------------------------------------
 
@@ -366,7 +481,48 @@ INSERT INTO `transactions` (`id`, `cashier_name`, `date`, `time`, `total`, `paid
 (67, 'St4nger Dev', '2026-04-04', '15:51:13', 51.00, 60.00, 9.00, '[{\"id\":\"34\",\"name\":\"Mais\",\"qty\":1,\"price\":51,\"measurement_type\":\"kg\",\"unit\":\"kg\",\"total\":\"51.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
 (68, 'St4nger Dev', '2026-06-01', '16:21:17', 45.00, 45.00, 0.00, '[{\"id\":\"32\",\"name\":\"Carne Norte\",\"qty\":1,\"price\":45,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"45.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'GCash', '5445641565456'),
 (69, 'St4nger Dev', '2026-06-01', '17:06:11', 13.00, 20.00, 7.00, '[{\"id\":\"48\",\"name\":\"Luckey Me\",\"qty\":1,\"price\":13,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"13.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
-(70, 'St4nger Dev', '2026-08-18', '14:36:30', 55.00, 100.00, 45.00, '[{\"id\":\"2\",\"name\":\"Coke \",\"qty\":1,\"price\":40,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"40.00\"},{\"id\":\"13\",\"name\":\"Royal Sakto\",\"qty\":1,\"price\":15,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"15.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', '');
+(70, 'St4nger Dev', '2026-08-18', '14:36:30', 55.00, 100.00, 45.00, '[{\"id\":\"2\",\"name\":\"Coke \",\"qty\":1,\"price\":40,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"40.00\"},{\"id\":\"13\",\"name\":\"Royal Sakto\",\"qty\":1,\"price\":15,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"15.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(71, 'St4nger Dev', '2026-08-19', '10:24:49', 55.00, 60.00, 5.00, '[{\"id\":\"7\",\"name\":\"Royal Sakto\",\"qty\":1,\"price\":15,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"15.00\"},{\"id\":\"3\",\"name\":\"Sprite\",\"qty\":1,\"price\":40,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"40.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(72, 'St4nger Dev', '2026-08-19', '10:55:02', 195.00, 200.00, 5.00, '[{\"id\":\"32\",\"name\":\"Carne Norte\",\"qty\":1,\"price\":45,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"45.00\"},{\"id\":\"55\",\"name\":\"Redhorse \",\"qty\":1,\"price\":150,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"150.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(73, 'St4nger Dev', '2026-08-19', '10:56:10', 45.00, 50.00, 5.00, '[{\"id\":\"32\",\"name\":\"Carne Norte\",\"qty\":1,\"price\":45,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"45.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(74, 'St4nger Dev', '2026-08-19', '11:19:59', 37.00, 50.00, 13.00, '[{\"id\":\"57\",\"name\":\"Sardines\",\"qty\":1,\"price\":25,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"25.00\"},{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(75, 'St4nger Dev', '2026-08-19', '11:22:20', 12.00, 20.00, 8.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(76, 'St4nger Dev', '2026-08-19', '11:25:09', 12.00, 20.00, 8.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(77, 'St4nger Dev', '2026-08-19', '11:34:20', 12.00, 20.00, 8.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(78, 'St4nger Dev', '2026-08-19', '11:36:21', 12.00, 20.00, 8.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(79, 'St4nger Dev', '2026-08-19', '11:36:43', 12.00, 20.00, 8.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(80, 'St4nger Dev', '2026-08-19', '11:37:22', 12.00, 20.00, 8.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(81, 'St4nger Dev', '2026-08-19', '11:42:45', 12.00, 20.00, 8.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(82, 'St4nger Dev', '2026-08-19', '11:42:45', 12.00, 20.00, 8.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(83, 'St4nger Dev', '2026-08-19', '11:50:19', 12.00, 20.00, 8.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(84, 'St4nger Dev', '2026-08-19', '11:50:19', 12.00, 20.00, 8.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(85, 'St4nger Dev', '2026-08-19', '11:52:43', 12.00, 20.00, 8.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(86, 'St4nger Dev', '2026-08-19', '11:52:43', 12.00, 20.00, 8.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(87, 'St4nger Dev', '2026-08-19', '11:56:59', 12.00, 20.00, 8.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(88, 'St4nger Dev', '2026-08-19', '13:52:39', 12.00, 20.00, 8.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(89, 'St4nger Dev', '2026-08-19', '16:14:44', 25.00, 1000.00, 975.00, '[{\"id\":\"57\",\"name\":\"Sardines\",\"qty\":1,\"price\":25,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"25.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(90, 'St4nger Dev', '2026-08-19', '16:22:28', 75.00, 100.00, 25.00, '[{\"id\":\"57\",\"name\":\"Sardines\",\"qty\":3,\"price\":25,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"75.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(91, 'St4nger Dev', '2026-08-19', '17:06:00', 12.00, 20.00, 8.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(92, 'St4nger Dev', '2026-08-19', '17:06:29', 12.00, 12.00, 0.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'GCash', '1565656'),
+(93, 'St4nger Dev', '2026-08-19', '17:19:42', 12.00, 12.00, 0.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'GCash', '1565656'),
+(94, 'St4nger Dev', '2026-08-19', '17:20:10', 12.00, 12.00, 0.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Maya', '1565656'),
+(95, 'St4nger Dev', '2026-08-19', '17:23:34', 12.00, 20.00, 8.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(96, 'St4nger Dev', '2026-08-19', '17:24:00', 12.00, 12.00, 0.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Maya', '1565656'),
+(97, 'St4nger Dev', '2026-08-20', '11:03:35', 24.00, 50.00, 26.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":2,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"24.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(98, 'St4nger Dev', '2026-08-20', '11:05:44', 12.00, 12.00, 0.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Maya', '565461131h'),
+(99, 'St4nger Dev', '2026-08-20', '11:05:56', 45.00, 50.00, 5.00, '[{\"id\":\"32\",\"name\":\"Carne Norte\",\"qty\":1,\"price\":45,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"45.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(100, 'St4nger Dev', '2026-08-20', '11:06:20', 25.00, 50.00, 25.00, '[{\"id\":\"57\",\"name\":\"Sardines\",\"qty\":1,\"price\":25,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"25.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(101, 'St4nger Dev', '2026-08-20', '14:17:27', 247.00, 300.00, 53.00, '[{\"id\":\"55\",\"name\":\"Redhorse \",\"qty\":1,\"price\":150,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"150.00\"},{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"},{\"id\":\"57\",\"name\":\"Sardines\",\"qty\":1,\"price\":25,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"25.00\"},{\"id\":\"32\",\"name\":\"Carne Norte\",\"qty\":1,\"price\":45,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"45.00\"},{\"id\":\"13\",\"name\":\"Royal Sakto\",\"qty\":1,\"price\":15,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"15.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(102, 'St4nger Dev', '2026-08-21', '11:54:10', 18000.00, 18000.00, 0.00, '[{\"id\":\"14\",\"name\":\"Cellphone\",\"qty\":2,\"price\":9000,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"18000.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(103, 'St4nger Dev', '2026-08-21', '11:54:24', 53.00, 100.00, 47.00, '[{\"id\":\"36\",\"name\":\"Milo\",\"qty\":2,\"price\":13,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"26.00\"},{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"},{\"id\":\"4\",\"name\":\"Coke Sakto\",\"qty\":1,\"price\":15,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"15.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(104, 'St4nger Dev', '2026-08-21', '11:54:48', 26.00, 26.00, 0.00, '[{\"id\":\"36\",\"name\":\"Milo\",\"qty\":2,\"price\":13,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"26.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Maya', '951256'),
+(105, 'St4nger Dev', '2026-08-21', '11:55:07', 9162.00, 9162.00, 0.00, '[{\"id\":\"14\",\"name\":\"Cellphone\",\"qty\":1,\"price\":9000,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"9000.00\"},{\"id\":\"55\",\"name\":\"Redhorse \",\"qty\":1,\"price\":150,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"150.00\"},{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'GCash', '1115215432102'),
+(106, 'St4nger Dev', '2026-08-24', '11:11:49', 12.00, 20.00, 8.00, '[{\"id\":\"1\",\"name\":\"Swack\",\"qty\":1,\"price\":12,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"12.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(107, 'St4nger Dev', '2026-08-28', '11:41:27', 15.00, 50.00, 35.00, '[{\"id\":\"2\",\"name\":\"Coke\",\"qty\":1,\"price\":15,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"15.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(108, 'St4nger Dev', '2026-08-28', '11:42:00', 15.00, 15.00, 0.00, '[{\"id\":\"2\",\"name\":\"Coke\",\"qty\":1,\"price\":15,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"15.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'GCash', '4425842585\\'),
+(109, 'St4nger Dev', '2026-08-28', '11:42:34', 200.00, 200.00, 0.00, '[{\"id\":\"custom-1787888537820\",\"name\":\"dfgfdgdfgd\",\"qty\":10,\"price\":20,\"measurement_type\":\"pcs\",\"unit\":\"pcs\",\"total\":\"200.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(110, 'St4nger Dev', '2026-08-28', '13:58:31', 15.00, 20.00, 5.00, '[{\"id\":\"2\",\"name\":\"Coke\",\"qty\":1,\"price\":15,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"15.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Cash', ''),
+(111, 'St4nger Dev', '2026-08-28', '13:59:16', 15.00, 15.00, 0.00, '[{\"id\":\"2\",\"name\":\"Coke\",\"qty\":1,\"price\":15,\"measurement_type\":\"pieces\",\"unit\":\"pcs\",\"total\":\"15.00\"}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'GCash', '423112152g');
 
 -- --------------------------------------------------------
 
@@ -424,6 +580,22 @@ ALTER TABLE `employees`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indexes for table `expired_products`
+--
+ALTER TABLE `expired_products`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_product_id` (`product_id`),
+  ADD KEY `idx_expiry_date` (`expiry_date`);
+
+--
+-- Indexes for table `inventory_audit`
+--
+ALTER TABLE `inventory_audit`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_product_id` (`product_id`),
+  ADD KEY `idx_created_at` (`created_at`);
+
+--
 -- Indexes for table `new_user`
 --
 ALTER TABLE `new_user`
@@ -448,6 +620,15 @@ ALTER TABLE `products`
   ADD UNIQUE KEY `code` (`code`);
 
 --
+-- Indexes for table `product_batches`
+--
+ALTER TABLE `product_batches`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_product_id` (`product_id`),
+  ADD KEY `idx_expiry_date` (`expiry_date`),
+  ADD KEY `idx_status` (`status`);
+
+--
 -- Indexes for table `registration_keys`
 --
 ALTER TABLE `registration_keys`
@@ -459,6 +640,14 @@ ALTER TABLE `registration_keys`
 ALTER TABLE `reserved_items`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `code` (`code`);
+
+--
+-- Indexes for table `restock_requests`
+--
+ALTER TABLE `restock_requests`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_product_id` (`product_id`),
+  ADD KEY `idx_status` (`status`);
 
 --
 -- Indexes for table `system_settings`
@@ -489,25 +678,37 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `breads`
 --
 ALTER TABLE `breads`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `bread_remain`
 --
 ALTER TABLE `bread_remain`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=35;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=38;
 
 --
 -- AUTO_INCREMENT for table `edit_deletion_log`
 --
 ALTER TABLE `edit_deletion_log`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `employees`
 --
 ALTER TABLE `employees`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `expired_products`
+--
+ALTER TABLE `expired_products`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `inventory_audit`
+--
+ALTER TABLE `inventory_audit`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `new_user`
@@ -525,7 +726,13 @@ ALTER TABLE `payment_methods`
 -- AUTO_INCREMENT for table `products`
 --
 ALTER TABLE `products`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=61;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `product_batches`
+--
+ALTER TABLE `product_batches`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `registration_keys`
@@ -540,16 +747,22 @@ ALTER TABLE `reserved_items`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
+-- AUTO_INCREMENT for table `restock_requests`
+--
+ALTER TABLE `restock_requests`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `system_settings`
 --
 ALTER TABLE `system_settings`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=119;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=253;
 
 --
 -- AUTO_INCREMENT for table `transactions`
 --
 ALTER TABLE `transactions`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=71;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=112;
 
 --
 -- AUTO_INCREMENT for table `users`
