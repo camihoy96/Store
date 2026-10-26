@@ -563,10 +563,11 @@ body {
    href="/Store/admin/prof.php" title="Profile"><img src="/Store/image/icons/man.png" alt="Profile" style="width: 25px; height: 25px; object-fit:contain;">
   <?php if(isset($lowStockCount) && isset($expiringCount) && ($lowStockCount>0||$expiringCount>0)): ?><span class="notif-dot"></span><?php endif; ?>
 </a>
+<!--
 <a class="tb-icon <?= $activePage === 'breads' ? 'active disabled' : '' ?>" 
    href="/Store/product/bread.php" title="Manage Breads"><img src="/Store/image/icons/bakery.png" alt="Breads" style="width: 20px; height: 20px; object-fit:contain;"></a>
 <a class="tb-icon <?= $activePage === 'bleft' ? 'active disabled' : '' ?>" 
-   href="/Store/admin/bleft.php" title="Bread Left"><img src="/Store/image/icons/inventory.png" alt="Bread Left" style="width: 20px; height: 20px; object-fit:contain;"></a>
+   href="/Store/admin/bleft.php" title="Bread Left"><img src="/Store/image/icons/inventory.png" alt="Bread Left" style="width: 20px; height: 20px; object-fit:contain;"></a> -->
 <a class="tb-icon" href="#" onclick="event.preventDefault(); openLogoutModal();" title="Logout"><img src="/Store/image/icons/power.png" alt="Logout" style="width: 20px; height: 20px; object-fit:contain;"></a>
 </div>
 <!-- ═══════════════════════════════════ TOP BAR -->
@@ -624,14 +625,14 @@ body {
     <img src="/Store/image/icons/man.png" alt="Profile">
     <?php if(isset($lowStockCount) && isset($expiringCount) && ($lowStockCount>0||$expiringCount>0)): ?><span class="notif-dot"></span><?php endif; ?>
   </a>
-  <a class="tb-icon <?= $activePage === 'breads' ? 'active disabled' : '' ?>" 
+ <!-- <a class="tb-icon <?= $activePage === 'breads' ? 'active disabled' : '' ?>" 
      href="/Store/product/bread.php" title="Manage Breads">
     <img src="/Store/image/icons/bakery.png" alt="Breads">
-  </a>
-  <a class="tb-icon <?= $activePage === 'bleft' ? 'active disabled' : '' ?>" 
+  </a> -->
+ <!-- <a class="tb-icon <?= $activePage === 'bleft' ? 'active disabled' : '' ?>" 
      href="/Store/admin/bleft.php" title="Bread Left">
     <img src="/Store/image/icons/inventory.png" alt="Bread Left">
-  </a>
+  </a> -->
   <a class="tb-icon" href="#" onclick="event.preventDefault(); openLogoutModal();" title="Logout">
   <img src="/Store/image/icons/power.png" alt="Logout">
 </a>
@@ -682,7 +683,7 @@ body {
       <img src="/Store/image/icons/management.png" alt="Users"> Manage Users
     </a>
   </div>
-  <button class="sb-group-btn" onclick="toggleSub(this)">
+ <!-- <button class="sb-group-btn" onclick="toggleSub(this)">
     <span class="sb-ico">
       <img src="/Store/image/icons/bakery.png" alt="Breads">
     </span>
@@ -697,6 +698,7 @@ body {
       <img src="/Store/image/icons/inventory.png" alt="Bread Left"> Bread Left
     </a>
   </div>
+    -->
   <div class="sb-divider"></div>
   <button class="sb-group-btn" onclick="toggleSub(this)">
     <span class="sb-ico">

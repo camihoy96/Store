@@ -71,7 +71,7 @@ if ($result) {
                 $row['image_path'] = 'uploads/' . $row['image_path'];
             }
         } else {
-            $row['image_path'] = 'image/cake.jfif';
+            $row['image_path'] = 'image/sje.png';
         }
         
         // Check if product has stock
@@ -854,7 +854,7 @@ body {
 </div>
     <div class="top-icon" title="Records"    onclick="location.href='manage/transaction.php'"><img src="image/icons/mail-attachment.png" alt="Records" style="width: 20px; height: 20px; object-fit:contain;"></div>
     <div class="top-icon" title="Profile"    onclick="location.href='profile/prof.php'"><img src="image/icons/man.png" alt="Profile" style="width: 25px; height: 25px; object-fit:contain;"></div>
-    <div class="top-icon" title="Bread Left" onclick="location.href='manage/remain.php'"><img src="image/icons/inventory.png" alt="Bread Left" style="width: 25px; height: 25px; object-fit:contain;"></div>
+   <!-- <div class="top-icon" title="Bread Left" onclick="location.href='manage/remain.php'"><img src="image/icons/inventory.png" alt="Bread Left" style="width: 25px; height: 25px; object-fit:contain;"></div> -->
     <div class="top-icon" title="Login"      onclick="openDashLogin()"><img src="image/icons/login.png" alt="Login" style="width: 25px; height: 25px; object-fit:contain;"></div>
     <div class="top-icon" title="Logout" onclick="openLogoutModal()"><img src="image/icons/power.png" alt="Logout" style="width: 20px; height: 20px; object-fit:contain;"></div>
   </div>
@@ -864,7 +864,7 @@ body {
 <div class="sidebar" id="sidebar">
   <a href="manage/transaction.php"><img src="image/icons/mail-attachment.png" alt="Records" style="width: 20px; height: 20px; object-fit:contain;"> &nbsp;Manage Records</a>
   <a href="profile/prof.php"><img src="image/icons/man.png" alt="Profile" style="width: 25px; height: 25px; object-fit:contain;"> &nbsp;Manage Profile</a>
-  <a href="manage/remain.php"><img src="image/icons/inventory.png" alt="Bread Left" style="width: 25px; height: 25px; object-fit:contain;"> &nbsp;Record Bread Left</a>
+  <!-- <a href="manage/remain.php"><img src="image/icons/inventory.png" alt="Bread Left" style="width: 25px; height: 25px; object-fit:contain;"> &nbsp;Record Bread Left</a> -->
  <a href="#" onclick="event.preventDefault(); openLogoutModal();"><img src="image/icons/power.png" alt="Logout" style="width: 20px; height: 20px; object-fit:contain;"> &nbsp;Logout</a>
 </div>
 
@@ -1348,6 +1348,16 @@ window.addEventListener('message',function(e){
     closeDashLogin();
     window.location.href = e.data.redirect+(e.data.redirect.includes('?')?'&':'?')+'loggedin=true';
   }
+  if(e.data.action==='loginError'){
+    Swal.fire({
+      icon: 'error',
+      title: 'Login Failed',
+      text: e.data.message,
+      confirmButtonColor: '#ff8800',
+      background: '#1e2330',
+      color: '#e8eaf0'
+    });
+  }
 });
 
 function showErr(msg) {
@@ -1387,7 +1397,7 @@ function renderGrid(list) {
     el.className = 'menu-item'+(out?' out':'')+(low?' low-s':'');
     el.innerHTML = `
       ${low?'<span class="low-badge">Low</span>':''}
-     <div class="menu-item-img" style="background-image:url('${p.image_path}')" onerror="this.style.backgroundImage='url(image/cake.jfif)'"></div>
+     <div class="menu-item-img" style="background-image:url('${p.image_path}')" onerror="this.style.backgroundImage='url(image/sje.png)'"></div>
       <div class="menu-item-info">
         <div class="menu-item-name">${p.name}</div>
         <div class="menu-item-price">${currencySymbol}${parseFloat(p.price).toFixed(2)}</div>
@@ -1472,17 +1482,24 @@ function removeItem(e,idx) {
   checkout.splice(idx,1); renderOrderPanel(); renderGrid();
 }
 
-function clearCheckout() {
-  checkout.forEach(item => {
-    const src = Cache.getProductById(item.id);
-    if (src) {
-      if (src.measurement_type==='kg') Cache.updateProductStock(item.id,'kg',parseFloat((src.kg+item.qty).toFixed(2)));
-      else Cache.updateProductStock(item.id,'pieces',src.pieces+item.qty);
-    }
-  });
+function clearCheckout(isPaid = false) {
+  if (!isPaid) {
+    checkout.forEach(item => {
+      const src = Cache.getProductById(item.id);
+      if (src) {
+        if (src.measurement_type==='kg') Cache.updateProductStock(item.id,'kg',parseFloat((src.kg+item.qty).toFixed(2)));
+        else Cache.updateProductStock(item.id,'pieces',src.pieces+item.qty);
+      }
+    });
+  }
   checkout = [];
   document.getElementById('amountPaid').value = '';
-  renderOrderPanel(); renderGrid();
+  // Make sure BOTH of these are here:
+  renderOrderPanel(); 
+  renderGrid();
+  // Reset protection state
+  warningDismissed = false;
+  updateCartProtection(); 
 }
 
 function autoCalcChange() {
@@ -1866,7 +1883,7 @@ async function processPayment() {
       change: change.toFixed(2),
       method: 'Cash'
     });
-    clearCheckout();
+    clearCheckout(true);
 
     // NOW show success modal AFTER printing is done
     await new Promise(r => setTimeout(r, 300)); // Delay for print window
@@ -1992,7 +2009,7 @@ async function processWalletPayment() {
       method: providerName,
       ref: refNo
     });
-    clearCheckout();
+    clearCheckout(true);
 
     // NOW show success modal AFTER printing is done
     await new Promise(r => setTimeout(r, 300)); // Delay for print window
@@ -2412,14 +2429,6 @@ renderOrderPanel = function() {
   updateCartProtection();
 };
 
-// Override clearCheckout to reset protection
-const originalClearCheckout = clearCheckout;
-clearCheckout = function() {
-  originalClearCheckout();
-  warningDismissed = false;
-  updateCartProtection();
-};
-
 // Initialize on load
 document.addEventListener('DOMContentLoaded', function() {
   const ciTypeEl = document.getElementById('ciType');
@@ -2600,12 +2609,8 @@ function closeSuccessModal() {
     modalBox.style.top = '';
     modalBox.style.margin = '';
   }
-  
-  // Refocus search input for next transaction
-  setTimeout(() => {
-    const searchInput = document.getElementById('searchInput');
-    if (searchInput) searchInput.focus();
-  }, 100);
+  // REFRESH THE PAGE TO GET THE CORRECT STOCK
+  location.reload(); 
 }
 
 // Enter key to close success modal

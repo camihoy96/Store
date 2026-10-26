@@ -461,8 +461,22 @@ while($ed = $eAll->fetch_assoc()){
 .pay-badge{display:inline-flex;align-items:center;gap:4px;border-radius:5px;padding:3px 8px;font-size:11px;font-weight:700;white-space:nowrap;user-select:none;}
 .pay-badge.clickable{cursor:pointer;transition:filter .15s;}
 .pay-badge.clickable:hover{filter:brightness(1.2);}
-.pay-badge .pay-ref-chip{font-size:9px;background:rgba(0,0,0,.25);border-radius:3px;padding:1px 4px;margin-left:2px;}
-
+.pay-badge .pay-ref-chip{
+  font-size:9px;
+  background:rgba(0,0,0,.25);
+  border-radius:3px;
+  padding:2px 6px;
+  margin-left:2px;
+  cursor:pointer;
+  border:none;
+  color:white;
+  font-family:inherit;
+  font-weight:700;
+  transition:background .15s;
+}
+.pay-badge .pay-ref-chip:hover{
+  background:rgba(0,0,0,.5);
+}
 .audit-tag{display:inline-flex;align-items:center;gap:3px;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700;}
 .a-ok{background:rgba(0,200,83,.12);color:#4dff88;border:1px solid rgba(0,200,83,.2);}
 .a-voided{background:rgba(255,68,68,.12);color:#ff8888;border:1px solid rgba(255,68,68,.2);}
@@ -529,6 +543,20 @@ while($ed = $eAll->fetch_assoc()){
 .rp-ref-label{font-size:10px;color:var(--text3);margin-bottom:5px;}
 .rp-ref{font-size:16px;font-weight:700;color:var(--yellow);background:var(--bg3);border-radius:0;padding:8px 16px;letter-spacing:1.5px;display:inline-block;border:1px solid var(--border2);}
 .rp-actions{display:flex;gap:8px;justify-content:center;margin-top:14px;}
+.ref-popup .rp-close {
+  margin-top: 14px;
+  background: #444;
+  border: none;
+  color: #ccc;
+  border-radius: 4px;
+  padding: 6px 18px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.ref-popup .rp-close:hover {
+  background: #ff8800;
+  color: white;
+}
 </style>
 
 <!-- MAIN -->
@@ -655,14 +683,22 @@ while($ed = $eAll->fetch_assoc()){
                 <td><span class="td-date"><?= date('g:i A',strtotime($row['time'])) ?></span></td>
                 <td>
                   <!-- Payment badge reads from JS cache on click — no heavy data-* needed -->
-                  <span class="pay-badge <?= $hasRef?'clickable':'' ?>"
-                        style="background:<?= $pmMeta['color'] ?>;color:white;"
-                        data-txn-id="<?= $row['id'] ?>" data-src="active"
-                        <?= $hasRef?'onclick="showRefFromCache(this)"':'' ?>
-                        title="<?= $hasRef?'Click to view reference':'Payment: '.htmlspecialchars($pmMeta['label']) ?>">
-                    <?= $pmMeta['icon'] ?> <?= htmlspecialchars($pmMeta['label']) ?>
-                    <?php if($hasRef): ?><span class="pay-ref-chip">Ref #</span><?php endif; ?>
-                  </span>
+                  <span class="pay-badge"
+      style="background:<?= $pmMeta['color'] ?>;color:white;"
+      title="Payment: <?= htmlspecialchars($pmMeta['label']) ?>">
+    <?= $pmMeta['icon'] ?> <?= htmlspecialchars($pmMeta['label']) ?>
+      <?php if($hasRef): ?>
+      <button type="button"
+              class="pay-ref-chip"
+              data-ref-label="<?= htmlspecialchars($pmMeta['label']) ?>"
+              data-ref-icon="<?= htmlspecialchars($pmMeta['icon']) ?>"
+              data-ref-number="<?= htmlspecialchars($refNo) ?>"
+              onclick="showRef(this)"
+              title="Click to view reference number">
+        Ref #
+      </button>
+    <?php endif; ?>
+</span>
                 </td>
                 <td><span class="td-money">₱<?= number_format($row['total'],2) ?></span></td>
                 <td><span class="td-paid">₱<?= number_format($row['paid'],2) ?></span></td>
@@ -767,14 +803,22 @@ while($ed = $eAll->fetch_assoc()){
                 <td class="td-name"><?= htmlspecialchars($v['cashier_name']) ?></td>
                 <td><span class="td-date"><?= date('M j, Y',strtotime($v['date'])) ?></span></td>
                 <td>
-                  <span class="pay-badge <?= $vHasRef?'clickable':'' ?>"
-                        style="background:<?= $vpmMeta['color'] ?>;color:white;"
-                        data-txn-id="<?= $v['id'] ?>" data-src="voided"
-                        <?= $vHasRef?'onclick="showRefFromCache(this)"':'' ?>
-                        title="<?= $vHasRef?'Click to view reference':'Payment' ?>">
-                    <?= $vpmMeta['icon'] ?> <?= htmlspecialchars($vpmMeta['label']) ?>
-                    <?php if($vHasRef): ?><span class="pay-ref-chip">Ref #</span><?php endif; ?>
-                  </span>
+                  <span class="pay-badge"
+      style="background:<?= $vpmMeta['color'] ?>;color:white;"
+      title="Payment: <?= htmlspecialchars($vpmMeta['label']) ?>">
+    <?= $vpmMeta['icon'] ?> <?= htmlspecialchars($vpmMeta['label']) ?>
+        <?php if($vHasRef): ?>
+      <button type="button"
+              class="pay-ref-chip"
+              data-ref-label="<?= htmlspecialchars($vpmMeta['label']) ?>"
+              data-ref-icon="<?= htmlspecialchars($vpmMeta['icon']) ?>"
+              data-ref-number="<?= htmlspecialchars($vref) ?>"
+              onclick="window.showRefInline(this);"
+              title="Click to view reference number">
+        Ref #
+      </button>
+    <?php endif; ?>
+</span>
                 </td>
                 <td><span class="td-money" style="color:#ff8888;">₱<?= number_format($v['total'],2) ?></span></td>
                 <td style="color:var(--text2);"><?= htmlspecialchars($v['voided_by']??'') ?></td>
@@ -833,14 +877,22 @@ while($ed = $eAll->fetch_assoc()){
                 <td class="td-name"><?= htmlspecialchars($ed['cashier_name']) ?></td>
                 <td><span class="td-date"><?= date('M j, Y',strtotime($ed['date'])) ?></span></td>
                 <td>
-                  <span class="pay-badge <?= $eHasRef?'clickable':'' ?>"
-                        style="background:<?= $epmMeta['color'] ?>;color:white;"
-                        data-txn-id="<?= $ed['id'] ?>" data-src="edited"
-                        <?= $eHasRef?'onclick="showRefFromCache(this)"':'' ?>
-                        title="<?= $eHasRef?'Click to view reference':'Payment' ?>">
-                    <?= $epmMeta['icon'] ?> <?= htmlspecialchars($epmMeta['label']) ?>
-                    <?php if($eHasRef): ?><span class="pay-ref-chip">Ref #</span><?php endif; ?>
-                  </span>
+                 <span class="pay-badge"
+      style="background:<?= $epmMeta['color'] ?>;color:white;"
+      title="Payment: <?= htmlspecialchars($epmMeta['label']) ?>">
+    <?= $epmMeta['icon'] ?> <?= htmlspecialchars($epmMeta['label']) ?>
+        <?php if($eHasRef): ?>
+      <button type="button"
+              class="pay-ref-chip"
+              data-ref-label="<?= htmlspecialchars($epmMeta['label']) ?>"
+              data-ref-icon="<?= htmlspecialchars($epmMeta['icon']) ?>"
+              data-ref-number="<?= htmlspecialchars($eref) ?>"
+              onclick="window.showRefInline(this);"
+              title="Click to view reference number">
+        Ref #
+      </button>
+    <?php endif; ?>
+</span>
                 </td>
                 <td><span class="td-money">₱<?= number_format($ed['total'],2) ?></span></td>
                 <td style="color:var(--text2);"><?= htmlspecialchars($ed['edited_by']??'') ?></td>
@@ -937,18 +989,16 @@ while($ed = $eAll->fetch_assoc()){
 
 </div><!-- /main -->
 
-<!-- ══ REFERENCE POPUP ════════════════════════════════════════════════════ -->
+<!-- ══ REFERENCE NUMBER POPUP ══════════════════════════════════════════ -->
 <div class="ref-popup-overlay" id="refPopup" onclick="if(event.target===this)closeRef()">
-   <div class="ref-popup" id="refPopupBox">
+  <div class="ref-popup draggable-modal" id="refPopupBox">
     <div class="rp-icon" id="refIcon"></div>
-    <div class="rp-label">E-Wallet Payment Reference</div>
-    <div class="rp-name" id="refProviderName"></div>
+    <div class="rp-label">E-Wallet Payment</div>
+    <div class="rp-name" id="refName"></div>
     <div class="rp-ref-label">Reference Number</div>
     <div class="rp-ref" id="refNumber"></div>
-    <div class="rp-actions">
-      <button class="btn btn-dark btn-sm" onclick="closeRef()">✕ Close</button>
-      <button class="btn btn-orange btn-sm" onclick="copyRef()">📋 Copy</button>
-    </div>
+    <br>
+    <button class="rp-close" onclick="closeRef()">Close</button>
   </div>
 </div>
 
@@ -998,9 +1048,9 @@ while($ed = $eAll->fetch_assoc()){
 ════════════════════════════════════════════════════════════════════════ -->
 <script>
 /* ── Embedded caches (populated at page-paint time by PHP) ── */
-const ACTIVE_CACHE  = <?= json_encode($activeTxnCache,  JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
-const VOIDED_CACHE  = <?= json_encode($voidedTxnCache,  JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
-const EDITED_CACHE  = <?= json_encode($editedTxnCache,  JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
+const ACTIVE_CACHE  = <?= json_encode($activeTxnCache,  JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP|JSON_INVALID_UTF8_SUBSTITUTE|JSON_PARTIAL_OUTPUT_ON_ERROR) ?>;
+const VOIDED_CACHE  = <?= json_encode($voidedTxnCache,  JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP|JSON_INVALID_UTF8_SUBSTITUTE|JSON_PARTIAL_OUTPUT_ON_ERROR) ?>;
+const EDITED_CACHE  = <?= json_encode($editedTxnCache,  JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP|JSON_INVALID_UTF8_SUBSTITUTE|JSON_PARTIAL_OUTPUT_ON_ERROR) ?>;
 
 /*
  * CACHE STRATEGY
@@ -1019,12 +1069,72 @@ const EDITED_CACHE  = <?= json_encode($editedTxnCache,  JSON_HEX_TAG|JSON_HEX_AP
  * data in.  If that endpoint is absent the page keeps working from
  * the initial embedded snapshot.
  */
-
 /* ── Helper: resolve cache by source string ── */
-function getCache(src){
+window.getCache = function(src){
   return src==='voided' ? VOIDED_CACHE : src==='edited' ? EDITED_CACHE : ACTIVE_CACHE;
-}
+};
+// Reference number popup
+window.showRefInline = function (el) {
+    const popup = document.getElementById('refPopup');
+    const iconEl = document.getElementById('refIcon');
+    const nameEl = document.getElementById('refName');
+    const numEl = document.getElementById('refNumber');
 
+    if (!el || !popup || !iconEl || !nameEl || !numEl) {
+        console.error('Reference popup or required elements are missing.');
+        return;
+    }
+
+    iconEl.textContent = el.dataset.refIcon || '📱';
+    nameEl.textContent = el.dataset.refLabel || 'E-Wallet';
+    numEl.textContent = el.dataset.refNumber || '—';
+
+    popup.classList.add('show');
+};
+
+window.closeRef = function () {
+    const popup = document.getElementById('refPopup');
+    const box = document.getElementById('refPopupBox');
+
+    if (popup) popup.classList.remove('show');
+
+    if (box) {
+        box.style.position = '';
+        box.style.left = '';
+        box.style.top = '';
+        box.style.margin = '';
+    }
+};
+/* ── Reference number popup (inline data-* — works like manage/transaction.php) ── */
+
+window.showRefInline = function(el) {
+    if (!el) return;
+    const popup = document.getElementById('refPopup');
+    const iconEl = document.getElementById('refIcon');
+    const nameEl = document.getElementById('refName');
+    const numEl = document.getElementById('refNumber');
+    if (!popup || !iconEl || !nameEl || !numEl) {
+        console.error('Reference popup elements are missing.');
+        return;
+    }
+    iconEl.textContent = el.getAttribute('data-ref-icon') || '📱';
+    nameEl.textContent = el.getAttribute('data-ref-label') || 'E-Wallet';
+    numEl.textContent = el.getAttribute('data-ref-number') || '—';
+
+    popup.classList.add('show');
+};
+
+
+function closeRef(){
+  document.getElementById('refPopup').classList.remove('show');
+  const box = document.getElementById('refPopupBox');
+  if (box) {
+    box.style.position = '';
+    box.style.left = '';
+    box.style.top = '';
+    box.style.margin = '';
+  }
+}
 /* ── Cache indicator ── */
 function setCachePill(state, label){
   const el = document.getElementById('cachePill');
@@ -1117,32 +1227,6 @@ document.querySelectorAll('.delete-voided-btn').forEach(btn=>{
     });
   });
 });
-
-/* ── Reference popup — reads from JS cache ── */
-function showRefFromCache(el){
-  const src = el.dataset.src;
-  const id  = el.dataset.txnId;
-  const txn = getCache(src)[id];
-  if(!txn){ showFallbackRef(el); return; }
-  document.getElementById('refIcon').textContent         = txn.pm_icon  || '📱';
-  document.getElementById('refProviderName').textContent = txn.pm_label || 'E-Wallet';
-  document.getElementById('refNumber').textContent       = txn.pm_ref   || '—';
-  document.getElementById('refPopup').classList.add('show');
-}
-function showFallbackRef(el){
-  // Graceful fallback to data-* if cache somehow missed the entry
-  document.getElementById('refIcon').textContent         = el.dataset.refIcon   || '📱';
-  document.getElementById('refProviderName').textContent = el.dataset.refLabel  || 'E-Wallet';
-  document.getElementById('refNumber').textContent       = el.dataset.refNumber || '—';
-  document.getElementById('refPopup').classList.add('show');
-}
-function closeRef(){ document.getElementById('refPopup').classList.remove('show'); }
-function copyRef(){
-  const ref = document.getElementById('refNumber').textContent;
-  navigator.clipboard.writeText(ref)
-    .then(()=>Swal.fire({icon:'success',title:'Copied!',text:'Reference number copied.',timer:1400,showConfirmButton:false,background:'#1e2330',color:'#e8eaf0'}))
-    .catch(()=>Swal.fire({icon:'info',title:'Ref No.',text:ref,background:'#1e2330',color:'#e8eaf0'}));
-}
 
 /* ── Items View Modal — reads from JS cache ── */
 function closeItemsModal(){ document.getElementById('itemsModal').classList.remove('show'); }
@@ -1269,7 +1353,23 @@ if(urlTab){ const btn=document.querySelector(`.tab-btn[onclick*="'${urlTab}'"]`)
   }
   setInterval(sync, INTERVAL);
 })();
+function showRef(element) {
+    const popup = document.getElementById('refPopup');
+    const icon = document.getElementById('refIcon');
+    const name = document.getElementById('refName');
+    const number = document.getElementById('refNumber');
 
+    if (!popup || !icon || !name || !number) {
+        console.error('Reference popup elements are missing in record.php');
+        return;
+    }
+
+    icon.textContent = element.dataset.refIcon || '📱';
+    name.textContent = element.dataset.refLabel || 'E-Wallet';
+    number.textContent = element.dataset.refNumber || '—';
+
+    popup.classList.add('show');
+}
 /* Drag functionality */
 function makeDraggable(modalBoxId, handleId) {
   const modalBox = document.getElementById(modalBoxId);

@@ -23,23 +23,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $_SESSION['user_type'] = $user['type'];
             $_SESSION['fullname']  = $user['fullname'];
             
-            // If in iframe, send message to parent
+            // If in iframe, send success message to parent
             if ($isIframe) {
                 ?>
                 <!DOCTYPE html>
                 <html>
                 <head>
+                    <style>body { background: #1a2030; }</style>
                     <script>
-                        // Send message to parent window
                         window.parent.postMessage({
                             action: 'loginSuccess',
                             redirect: 'dashboard.php'
                         }, '*');
                     </script>
                 </head>
-                <body>
-                    <p>Login successful! Redirecting...</p>
-                </body>
+                <body></body>
                 </html>
                 <?php
                 exit();
@@ -49,30 +47,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         }
     }
+    
+    // Login failed
     $_SESSION['login_error'] = 'Invalid username or password.';
-    if ($isIframe) {
-        ?>
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <script>
-                // Send error message to parent
-                window.parent.postMessage({
-                    action: 'loginError',
-                    message: 'Invalid username or password.'
-                }, '*');
-            </script>
-        </head>
-        <body>
-            <p>Login failed. Please try again.</p>
-        </body>
-        </html>
-        <?php
-        exit();
-    } else {
-        header("Location: login.php");
-        exit();
-    }
+    
+    // Redirect back to the form cleanly
+    header("Location: login.php" . ($isIframe ? '?iframe=true' : ''));
+    exit;
 }
 
 $errorMessage = '';
@@ -122,7 +103,6 @@ $autoPrintReceipt = $systemSettings['auto_print_receipt'] ?? '1';
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-/* Your existing CSS remains the same */
 :root {
   --orange: #ff8800; --orange-dk: #cc5500; --orange-lt: #ffaa44;
   --green: #00c853;  --red: #ff4444;       --yellow: #ffcc00;
@@ -621,28 +601,6 @@ function checkConn(){
     });
 }
 setInterval(checkConn, 15000); checkConn();
-
-/* ── Handle iframe messages (for error display) ── */
-window.addEventListener('message', function(e) {
-  if (e.data.action === 'loginError') {
-    const alertDiv = document.getElementById('alertError');
-    const alertText = document.getElementById('alertText');
-    if (alertText) alertText.textContent = e.data.message;
-    alertDiv.classList.add('show');
-    
-    // Reset button state
-    const btn = document.getElementById('submitBtn');
-    const txt = document.getElementById('btnText');
-    const spin = document.getElementById('spinner');
-    btn.classList.remove('loading');
-    txt.style.display = 'block';
-    spin.style.display = 'none';
-    
-    setTimeout(() => {
-      alertDiv.classList.remove('show');
-    }, 5000);
-  }
-});
 </script>
 </body>
 </html>

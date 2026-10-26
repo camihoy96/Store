@@ -65,16 +65,6 @@ $rawMethod    = trim($data['payment_method'] ?? 'Cash');
 $referenceNo  = trim($data['reference_no']   ?? '');
 
 /* ── Resolve payment_method label ─────────────────────────────────── */
-/*
- * home.php processWalletPayment() sends:
- *   payment_method : "wallet"
- *   wallet_provider: "GCash" | "Maya" | etc.
- *
- * home.php processPayment() (cash) sends nothing extra → defaults to "Cash"
- *
- * We store the provider name (GCash, Maya …) rather than the generic "wallet"
- * so the transaction records table can display it directly.
- */
 if (strtolower($rawMethod) === 'wallet' || strtolower($rawMethod) === 'ewallet') {
     $provider    = trim($data['wallet_provider'] ?? '');
     $referenceNo = trim($data['wallet_ref']      ?? $referenceNo);
@@ -124,70 +114,130 @@ if (!$hasReferenceNo) {
     $hasReferenceNo = true;
 }
 
-/* ── Insert transaction ───────────────────────────────────────────── */
-$sql = "INSERT INTO transactions
-            (cashier_name, date, time, total, paid, change_due, items, payment_method, reference_no)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+/* ── Begin transaction so record + stock deduction are atomic ────── */
+$conn->begin_transaction();
 
-$stmt = $conn->prepare($sql);
-if (!$stmt) {
-    http_response_code(500);
-    echo json_encode(['status' => 'error', 'message' => 'DB prepare failed: ' . $conn->error]);
-    exit;
-}
+try {
 
-$stmt->bind_param(
-    'sssdddsss',
-    $cashier,
-    $date,
-    $time,
-    $total,
-    $paid,
-    $change,
-    $itemsJson,
-    $paymentMethod,
-    $referenceNo
-);
+    /* ── Insert transaction ───────────────────────────────────────── */
+    $sql = "INSERT INTO transactions
+                (cashier_name, date, time, total, paid, change_due, items, payment_method, reference_no)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
-if (!$stmt->execute()) {
-    http_response_code(500);
-    echo json_encode(['status' => 'error', 'message' => 'DB execute failed: ' . $stmt->error]);
-    exit;
-}
-
-$transactionId = $conn->insert_id;
-$stmt->close();
-
-/* ── Deduct stock for each item ───────────────────────────────────── */
-foreach ($items as $item) {
-    $itemId = $item['id'] ?? null;
-
-    /* Skip custom products (id starts with "custom-") */
-    if (!$itemId || str_starts_with((string)$itemId, 'custom-')) continue;
-
-    $qty  = (float)($item['qty']  ?? 0);
-    $type = $item['measurement_type'] ?? 'pieces';
-
-    if ($type === 'kg') {
-        $upd = $conn->prepare("UPDATE products SET kg = GREATEST(0, kg - ?) WHERE id = ?");
-        $upd->bind_param('di', $qty, $itemId);
-    } else {
-        $qtyInt = (int)$qty;
-        $upd = $conn->prepare("UPDATE products SET pieces = GREATEST(0, pieces - ?) WHERE id = ?");
-        $upd->bind_param('ii', $qtyInt, $itemId);
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        throw new Exception('DB prepare failed: ' . $conn->error);
     }
-    $upd->execute();
-    $upd->close();
-}
 
-/* ── Success ──────────────────────────────────────────────────────── */
-echo json_encode([
-    'status'         => 'success',
-    'transaction_id' => $transactionId,
-    'payment_method' => $paymentMethod,
-    'reference_no'   => $referenceNo,
-    'total'          => number_format($total, 2),
-    'paid'           => number_format($paid,  2),
-    'change'         => number_format($change, 2),
-]);
-exit;
+    $stmt->bind_param(
+        'sssdddsss',
+        $cashier, $date, $time,
+        $total, $paid, $change,
+        $itemsJson, $paymentMethod, $referenceNo
+    );
+
+    if (!$stmt->execute()) {
+        throw new Exception('DB execute failed: ' . $stmt->error);
+    }
+
+    $transactionId = $conn->insert_id;
+    $stmt->close();
+
+    /* ── Deduct stock from product_batches (FIFO) ─────────────────── */
+    foreach ($items as $item) {
+        $itemId = $item['id'] ?? null;
+
+        /* Skip custom products */
+        if (!$itemId || str_starts_with((string)$itemId, 'custom-')) continue;
+
+        $qty = (float)($item['qty'] ?? 0);
+        if ($qty <= 0) continue;
+
+        $itemIdInt = (int)$itemId;
+        $unitType  = $item['measurement_type'] ?? 'pieces';
+        
+        // Determine which column to use based on the unit type
+        $stockColumn = ($unitType === 'kg') ? 'kg' : 'quantity';
+
+        /* Fetch active batches oldest-first, lock rows */
+        $batchQ = $conn->prepare(
+            "SELECT id, $stockColumn AS current_stock
+             FROM product_batches
+             WHERE product_id = ? AND status = 'active' AND $stockColumn > 0
+             ORDER BY id ASC
+             FOR UPDATE"
+        );
+        if (!$batchQ) {
+            throw new Exception('Prepare batch select failed: ' . $conn->error);
+        }
+        $batchQ->bind_param('i', $itemIdInt);
+        $batchQ->execute();
+        $batchRes = $batchQ->get_result();
+
+        $updQ = $conn->prepare(
+            "UPDATE product_batches SET $stockColumn = $stockColumn - ? WHERE id = ?"
+        );
+        if (!$updQ) {
+            throw new Exception('Prepare batch update failed: ' . $conn->error);
+        }
+
+        $remaining = $qty;
+        while ($b = $batchRes->fetch_assoc()) {
+            if ($remaining <= 0.000001) break;
+
+            $available = (float)$b['current_stock'];
+            $take = min($remaining, $available);
+            if ($take <= 0) continue;
+
+            $updQ->bind_param('di', $take, $b['id']);
+            if (!$updQ->execute()) {
+                throw new Exception('Batch update failed: ' . $updQ->error);
+            }
+            if ($updQ->affected_rows === 0) {
+                throw new Exception("Batch {$b['id']} update affected 0 rows.");
+            }
+            $remaining -= $take;
+        }
+
+        $batchQ->close();
+        $updQ->close();
+
+        if ($remaining > 0.000001) {
+            throw new Exception(
+                "Insufficient stock for '{$item['name']}' (short {$remaining})."
+            );
+        }
+
+        /* Mark emptied batches as depleted so they no longer count */
+        $conn->query(
+            "UPDATE product_batches
+             SET status = 'depleted'
+             WHERE product_id = {$itemIdInt}
+               AND status = 'active'
+               AND $stockColumn <= 0"
+        );
+    }
+
+    /* ── Commit — record + all deductions persist together ────────── */
+    $conn->commit();
+
+    echo json_encode([
+        'status'         => 'success',
+        'transaction_id' => $transactionId,
+        'payment_method' => $paymentMethod,
+        'reference_no'   => $referenceNo,
+        'total'          => number_format($total, 2),
+        'paid'           => number_format($paid,  2),
+        'change'         => number_format($change, 2),
+    ]);
+    exit;
+
+} catch (Exception $e) {
+    $conn->rollback();
+    http_response_code(500);
+    echo json_encode([
+        'status'  => 'error',
+        'message' => $e->getMessage(),
+    ]);
+    exit;
+}

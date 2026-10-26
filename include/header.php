@@ -510,9 +510,9 @@ body {
     <div class="top-icon" title="Profile" onclick="location.href='../profile/prof.php'">
       <img src="../image/icons/man.png" alt="Profile" style="width: 25px; height: 25px; object-fit:contain;">
     </div>
-    <div class="top-icon" title="Bread Left" onclick="location.href='../manage/remain.php'">
+   <!-- <div class="top-icon" title="Bread Left" onclick="location.href='../manage/remain.php'">
       <img src="../image/icons/inventory.png" alt="Bread Left" style="width: 25px; height: 25px; object-fit:contain;">
-    </div>
+    </div> -->
     <div class="top-icon" title="Logout" onclick="openLogoutModal()">
       <img src="../image/icons/power.png" alt="Logout" style="width: 20px; height: 20px; object-fit:contain;">
     </div>
@@ -533,10 +533,10 @@ body {
     <img src="../image/icons/man.png" alt="Profile" style="width: 25px; height: 25px; object-fit:contain;">
     Manage Profile
   </a>
-  <a href="../manage/remain.php">
+ <!-- <a href="../manage/remain.php">
     <img src="../image/icons/inventory.png" alt="Bread Left" style="width: 25px; height: 25px; object-fit:contain;">
     Record Bread Left
-  </a>
+  </a> -->
   <a href="#" onclick="event.preventDefault(); openLogoutModal();">
     <img src="../image/icons/power.png" alt="Logout" style="width: 20px; height: 20px; object-fit:contain;">
     Logout
