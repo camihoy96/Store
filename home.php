@@ -809,6 +809,15 @@ body {
   outline: 3px solid rgba(0,200,83,0.5);
   outline-offset: 2px;
 }
+.pm-btn.proceed .hint-key {
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(255,255,255,0.5);
+  color: #fff;
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
 </style>
 </head>
 <body>
@@ -885,18 +894,21 @@ body {
       <div class="change-row" id="changeRow">—</div>
       <div class="pay-btns">
         <?php if ($enableCash == '1'): ?>
-        <button class="pay-btn cash" onclick="openPayModal('Cash')">
-          <span class="icon">💵</span><span>Cash</span>
-        </button>
+       <button class="pay-btn cash" onclick="openPayModal('Cash')">
+    <span class="icon">💵</span><span>Cash</span>
+    <span class="hint-key" style="margin-top:2px;">Enter</span>
+  </button>
         <?php endif; ?>
         <?php if ($enableEwallet == '1'): ?>
         <button class="pay-btn wallet" onclick="openWalletModal()">
-          <span class="icon">📱</span><span>E-Wallet</span>
-        </button>
+    <span class="icon">📱</span><span>E-Wallet</span>
+    <span class="hint-key" style="margin-top:2px;">F3</span>
+  </button>
         <?php endif; ?>
-        <button class="pay-btn more" onclick="clearCheckout()">
-          <span class="icon">✕</span><span>Clear</span>
-        </button>
+        <button class="pay-btn more" onclick="promptClearCart()">
+  <span class="icon">✕</span><span>Clear</span>
+  <span class="hint-key" style="margin-top:2px;">F2</span>
+</button>
       </div>
     </div>
   </div>
@@ -960,7 +972,7 @@ body {
         </div>
         <div style="display:flex;flex-direction:column;gap:2px;justify-content:flex-end;">
             <label style="font-size:9px;color:transparent;letter-spacing:.8px;">_</label>
-            <button class="btn-custom-add" onclick="addCustomProduct()"><?= htmlspecialchars($addButtonLabel) ?></button>
+            <button type="button" class="btn-custom-add" onclick="addCustomProduct()"><?= htmlspecialchars($addButtonLabel) ?></button>
         </div>
     </div>
 </div>
@@ -982,7 +994,7 @@ body {
   <span>Pay: <span class="hint-key">Enter</span></span>
   <span>E-Wallet: <span class="hint-key">F3</span></span>
   <span>Cancel: <span class="hint-key">F2</span></span>
-  <span>Custom: <span class="hint-key">F8</span></span>
+  <span>Custom: <span class="hint-key">F8</span> focus · <span class="hint-key">F9</span> add</span>
   <span>Search Input: <span class="hint-key">F5</span></span>
   <span>Close: <span class="hint-key">ESC</span></span>
 </div>
@@ -1021,8 +1033,12 @@ body {
 </div>
   <div class="pm-change" id="pmChange">Change: <?= $currencySymbol ?>0.00</div>
   <div class="pm-btns">
-    <button class="pm-btn cancel"  onclick="closePayModal()">Cancel</button>
-    <button type="button" class="pm-btn proceed" onclick="processPayment()">✓ Confirm Pay</button>
+    <button class="pm-btn cancel" onclick="closePayModal()">
+  Cancel <span class="hint-key" style="margin-left:6px;">Esc</span>
+</button>
+    <button type="button" class="pm-btn proceed" onclick="processPayment()">
+  ✓ Confirm Pay <span class="hint-key" style="margin-left:6px;">Enter</span>
+</button>
   </div>
 </div>
   </div>
@@ -1102,8 +1118,12 @@ body {
       </div>
       <div class="pm-change" id="wmStatus">Awaiting confirmation</div>
       <div class="pm-btns">
-        <button class="pm-btn cancel"  onclick="closeWalletModal()">Cancel</button>
-        <button type="button" class="pm-btn proceed" onclick="processWalletPayment()">✓ Confirm</button>
+        <button class="pm-btn cancel" onclick="closeWalletModal()">
+  Cancel <span class="hint-key" style="margin-left:6px;">Esc</span>
+</button>
+        <button type="button" class="pm-btn proceed" onclick="processWalletPayment()">
+  ✓ Confirm <span class="hint-key" style="margin-left:6px;">Enter</span>
+</button>
       </div>
       <div style="margin-top:10px;font-size:10px;color:#888;text-align:center;">
         💡 Ensure customer payment is completed before confirming.
@@ -1111,7 +1131,6 @@ body {
     </div>
   </div>
 </div>
-
 <!-- ══ ERROR MODAL ════════════════════════════════════════════════════ -->
 <div class="modal-overlay" id="errModal">
   <div class="err-modal">
@@ -1128,7 +1147,6 @@ body {
     </div>
   </div>
 </div>
-
 <!-- ══ DASHBOARD LOGIN MODAL ══════════════════════════════════════════ -->
 <div class="modal-overlay" id="dashModal">
   <div class="dash-modal">
@@ -1139,7 +1157,6 @@ body {
     <iframe id="dashIframe" src="" style="width:100%;height:600px;border:none;border-radius:6px;"></iframe>
   </div>
 </div>
-
 <!-- ══ HELP MODAL ════════════════════════════════════════════════════ -->
 <div class="modal-overlay" id="helpModal">
   <div style="background:white;border-radius:10px;width:580px;max-width:95vw;max-height:85vh;overflow:hidden;box-shadow:0 16px 50px rgba(0,0,0,0.6);display:flex;flex-direction:column;">
@@ -1162,6 +1179,7 @@ body {
           <tr style="border-bottom:1px solid #f0f0f0;"><td style="padding:7px 10px;"><span style="background:#333;color:#1ffa02;font-family:monospace;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;">F3</span></td><td style="padding:7px 10px;font-weight:600;">E-Wallet Payment</td><td style="padding:7px 10px;color:#666;">Opens GCash / Maya / GrabPay payment modal</td></tr>
           <tr style="border-bottom:1px solid #f0f0f0;background:#fafafa;"><td style="padding:7px 10px;"><span style="background:#333;color:#1ffa02;font-family:monospace;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;">F5</span></td><td style="padding:7px 10px;font-weight:600;">Focus Search</td><td style="padding:7px 10px;color:#666;">Jumps focus to the product search bar</td></tr>
           <tr style="border-bottom:1px solid #f0f0f0;"><td style="padding:7px 10px;"><span style="background:#333;color:#1ffa02;font-family:monospace;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;">F8</span></td><td style="padding:7px 10px;font-weight:600;">Custom Product</td><td style="padding:7px 10px;color:#666;">Focuses the custom product name input</td></tr>
+          <tr style="border-bottom:1px solid #f0f0f0;"><td style="padding:7px 10px;"><span style="background:#333;color:#1ffa02;font-family:monospace;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;">F9</span></td><td style="padding:7px 10px;font-weight:600;">Add Custom Product</td><td style="padding:7px 10px;color:#666;">Adds the custom product currently filled in the strip</td></tr>
           <tr style="background:#fafafa;"><td style="padding:7px 10px;"><span style="background:#333;color:#1ffa02;font-family:monospace;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;">F1</span></td><td style="padding:7px 10px;font-weight:600;">Help</td><td style="padding:7px 10px;color:#666;">Opens this help guide</td></tr>
         </tbody>
       </table>
@@ -1239,6 +1257,18 @@ body {
     <button class="sm-btn" onclick="closeSuccessModal()">
   ✓ Done <span style="font-size:10px;opacity:0.7;margin-left:6px;">(Enter)</span>
 </button>
+  </div>
+</div>
+<!-- CLEAR CART CONFIRMATION MODAL -->
+<div class="confirm-overlay" id="clearCartModal">
+  <div class="confirm-box">
+    <h3>⚠️ Clear Cart?</h3>
+    <p>You are about to remove <strong id="clearCartCount">0</strong> item(s) from the current order.<br><br>
+    This action <strong style="color:#ff4444;">cannot be undone</strong>. Continue?</p>
+    <div class="confirm-btns">
+      <button class="confirm-btn stay" onclick="cancelClearCart()">↩ Keep Items</button>
+      <button class="confirm-btn void" onclick="confirmClearCart()">✕ Yes, Clear Cart</button>
+    </div>
   </div>
 </div>
 <!-- ══════════════════════════════════════════════════════════════════
@@ -2147,18 +2177,25 @@ setInterval(checkConn,15000); checkConn();
 /* ── Keyboard shortcuts ───────────────────────────────────────────── */
 document.addEventListener('keydown',function(e){
   const typing = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
-
   /* ── ESC: close whichever modal is open (priority order: top-most first) ── */
   if (e.key === 'Escape') {
     e.preventDefault();
-    if (document.getElementById('helpModal').classList.contains('show'))   { closeHelp();         return; }
+    if (document.getElementById('clearCartModal').classList.contains('show')) { cancelClearCart();   return; }
+    if (document.getElementById('helpModal').classList.contains('show'))   { closeHelp();        return; }
+    if (document.getElementById('payModal').classList.contains('show')) { closePayModal(); return; }
     if (document.getElementById('errModal').classList.contains('show'))    { closeErr();          return; }
     if (document.getElementById('walletModal').classList.contains('show')) { closeWalletModal();  return; }
     if (document.getElementById('payModal').classList.contains('show'))    { closePayModal();     return; }
     if (document.getElementById('dashModal').classList.contains('show'))   { closeDashLogin();    return; }
     return;
   }
-
+    if ((e.key === 'Enter' || e.keyCode === 13) &&
+      document.getElementById('clearCartModal').classList.contains('show')) {
+    e.preventDefault();
+    e.stopPropagation();
+    confirmClearCart();
+    return;
+  }           
   if (e.key==='F1'||e.keyCode===112){ e.preventDefault(); openHelp(); return; }
   if (e.key==='F5'||e.keyCode===116){ e.preventDefault(); const s=document.getElementById('searchInput'); s.focus(); s.select(); return; }
   if (e.key==='F8'||e.keyCode===119){ 
@@ -2169,9 +2206,15 @@ document.addEventListener('keydown',function(e){
     }
     return; 
 }
+  if (e.key === 'F9' || e.keyCode === 121) {
+    e.preventDefault();
+    // Only if the custom product strip exists
+    if (document.getElementById('ciName')) addCustomProduct();
+    return;
+  }
   if (typing) return;
   if (e.key==='Enter'||e.keyCode===13){ e.preventDefault(); openPayModal('Cash'); return; }
-  if (e.key==='F2'||e.keyCode===113){ e.preventDefault(); clearCheckout(); return; }
+  if (e.key==='F2'||e.keyCode===113){ e.preventDefault(); promptClearCart(); return; }
   if (e.key==='F3'||e.keyCode===114){ e.preventDefault(); openWalletModal(); return; }
 });
 
@@ -2198,15 +2241,20 @@ function updateCartProtection() {
   
   // Toggle disabled state on navigation elements
   topIcons.forEach(icon => {
-    if (hasItems) {
-      icon.classList.add('disabled');
-      icon.setAttribute('data-original-title', icon.title || '');
-      icon.title = 'Complete or void your order first';
-    } else {
-      icon.classList.remove('disabled');
-      icon.title = icon.getAttribute('data-original-title') || '';
+  if (hasItems) {
+    icon.classList.add('disabled');
+    // Save original only once
+    if (!icon.dataset.originalTitle) {
+      icon.dataset.originalTitle = icon.title || '';
     }
-  });
+    icon.title = 'Complete or void your order first';
+  } else {
+    icon.classList.remove('disabled');
+    if (icon.dataset.originalTitle !== undefined) {
+      icon.title = icon.dataset.originalTitle;
+    }
+  }
+});
   
   sidebarLinks.forEach(link => {
     if (hasItems) {
@@ -2599,6 +2647,29 @@ document.addEventListener('keydown', function(e) {
     modalBox.style.cursor = 'grab';
   });
 })();
+/* ── CLEAR CART CONFIRMATION ─────────────────────────────────────── */
+function promptClearCart() {
+  if (!checkout.length) {
+    // Nothing to clear — no need for a confirmation
+    return;
+  }
+  document.getElementById('clearCartCount').textContent = checkout.length;
+  document.getElementById('clearCartModal').classList.add('show');
+}
+
+function cancelClearCart() {
+  document.getElementById('clearCartModal').classList.remove('show');
+}
+
+function confirmClearCart() {
+  document.getElementById('clearCartModal').classList.remove('show');
+  clearCheckout();          // this already triggers updateCartProtection()
+  // Optional: give focus back to the search bar for the next sale
+  setTimeout(() => {
+    const s = document.getElementById('searchInput');
+    if (s) s.focus();
+  }, 100);
+}
 </script>
 </body>
 </html>
