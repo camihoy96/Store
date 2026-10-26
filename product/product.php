@@ -2,11 +2,9 @@
 ob_start();
 $pageTitle = 'Products';
 require_once __DIR__ . '/../include/admin_header.php';
-
 /* ═══════ AUTO-MOVE EXPIRED BATCHES (RUN ON PAGE LOAD) ════════════════ */
 function moveExpiredBatches($conn) {
     $today = date('Y-m-d');
-    
     // Find batches expiring today or already expired
     $expiringBatches = $conn->query("
         SELECT * FROM product_batches 
@@ -15,7 +13,6 @@ function moveExpiredBatches($conn) {
         AND expiry_date <= '$today'
         AND (quantity > 0 OR kg > 0)
     ");
-    
     while ($batch = $expiringBatches->fetch_assoc()) {
         // Move to expired_products
         $stmt = $conn->prepare("
@@ -25,7 +22,6 @@ function moveExpiredBatches($conn) {
              purchase_date, expiry_date, expired_date, days_expired, batch_date)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
-        
         $expired_date = $today;
         $days_expired = (strtotime($today) - strtotime($batch['expiry_date'])) / (60*60*24);
         $days_expired = max(0, (int)$days_expired);
@@ -70,7 +66,6 @@ function moveExpiredBatches($conn) {
         $audit->close();
     }
 }
-
 // Auto-clean soldout batches (after 3 days)
 function cleanSoldoutBatches($conn) {
     $threeDaysAgo = date('Y-m-d', strtotime('-3 days'));
@@ -84,7 +79,6 @@ function cleanSoldoutBatches($conn) {
         AND kg = 0
     ");
 }
-
 // Run maintenance functions
 moveExpiredBatches($conn);
 cleanSoldoutBatches($conn);
@@ -92,327 +86,264 @@ cleanSoldoutBatches($conn);
 /* ═══════ HANDLE POST ═══════════════════════════════════════════════════ */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
-   // Handle edit product (update product details)
-if (isset($_POST['update_product'])) {
-    $id = intval($_POST['product_id']);
-    $batch_id = intval($_POST['edit_batch_id'] ?? 0);
-    $name = $conn->real_escape_string($_POST['name']);
-    $category = $conn->real_escape_string($_POST['category']);
-    $brand = $conn->real_escape_string($_POST['brand']);
-    $price = floatval($_POST['price']);
-    $mtype = $_POST['edit_measurement'] ?? 'pieces';
-    $quantity = ($mtype === 'pieces') ? intval($_POST['pieces']) : 0;
-    $kg_val = ($mtype === 'kg') ? floatval($_POST['kg']) : 0;
-    $purchase_price = floatval($_POST['purchase_price']);
-    $seller_store = $conn->real_escape_string($_POST['seller_store']);
-    $purchase_date = $_POST['purchase_date'];
-    $expiry_date = (($_POST['edit_expiry_status']??'has_date')==='na'||empty($_POST['expiry_date'])) ? null : $_POST['expiry_date'];
-    
-    // Handle image upload
-    $product_image = null;
-    if (isset($_FILES['edit_image_path']) && $_FILES['edit_image_path']['error'] === UPLOAD_ERR_OK) {
-        $dir = __DIR__.'/../uploads/';
-        if (!is_dir($dir)) mkdir($dir,0755,true);
-        $fn = uniqid('prod_',true).'.'.strtolower(pathinfo($_FILES['edit_image_path']['name'],PATHINFO_EXTENSION));
-        if (move_uploaded_file($_FILES['edit_image_path']['tmp_name'], $dir.$fn)) {
-            $product_image = 'uploads/' . $fn;
-            
-            // Delete old image from products table
-            $old_img = $conn->query("SELECT image_path FROM products WHERE id=$id")->fetch_assoc();
-            if (!empty($old_img['image_path']) && file_exists(__DIR__.'/../'.$old_img['image_path'])) {
-                unlink(__DIR__.'/../'.$old_img['image_path']);
+    // Handle edit product (update product details)
+    if (isset($_POST['update_product'])) {
+        $id = intval($_POST['product_id']);
+        $batch_id = intval($_POST['edit_batch_id'] ?? 0);
+        $name = $conn->real_escape_string($_POST['name']);
+        $category = $conn->real_escape_string($_POST['category']);
+        $brand = $conn->real_escape_string($_POST['brand']);
+        $price = floatval($_POST['price']);
+        $mtype = $_POST['edit_measurement'] ?? 'pieces';
+        $quantity = ($mtype === 'pieces') ? intval($_POST['pieces']) : 0;
+        $kg_val = ($mtype === 'kg') ? floatval($_POST['kg']) : 0;
+        $purchase_price = floatval($_POST['purchase_price']);
+        $seller_store = $conn->real_escape_string($_POST['seller_store']);
+        $purchase_date = $_POST['purchase_date'];
+        $expiry_date = (($_POST['edit_expiry_status'] ?? 'has_date') === 'na' || empty($_POST['expiry_date'])) ? null : $_POST['expiry_date'];
+        
+        // Handle image upload
+        $product_image = null;
+        if (isset($_FILES['edit_image_path']) && $_FILES['edit_image_path']['error'] === UPLOAD_ERR_OK) {
+            $dir = __DIR__.'/../uploads/';
+            if (!is_dir($dir)) mkdir($dir, 0755, true);
+            $fn = uniqid('prod_', true) . '.' . strtolower(pathinfo($_FILES['edit_image_path']['name'], PATHINFO_EXTENSION));
+            if (move_uploaded_file($_FILES['edit_image_path']['tmp_name'], $dir . $fn)) {
+                $product_image = 'uploads/' . $fn;
+                
+                // Delete old image from products table
+                $old_img = $conn->query("SELECT image_path FROM products WHERE id = $id")->fetch_assoc();
+                if (!empty($old_img['image_path']) && file_exists(__DIR__.'/../'.$old_img['image_path'])) {
+                    unlink(__DIR__.'/../'.$old_img['image_path']);
+                }
             }
         }
-    }
-    
-    // Update main product record
-    if ($product_image) {
+        
+        // Update main product record
         $sql = "UPDATE products SET 
                 name='$name', category='$category', brand='$brand', price=$price, 
                 purchase_price=$purchase_price, seller_store='$seller_store',
                 purchase_date=".($purchase_date ? "'$purchase_date'" : "NULL").", 
                 expiry_date=".($expiry_date ? "'$expiry_date'" : "NULL").", 
-                pieces=$quantity, kg=$kg_val, measurement_type='$mtype', 
-                image_path='$product_image' 
-                WHERE id=$id";
-    } else {
-        $sql = "UPDATE products SET 
-                name='$name', category='$category', brand='$brand', price=$price, 
-                purchase_price=$purchase_price, seller_store='$seller_store',
-                purchase_date=".($purchase_date ? "'$purchase_date'" : "NULL").", 
-                expiry_date=".($expiry_date ? "'$expiry_date'" : "NULL").", 
-                pieces=$quantity, kg=$kg_val, measurement_type='$mtype' 
-                WHERE id=$id";
-    }
-    
-    if ($conn->query($sql)) {
-        // Update the specific batch if batch_id > 0, otherwise update latest active
-        if ($batch_id > 0) {
-            $updateBatchSql = "UPDATE product_batches SET 
-                    name='$name', category='$category', brand='$brand', price=$price,
-                    purchase_price=$purchase_price, seller_store='$seller_store',
-                    purchase_date=".($purchase_date ? "'$purchase_date'" : "NULL").", 
-                    expiry_date=".($expiry_date ? "'$expiry_date'" : "NULL").", 
-                    quantity=$quantity, kg=$kg_val, measurement_type='$mtype'";
-            
-            if ($product_image) {
-                $updateBatchSql .= ", image_path='$product_image'";
-            }
-            
-            $updateBatchSql .= " WHERE id = $batch_id";
-        } else {
-            $updateBatchSql = "UPDATE product_batches SET 
-                    name='$name', category='$category', brand='$brand', price=$price,
-                    purchase_price=$purchase_price, seller_store='$seller_store',
-                    purchase_date=".($purchase_date ? "'$purchase_date'" : "NULL").", 
-                    expiry_date=".($expiry_date ? "'$expiry_date'" : "NULL").", 
-                    quantity=$quantity, kg=$kg_val, measurement_type='$mtype'";
-            
-            if ($product_image) {
-                $updateBatchSql .= ", image_path='$product_image'";
-            }
-            
-            $updateBatchSql .= " WHERE product_id=$id AND status='active' ORDER BY id DESC LIMIT 1";
-        }
-        
-        $conn->query($updateBatchSql);
-        
-        $_SESSION['swal'] = ['type'=>'success', 'title'=>'Updated!', 'text'=>'Product updated successfully.'];
-    } else {
-        $_SESSION['swal'] = ['type'=>'error', 'title'=>'Error', 'text'=>$conn->error];
-    }
-    
-    header("Location: product.php"); 
-    exit;
-}
-    
-    // Update main product record - Use 'pieces' instead of 'quantity'
-if ($product_image) {
-    $sql = "UPDATE products SET 
-            name='$name', category='$category', brand='$brand', price=$price, 
-            purchase_price=$purchase_price, seller_store='$seller_store',
-            purchase_date=".($purchase_date ? "'$purchase_date'" : "NULL").", 
-            expiry_date=".($expiry_date ? "'$expiry_date'" : "NULL").", 
-            pieces=$quantity, kg=$kg_val, measurement_type='$mtype', 
-            image_path='$product_image' 
-            WHERE id=$id";
-} else {
-    $sql = "UPDATE products SET 
-            name='$name', category='$category', brand='$brand', price=$price, 
-            purchase_price=$purchase_price, seller_store='$seller_store',
-            purchase_date=".($purchase_date ? "'$purchase_date'" : "NULL").", 
-            expiry_date=".($expiry_date ? "'$expiry_date'" : "NULL").", 
-            pieces=$quantity, kg=$kg_val, measurement_type='$mtype' 
-            WHERE id=$id";
-}
-    
-    if ($conn->query($sql)) {
-        // Also update the latest active batch record - Fixed to use quantity instead of pieces
-        $updateBatchSql = "UPDATE product_batches SET 
-                name='$name', category='$category', brand='$brand', price=$price,
-                purchase_price=$purchase_price, seller_store='$seller_store',
-                purchase_date=".($purchase_date ? "'$purchase_date'" : "NULL").", 
-                expiry_date=".($expiry_date ? "'$expiry_date'" : "NULL").", 
-                quantity=$quantity, kg=$kg_val, measurement_type='$mtype'";
+                pieces=$quantity, kg=$kg_val, measurement_type='$mtype'";
         
         if ($product_image) {
-            $updateBatchSql .= ", image_path='$product_image'";
+            $sql .= ", image_path='$product_image'";
         }
         
-        $updateBatchSql .= " WHERE product_id=$id AND status='active' ORDER BY id DESC LIMIT 1";
+        $sql .= " WHERE id=$id";
         
-        $conn->query($updateBatchSql);
+        if ($conn->query($sql)) {
+            // Update the specific batch if batch_id > 0, otherwise update latest active
+            $updateBatchSql = "UPDATE product_batches SET 
+                    name='$name', category='$category', brand='$brand', price=$price,
+                    purchase_price=$purchase_price, seller_store='$seller_store',
+                    purchase_date=".($purchase_date ? "'$purchase_date'" : "NULL").", 
+                    expiry_date=".($expiry_date ? "'$expiry_date'" : "NULL").", 
+                    quantity=$quantity, kg=$kg_val, measurement_type='$mtype'";
+            
+            if ($product_image) {
+                $updateBatchSql .= ", image_path='$product_image'";
+            }
+            
+            if ($batch_id > 0) {
+                $updateBatchSql .= " WHERE id = $batch_id";
+            } else {
+                $updateBatchSql .= " WHERE product_id=$id AND status='active' ORDER BY id DESC LIMIT 1";
+            }
+            
+            $conn->query($updateBatchSql);
+            
+            $_SESSION['swal'] = ['type'=>'success', 'title'=>'Updated!', 'text'=>'Product updated successfully.'];
+        } else {
+            $_SESSION['swal'] = ['type'=>'error', 'title'=>'Error', 'text'=>$conn->error];
+        }
         
-        $_SESSION['swal'] = ['type'=>'success', 'title'=>'Updated!', 'text'=>'Product updated successfully.'];
-    } else {
-        $_SESSION['swal'] = ['type'=>'error', 'title'=>'Error', 'text'=>$conn->error];
-    }
-    
-    header("Location: product.php"); 
-    exit;
-}
-    
-  // Handle new product addition
-if (isset($_POST['add_product'])) {
-    $r = $conn->query("SELECT MAX(CAST(SUBSTRING(code,2) AS UNSIGNED)) AS mc FROM products")->fetch_assoc();
-    $code = 'P'.(($r['mc']??0)+1);
-    
-    // Check for duplicates
-    $name_check = $conn->real_escape_string(trim($_POST['name']));
-    $category_check = $conn->real_escape_string(trim($_POST['category']));
-    
-    $check_stmt = $conn->prepare("SELECT id, name, category FROM products WHERE name = ? AND category = ?");
-    $check_stmt->bind_param("ss", $name_check, $category_check);
-    $check_stmt->execute();
-    $check_result = $check_stmt->get_result();
-    
-    if ($check_result->num_rows > 0) {
-        $existing = $check_result->fetch_assoc();
-        $_SESSION['swal'] = [
-            'type' => 'warning',
-            'title' => '⚠️ Duplicate Product Found!',
-            'text' => "A product named '{$existing['name']}' already exists in the '{$existing['category']}' category."
-        ];
-        $check_stmt->close();
-        header("Location: product.php");
+        header("Location: product.php"); 
         exit;
     }
-    $check_stmt->close();
     
-    $name = $conn->real_escape_string($_POST['name']);
-    $brand = $conn->real_escape_string($_POST['brand'] ?? '');
-    $category = $conn->real_escape_string($_POST['category']);
-    $seller = $conn->real_escape_string($_POST['seller']);
-    $purchase_price = floatval($_POST['purchase_price']);
-    $price = floatval($_POST['price']);
-    $purchase_date = $_POST['purchase_date'] ?: date('Y-m-d');
-    $expiry_date = (($_POST['expiry_status']??'has_date')==='na'||empty($_POST['expiry_date'])) ? null : $_POST['expiry_date'];
-    $mtype = ($_POST['measurement']==='kg') ? 'kg' : 'pieces';
-    $quantity = ($mtype==='pieces') ? intval($_POST['pieces']) : 0;
-    $kg_val = ($mtype==='kg') ? floatval($_POST['kg']) : 0;
-    $product_image = null;
-    
-   if (isset($_FILES['image_path']) && $_FILES['image_path']['error']===UPLOAD_ERR_OK) {
-    $dir = __DIR__.'/../uploads/';
-    if (!is_dir($dir)) {
-        mkdir($dir, 0755, true);
-        error_log("Created uploads directory: " . $dir);
-    }
-    
-    $fn = uniqid('prod_', true) . '.' . strtolower(pathinfo($_FILES['image_path']['name'], PATHINFO_EXTENSION));
-    $targetPath = $dir . $fn;
-    
-    if (move_uploaded_file($_FILES['image_path']['tmp_name'], $targetPath)) {
-        $product_image = 'uploads/' . $fn;
-        error_log("Image uploaded successfully to: " . $targetPath);
-        error_log("Image path stored in DB: " . $product_image);
-    } else {
-        error_log("Failed to upload image. Error: " . $_FILES['image_path']['error']);
-        $product_image = null;
-    }
-}
-    
-    // Insert main product record - Fixed to use quantity instead of pieces
-   $sql = "INSERT INTO products 
-        (code, name, category, brand, seller_store, 
-         purchase_price, price, pieces, kg, measurement_type,
-         purchase_date, expiry_date, image_path) 
-        VALUES ('$code', '$name', '$category', '$brand', '$seller',
-                $purchase_price, $price, $quantity, $kg_val, '$mtype',
-                ".($purchase_date ? "'$purchase_date'" : "NULL").", 
-                ".($expiry_date ? "'$expiry_date'" : "NULL").", 
-                ".($product_image ? "'$product_image'" : "NULL").")";
-    
-    if ($conn->query($sql)) {
-        $product_id = $conn->insert_id;
+    // Handle new product addition
+    if (isset($_POST['add_product'])) {
+        $r = $conn->query("SELECT MAX(CAST(SUBSTRING(code,2) AS UNSIGNED)) AS mc FROM products")->fetch_assoc();
+        $code = 'P'.(($r['mc'] ?? 0) + 1);
         
-        // Also create a batch record for tracking
+        // Check for duplicates
+        $name_check = $conn->real_escape_string(trim($_POST['name']));
+        $category_check = $conn->real_escape_string(trim($_POST['category']));
+        
+        $check_stmt = $conn->prepare("SELECT id, name, category FROM products WHERE name = ? AND category = ?");
+        $check_stmt->bind_param("ss", $name_check, $category_check);
+        $check_stmt->execute();
+        $check_result = $check_stmt->get_result();
+        
+        if ($check_result->num_rows > 0) {
+            $existing = $check_result->fetch_assoc();
+            $_SESSION['swal'] = [
+                'type' => 'warning',
+                'title' => '⚠️ Duplicate Product Found!',
+                'text' => "A product named '{$existing['name']}' already exists in the '{$existing['category']}' category."
+            ];
+            $check_stmt->close();
+            header("Location: product.php");
+            exit;
+        }
+        $check_stmt->close();
+        
+        $name = $conn->real_escape_string($_POST['name']);
+        $brand = $conn->real_escape_string($_POST['brand'] ?? '');
+        $category = $conn->real_escape_string($_POST['category']);
+        $seller = $conn->real_escape_string($_POST['seller']);
+        $purchase_price = floatval($_POST['purchase_price']);
+        $price = floatval($_POST['price']);
+        $purchase_date = $_POST['purchase_date'] ?: date('Y-m-d');
+        $expiry_date = (($_POST['expiry_status'] ?? 'has_date') === 'na' || empty($_POST['expiry_date'])) ? null : $_POST['expiry_date'];
+        $mtype = ($_POST['measurement'] == 'kg') ? 'kg' : 'pieces';
+        $quantity = ($mtype == 'pieces') ? intval($_POST['pieces']) : 0;
+        $kg_val = ($mtype == 'kg') ? floatval($_POST['kg']) : 0;
+        $product_image = null;
+        
+        if (isset($_FILES['image_path']) && $_FILES['image_path']['error'] === UPLOAD_ERR_OK) {
+            $dir = __DIR__.'/../uploads/';
+            if (!is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
+            
+            $fn = uniqid('prod_', true) . '.' . strtolower(pathinfo($_FILES['image_path']['name'], PATHINFO_EXTENSION));
+            $targetPath = $dir . $fn;
+            
+            if (move_uploaded_file($_FILES['image_path']['tmp_name'], $targetPath)) {
+                $product_image = 'uploads/' . $fn;
+            }
+        }
+        
+        // Insert main product record
+        $sql = "INSERT INTO products 
+                (code, name, category, brand, seller_store, 
+                 purchase_price, price, pieces, kg, measurement_type,
+                 purchase_date, expiry_date, image_path) 
+                VALUES ('$code', '$name', '$category', '$brand', '$seller',
+                        $purchase_price, $price, $quantity, $kg_val, '$mtype',
+                        ".($purchase_date ? "'$purchase_date'" : "NULL").", 
+                        ".($expiry_date ? "'$expiry_date'" : "NULL").", 
+                        ".($product_image ? "'$product_image'" : "NULL").")";
+        
+        if ($conn->query($sql)) {
+            $product_id = $conn->insert_id;
+            
+            // Also create a batch record for tracking
+            $batch_sql = "INSERT INTO product_batches 
+                    (product_id, code, name, category, brand, seller_store, 
+                     purchase_price, price, quantity, kg, measurement_type, 
+                     purchase_date, expiry_date, image_path, status)
+                    VALUES ($product_id, '$code', '$name', '$category', '$brand', '$seller',
+                            $purchase_price, $price, $quantity, $kg_val, '$mtype',
+                            ".($purchase_date ? "'$purchase_date'" : "NULL").", 
+                            ".($expiry_date ? "'$expiry_date'" : "NULL").", 
+                            ".($product_image ? "'$product_image'" : "NULL").", 'active')";
+            
+            $conn->query($batch_sql);
+            $batch_id = $conn->insert_id;
+            
+            // Log audit
+            $audit_sql = "INSERT INTO inventory_audit 
+                    (batch_id, product_id, action, new_quantity, new_kg, seller_store, purchase_price, notes)
+                    VALUES ($batch_id, $product_id, 'restock', $quantity, $kg_val, '$seller', $purchase_price, 'Initial product creation')";
+            $conn->query($audit_sql);
+            
+            $_SESSION['swal'] = ['type'=>'success', 'title'=>'Added!', 'text'=>'Product added successfully with batch tracking.'];
+        } else {
+            $_SESSION['swal'] = ['type'=>'error', 'title'=>'Error', 'text'=>$conn->error];
+        }
+        
+        header("Location: product.php"); 
+        exit;
+    }
+    
+    // Handle restock (new batch arrival)
+    if (isset($_POST['restock_product'])) {
+        $product_id = intval($_POST['product_id']);
+        $seller = $conn->real_escape_string($_POST['restock_seller']);
+        $purchase_price = floatval($_POST['restock_purchase_price']);
+        $price = floatval($_POST['restock_price']);
+        $purchase_date = $_POST['restock_purchase_date'] ?: date('Y-m-d');
+        $expiry_date = (($_POST['restock_expiry_status'] ?? 'has_date') === 'na' || empty($_POST['restock_expiry_date'])) ? null : $_POST['restock_expiry_date'];
+        $mtype = $_POST['restock_measurement'] ?? 'pieces';
+        $quantity = ($mtype == 'pieces') ? intval($_POST['restock_pieces']) : 0;
+        $kg_val = ($mtype == 'kg') ? floatval($_POST['restock_kg']) : 0;
+        
+        // Get product details
+        $product = $conn->query("SELECT code, name, category, brand, image_path FROM products WHERE id = $product_id")->fetch_assoc();
+        
+        if (!$product) {
+            $_SESSION['swal'] = ['type'=>'error', 'title'=>'Error', 'text'=>'Product not found!'];
+            header("Location: product.php");
+            exit;
+        }
+        
+        // Create new batch
         $batch_sql = "INSERT INTO product_batches 
                 (product_id, code, name, category, brand, seller_store, 
                  purchase_price, price, quantity, kg, measurement_type, 
                  purchase_date, expiry_date, image_path, status)
-                VALUES ($product_id, '$code', '$name', '$category', '$brand', '$seller',
+                VALUES ($product_id, '{$product['code']}', '{$product['name']}', 
+                        '{$product['category']}', '{$product['brand']}', '$seller',
                         $purchase_price, $price, $quantity, $kg_val, '$mtype',
                         ".($purchase_date ? "'$purchase_date'" : "NULL").", 
                         ".($expiry_date ? "'$expiry_date'" : "NULL").", 
-                        ".($product_image ? "'$product_image'" : "NULL").", 'active')";
+                        ".($product['image_path'] ? "'{$product['image_path']}'" : "NULL").", 'active')";
         
-        $conn->query($batch_sql);
-        $batch_id = $conn->insert_id;
+        if ($conn->query($batch_sql)) {
+            $batch_id = $conn->insert_id;
+            
+            // Update main product quantity (sum of all active batches)
+            $total = $conn->query("
+                SELECT SUM(quantity) as total_qty, SUM(kg) as total_kg 
+                FROM product_batches 
+                WHERE product_id = $product_id AND status = 'active'
+            ")->fetch_assoc();
+            
+            $new_qty = (int)($total['total_qty'] ?? 0);
+            $new_kg = (float)($total['total_kg'] ?? 0);
+            
+            $conn->query("UPDATE products SET pieces = $new_qty, kg = $new_kg WHERE id = $product_id");
+            
+            // Log audit
+            $audit_sql = "INSERT INTO inventory_audit 
+                    (batch_id, product_id, action, new_quantity, new_kg, seller_store, purchase_price, notes)
+                    VALUES ($batch_id, $product_id, 'restock', $quantity, $kg_val, '$seller', $purchase_price, 'New stock arrival')";
+            $conn->query($audit_sql);
+            
+            $_SESSION['swal'] = ['type'=>'success', 'title'=>'Restocked!', 'text'=>'New batch added successfully.'];
+        } else {
+            $_SESSION['swal'] = ['type'=>'error', 'title'=>'Error', 'text'=>$conn->error];
+        }
         
-        // Log audit
-        $audit_sql = "INSERT INTO inventory_audit 
-                (batch_id, product_id, action, new_quantity, new_kg, seller_store, purchase_price, notes)
-                VALUES ($batch_id, $product_id, 'restock', $quantity, $kg_val, '$seller', $purchase_price, 'Initial product creation')";
-        $conn->query($audit_sql);
-        
-        $_SESSION['swal'] = ['type'=>'success', 'title'=>'Added!', 'text'=>'Product added successfully with batch tracking.'];
-    } else {
-        $_SESSION['swal'] = ['type'=>'error', 'title'=>'Error', 'text'=>$conn->error];
-    }
-    
-    header("Location: product.php"); 
-    exit;
-}
-    
- // Handle restock (new batch arrival)
-if (isset($_POST['restock_product'])) {
-    $product_id = intval($_POST['product_id']);
-    $seller = $conn->real_escape_string($_POST['restock_seller']);
-    $purchase_price = floatval($_POST['restock_purchase_price']);
-    $price = floatval($_POST['restock_price']);
-    $purchase_date = $_POST['restock_purchase_date'] ?: date('Y-m-d');
-    $expiry_date = (($_POST['restock_expiry_status']??'has_date')==='na'||empty($_POST['restock_expiry_date'])) ? null : $_POST['restock_expiry_date'];
-    $mtype = $_POST['restock_measurement'] ?? 'pieces';
-    $quantity = ($mtype==='pieces') ? intval($_POST['restock_pieces']) : 0;
-    $kg_val = ($mtype==='kg') ? floatval($_POST['restock_kg']) : 0;
-    
-    // Get product details
-    $product = $conn->query("SELECT code, name, category, brand, image_path FROM products WHERE id=$product_id")->fetch_assoc();
-    
-    if (!$product) {
-        $_SESSION['swal'] = ['type'=>'error', 'title'=>'Error', 'text'=>'Product not found!'];
-        header("Location: product.php");
+        header("Location: product.php"); 
         exit;
     }
     
-    // Create new batch
-    $batch_sql = "INSERT INTO product_batches 
-            (product_id, code, name, category, brand, seller_store, 
-             purchase_price, price, quantity, kg, measurement_type, 
-             purchase_date, expiry_date, image_path, status)
-            VALUES ($product_id, '{$product['code']}', '{$product['name']}', 
-                    '{$product['category']}', '{$product['brand']}', '$seller',
-                    $purchase_price, $price, $quantity, $kg_val, '$mtype',
-                    ".($purchase_date ? "'$purchase_date'" : "NULL").", 
-                    ".($expiry_date ? "'$expiry_date'" : "NULL").", 
-                    ".($product['image_path'] ? "'{$product['image_path']}'" : "NULL").", 'active')";
-    
-    if ($conn->query($batch_sql)) {
-        $batch_id = $conn->insert_id;
-        
-        // Update main product quantity (sum of all active batches)
-        $total = $conn->query("
-            SELECT SUM(quantity) as total_qty, SUM(kg) as total_kg 
-            FROM product_batches 
-            WHERE product_id = $product_id AND status = 'active'
-        ")->fetch_assoc();
-        
-        $new_qty = (int)($total['total_qty'] ?? 0);
-        $new_kg = (float)($total['total_kg'] ?? 0);
-        
-   $conn->query("UPDATE products SET pieces = $new_qty, kg = $new_kg WHERE id = $product_id");
-        
-        // Log audit
-        $audit_sql = "INSERT INTO inventory_audit 
-                (batch_id, product_id, action, new_quantity, new_kg, seller_store, purchase_price, notes)
-                VALUES ($batch_id, $product_id, 'restock', $quantity, $kg_val, '$seller', $purchase_price, 'New stock arrival')";
-        $conn->query($audit_sql);
-        
-        $_SESSION['swal'] = ['type'=>'success', 'title'=>'Restocked!', 'text'=>'New batch added successfully.'];
-    } else {
-        $_SESSION['swal'] = ['type'=>'error', 'title'=>'Error', 'text'=>$conn->error];
-    }
-    
-    header("Location: product.php"); 
-    exit;
-}
-    
     // Handle selling/deducting from specific batch
-    else if (isset($_POST['sell_batch'])) {
-    $batch_id = intval($_POST['batch_id']);
-    $product_id = intval($_POST['product_id']);
-    $sell_qty = intval($_POST['sell_quantity']);
-    
-    // If batch_id is 0, get the latest active batch
-    if ($batch_id === 0) {
-        $batch = $conn->query("SELECT * FROM product_batches WHERE product_id = $product_id AND status = 'active' AND (quantity > 0 OR kg > 0) ORDER BY id DESC LIMIT 1")->fetch_assoc();
-        if ($batch) {
-            $batch_id = $batch['id'];
+    if (isset($_POST['sell_batch'])) {
+        $batch_id = intval($_POST['batch_id']);
+        $product_id = intval($_POST['product_id']);
+        $sell_qty = intval($_POST['sell_quantity']);
+        
+        // If batch_id is 0, get the latest active batch
+        if ($batch_id === 0) {
+            $batch = $conn->query("SELECT * FROM product_batches WHERE product_id = $product_id AND status = 'active' AND (quantity > 0 OR kg > 0) ORDER BY id DESC LIMIT 1")->fetch_assoc();
+            if ($batch) {
+                $batch_id = $batch['id'];
+            }
+        } else {
+            $batch = $conn->query("SELECT * FROM product_batches WHERE id = $batch_id")->fetch_assoc();
         }
-    } else {
-        $batch = $conn->query("SELECT * FROM product_batches WHERE id = $batch_id")->fetch_assoc();
-    }
+        
+        if (!$batch) {
+            $_SESSION['swal'] = ['type'=>'error', 'title'=>'Error', 'text'=>'No active batch found!'];
+            header("Location: product.php");
+            exit;
+        }
         
         if ($batch['measurement_type'] == 'pieces') {
             $new_qty = max(0, $batch['quantity'] - $sell_qty);
@@ -438,8 +369,8 @@ if (isset($_POST['restock_product'])) {
         
         $conn->query("
             UPDATE products SET 
-            pieces = " . (int)$total_qty['total_qty'] . ",
-            kg = " . (float)$total_qty['total_kg'] . "
+            pieces = " . (int)($total_qty['total_qty'] ?? 0) . ",
+            kg = " . (float)($total_qty['total_kg'] ?? 0) . "
             WHERE id = $product_id
         ");
         
@@ -459,7 +390,7 @@ if (isset($_POST['restock_product'])) {
         header("Location: product.php"); 
         exit;
     }
-
+}
 
 /* ═══════ ALERT DATA ═════════════════════════════════════════════════════ */
 $today = date('Y-m-d');
@@ -468,6 +399,11 @@ $fiveDaysFromNow = date('Y-m-d', strtotime('+5 days'));
 
 // Get view mode from URL (active or expired)
 $viewMode = $_GET['view'] ?? 'active';
+/* ═══════ ACTIVE CATEGORY FILTER ════════════════════════════════════════ */
+$activeCat = $_GET['cat'] ?? 'all';
+$page = max(1, (int)($_GET['page']??1));
+$limit = 20;
+$offset = ($page-1)*$limit;
 
 // Get batches with their details
 if ($viewMode === 'expired') {
@@ -486,56 +422,83 @@ if ($viewMode === 'expired') {
     $outOfStockItems = [];
     $expiringItems = [];
     $expiredItems = $activeBatches;
+    
+    // Count total after filtering for pagination
+    $countForCat = count($activeBatches);
+    $totalPages = ceil($countForCat / $limit);
+    
+    // Apply pagination to $activeBatches
+    $activeBatches = array_slice($activeBatches, $offset, $limit);
+    
 } else {
-    // Show products with aggregated batch data (latest batch only)
-    $query = "
-        SELECT 
-            p.id AS product_id,
-            p.code,
-            p.name,
-            p.category,
-            p.brand,
-            p.seller_store,
-            p.purchase_price,
-            p.price,
-            p.measurement_type,
-            p.pieces,
-            p.kg,
-            p.image_path,
-            p.purchase_date,
-            p.expiry_date,
-            (SELECT SUM(quantity) FROM product_batches WHERE product_id = p.id AND status = 'active') AS total_quantity,
-            (SELECT SUM(kg) FROM product_batches WHERE product_id = p.id AND status = 'active') AS total_kg,
-            (SELECT MAX(expiry_date) FROM product_batches WHERE product_id = p.id AND status = 'active') AS latest_expiry_date,
-            (SELECT MIN(expiry_date) FROM product_batches WHERE product_id = p.id AND status = 'active' AND expiry_date IS NOT NULL) AS nearest_expiry_date,
-            (SELECT COUNT(*) FROM product_batches WHERE product_id = p.id AND status = 'active') AS batch_count,
-            DATEDIFF((SELECT MIN(expiry_date) FROM product_batches WHERE product_id = p.id AND status = 'active' AND expiry_date IS NOT NULL), CURDATE()) as days_remaining
+    // Build the WHERE clause for category filtering directly in the SQL
+    $categoryWhere = '';
+    if ($activeCat === 'uncategorized') {
+        $categoryWhere = "AND (p.category = '' OR p.category IS NULL)";
+    } elseif ($activeCat !== 'all') {
+        $escapedCat = $conn->real_escape_string($activeCat);
+        $categoryWhere = "AND p.category = '$escapedCat'";
+    }
+    
+    // FIRST: Get the total count for pagination (no LIMIT)
+    $countQuery = "
+        SELECT COUNT(DISTINCT p.id) as total
         FROM products p
         WHERE p.id IN (SELECT DISTINCT product_id FROM product_batches WHERE status = 'active')
-        ORDER BY p.id DESC
+        $categoryWhere
     ";
+    $countResult = $conn->query($countQuery);
+    $countForCat = $countResult ? (int)$countResult->fetch_assoc()['total'] : 0;
+    $totalPages = ceil($countForCat / $limit);
     
+    // SECOND: Get the actual data with LIMIT for pagination
+    $query = "
+    SELECT 
+        p.id AS product_id,
+        p.code,
+        p.name,
+        p.category,
+        p.brand,
+        p.seller_store,
+        p.purchase_price,
+        p.price,
+        p.measurement_type,
+        p.pieces,
+        p.kg,
+        p.image_path,
+        p.purchase_date,
+        p.expiry_date,
+        COALESCE((SELECT SUM(quantity) FROM product_batches WHERE product_id = p.id AND status = 'active'), 0) AS total_quantity,
+        COALESCE((SELECT SUM(kg) FROM product_batches WHERE product_id = p.id AND status = 'active'), 0) AS total_kg,
+        (SELECT MAX(expiry_date) FROM product_batches WHERE product_id = p.id AND status = 'active') AS latest_expiry_date,
+        (SELECT MIN(expiry_date) FROM product_batches WHERE product_id = p.id AND status = 'active' AND expiry_date IS NOT NULL) AS nearest_expiry_date,
+        (SELECT COUNT(*) FROM product_batches WHERE product_id = p.id AND status = 'active') AS batch_count,
+        DATEDIFF((SELECT MIN(expiry_date) FROM product_batches WHERE product_id = p.id AND status = 'active' AND expiry_date IS NOT NULL), CURDATE()) as days_remaining
+    FROM products p
+    WHERE p.id IN (SELECT DISTINCT product_id FROM product_batches WHERE status = 'active')
+    $categoryWhere
+    ORDER BY p.id DESC
+    LIMIT $offset, $limit
+    ";
+    // Execute the query
     $result = $conn->query($query);
     
-    // Debug: Check if query failed
     if (!$result) {
         error_log("SQL Error: " . $conn->error);
-        echo "<!-- SQL Error: " . $conn->error . " -->";
         $activeBatches = [];
     } else {
         $activeBatches = $result->fetch_all(MYSQLI_ASSOC);
-        error_log("Products found: " . count($activeBatches));
-        echo "<!-- Products count: " . count($activeBatches) . " -->";
     }
     
-    // Get low stock batches
-    $lowStockBatches = $conn->query("
+    // Get low stock batches - WITH CATEGORY FILTER
+    $lowStockQuery = "
     SELECT 
         p.*,
-        (SELECT SUM(quantity) FROM product_batches WHERE product_id = p.id AND status = 'active') AS total_quantity,
-        (SELECT SUM(kg) FROM product_batches WHERE product_id = p.id AND status = 'active') AS total_kg
+        COALESCE((SELECT SUM(quantity) FROM product_batches WHERE product_id = p.id AND status = 'active'), 0) AS total_quantity,
+        COALESCE((SELECT SUM(kg) FROM product_batches WHERE product_id = p.id AND status = 'active'), 0) AS total_kg
     FROM products p
     WHERE p.id IN (SELECT DISTINCT product_id FROM product_batches WHERE status = 'active')
+    $categoryWhere
     AND ((p.measurement_type = 'pieces' AND (SELECT SUM(quantity) FROM product_batches WHERE product_id = p.id AND status = 'active') > 0 
           AND (SELECT SUM(quantity) FROM product_batches WHERE product_id = p.id AND status = 'active') <= 20) 
          OR (p.measurement_type = 'kg' AND (SELECT SUM(kg) FROM product_batches WHERE product_id = p.id AND status = 'active') > 0 
@@ -543,21 +506,25 @@ if ($viewMode === 'expired') {
     ORDER BY 
         CASE WHEN p.measurement_type = 'kg' THEN (SELECT SUM(kg) FROM product_batches WHERE product_id = p.id AND status = 'active')
              ELSE (SELECT SUM(quantity) FROM product_batches WHERE product_id = p.id AND status = 'active') END ASC
-")->fetch_all(MYSQLI_ASSOC);
+    ";
+    $lowStockBatches = $conn->query($lowStockQuery)->fetch_all(MYSQLI_ASSOC);
     
-    // Get expiring batches (within 5 days)
-    $expiringBatches = $conn->query("
+    // Get expiring batches - WITH CATEGORY FILTER
+    $expiringQuery = "
         SELECT b.*,
                DATEDIFF(b.expiry_date, CURDATE()) as days_remaining
         FROM product_batches b
+        INNER JOIN products p ON b.product_id = p.id
         WHERE b.status = 'active' 
         AND b.expiry_date IS NOT NULL 
         AND b.expiry_date <= '$fiveDaysFromNow'
         AND b.expiry_date >= CURDATE()
         AND ((b.measurement_type = 'pieces' AND b.quantity > 0) 
              OR (b.measurement_type = 'kg' AND b.kg > 0))
+        $categoryWhere
         ORDER BY b.expiry_date ASC
-    ")->fetch_all(MYSQLI_ASSOC);
+    ";
+    $expiringBatches = $conn->query($expiringQuery)->fetch_all(MYSQLI_ASSOC);
     
     // Get expired batches (already moved to expired_products)
     $expiredBatches = $conn->query("
@@ -584,23 +551,43 @@ while ($c = $catResult->fetch_assoc()) {
 $uncatCount = $conn->query("SELECT COUNT(*) as c FROM products WHERE category='' OR category IS NULL")->fetch_assoc()['c'];
 $totalAll = $conn->query("SELECT COUNT(*) as c FROM products")->fetch_assoc()['c'];
 
-/* ═══════ ACTIVE CATEGORY FILTER ════════════════════════════════════════ */
-$activeCat = $_GET['cat'] ?? 'all';
-$page = max(1, (int)($_GET['page']??1));
-$limit = 20;
-$offset = ($page-1)*$limit;
+// REMOVE these debug lines - they're no longer needed
+// echo "<!-- Debug: activeCat = '" . htmlspecialchars($activeCat) . "' -->";
+// echo "<!-- Debug: viewMode = '" . htmlspecialchars($viewMode) . "' -->";
+// echo "<!-- Debug: Before filter, activeBatches count = " . count($activeBatches) . " -->";
+// echo "<!-- Debug: After filter, activeBatches count = " . count($activeBatches) . " -->";
+// echo "<!-- Debug: After pagination, activeBatches count = " . count($activeBatches) . " -->";
 
-$whereClause = "";
-if ($activeCat === 'uncategorized') {
-    $whereClause = "WHERE (category='' OR category IS NULL)";
-} elseif ($activeCat !== 'all') {
-    $safecat = $conn->real_escape_string($activeCat);
-    $whereClause = "WHERE category='$safecat'";
-}
+// REMOVE these lines - the filter is now applied in SQL
+// Apply category filter to $activeBatches
+// if ($viewMode !== 'expired') {
+//     if ($activeCat === 'uncategorized') {
+//         $filteredBatches = [];
+//         foreach ($activeBatches as $batch) {
+//             if (empty($batch['category'])) {
+//                 $filteredBatches[] = $batch;
+//             }
+//         }
+//         $activeBatches = $filteredBatches;
+//     } elseif ($activeCat !== 'all') {
+//         $filteredBatches = [];
+//         foreach ($activeBatches as $batch) {
+//             if (isset($batch['category']) && $batch['category'] === $activeCat) {
+//                 $filteredBatches[] = $batch;
+//             }
+//         }
+//         $activeBatches = $filteredBatches;
+//     }
+// }
 
-$result = $conn->query("SELECT * FROM products $whereClause ORDER BY id DESC LIMIT $limit OFFSET $offset");
-$countForCat = $conn->query("SELECT COUNT(*) as c FROM products $whereClause")->fetch_assoc()['c'];
-$totalPages = ceil($countForCat/$limit);
+// Remove these lines as well - we already handle pagination above
+// // Count total after filtering for pagination
+// $countForCat = count($activeBatches);
+// $totalPages = ceil($countForCat / $limit);
+// 
+// // Apply pagination to $activeBatches
+// $activeBatches = array_slice($activeBatches, $offset, $limit);
+
 ob_end_flush();
 ?>
 <style>
@@ -991,8 +978,8 @@ body.modal-open {
 
     <div class="cat-tabs-scroll">
       <!-- ALL -->
-      <a href="product.php?cat=all"
-         class="cat-tab-btn <?= $activeCat==='all'?'active':'' ?>">
+     <a href="product.php?view=active&cat=all"
+   class="cat-tab-btn <?= $activeCat==='all'?'active':'' ?>">
         <span class="ct-icon">🗃</span>
         All Products
         <span class="ct-count"><?= $totalAll ?></span>
@@ -1011,8 +998,8 @@ body.modal-open {
         $icon     = '📦';
         foreach ($catIcons as $k=>$v) if (stripos($catName,$k)!==false){$icon=$v;break;}
       ?>
-      <a href="product.php?cat=<?= $catSlug ?>"
-         class="cat-tab-btn <?= $isActive?'active':'' ?>">
+      <a href="product.php?view=active&cat=<?= $catSlug ?>"
+   class="cat-tab-btn <?= $isActive?'active':'' ?>">
         <span class="ct-icon"><?= $icon ?></span>
         <?= htmlspecialchars($catName) ?>
         <span class="ct-count"><?= $cat['cnt'] ?></span>
@@ -1025,8 +1012,8 @@ body.modal-open {
 
       <!-- Uncategorized -->
       <?php if ($uncatCount > 0): ?>
-      <a href="product.php?cat=uncategorized"
-         class="cat-tab-btn <?= $activeCat==='uncategorized'?'active':'' ?>">
+     <a href="product.php?view=active&cat=uncategorized"
+   class="cat-tab-btn <?= $activeCat==='uncategorized'?'active':'' ?>">
         <span class="ct-icon">🏷</span>
         Uncategorized
         <span class="ct-count"><?= $uncatCount ?></span>
@@ -1107,60 +1094,77 @@ body.modal-open {
   <?php endif; ?>
 </div>
 
-    <!-- Products table -->
-  <div class="panel">
+   <!-- Products table -->
+<div class="panel">
     <div class="panel-header">
-      <div class="panel-title">
-        <div class="pt-dot"></div>
-        <?php if($viewMode === 'expired'): ?>
-          🗑️ Expired Products
-        <?php elseif($activeCat==='all'): ?>
-          All Products
-        <?php elseif($activeCat==='uncategorized'): ?>
-          Uncategorized Products
-        <?php else: ?>
-          <?= htmlspecialchars($activeCat) ?>
-        <?php endif; ?>
-        <span style="background:var(--bg3);color:var(--text3);border-radius:10px;padding:1px 8px;font-size:10px;">
-          <?= $viewMode === 'expired' ? count($expiredBatches) : count($activeBatches) ?>
-        </span>
-      </div>
-      <div style="display:flex;gap:6px;align-items:center;">
-        <span style="font-size:10px;color:var(--text3);">Page <?= $page ?> of <?= max(1,$totalPages) ?></span>
-        <?php if($viewMode !== 'expired'): ?>
-        <?php endif; ?>
-      </div>
+        <div class="panel-title">
+            <div class="pt-dot"></div>
+            <?php if($viewMode === 'expired'): ?>
+                🗑️ Expired Products
+            <?php elseif($activeCat==='all'): ?>
+                All Products
+            <?php elseif($activeCat==='uncategorized'): ?>
+                Uncategorized Products
+            <?php else: ?>
+                <?= htmlspecialchars($activeCat) ?>
+            <?php endif; ?>
+            <span style="background:var(--bg3);color:var(--text3);border-radius:10px;padding:1px 8px;font-size:10px;">
+                <?= $viewMode === 'expired' ? count($expiredBatches) : count($activeBatches) ?>
+            </span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;">
+            <?php if($viewMode === 'expired'): ?>
+            <button id="deleteSelectedBtn" class="btn btn-red btn-sm" style="display:none;" onclick="deleteSelectedExpired()">
+                🗑️ Delete Selected
+            </button>
+            <?php endif; ?>
+            <span style="font-size:10px;color:var(--text3);">Page <?= $page ?> of <?= max(1,$totalPages) ?></span>
+        </div>
     </div>
     <div style="padding:0;">
-      <div class="tbl-wrap">
-        <table class="data-tbl" id="productTable">
-          <thead>
-            <tr>
-              <th>Code</th><th>Name</th><th>Category</th><th>Brand</th>
-              <th>Seller</th><th>Capital</th><th>Price</th>
-              <th>Purchased</th><th>Expiry</th><th>Image</th>
-              <th>Stock</th><th>Refill/Deduct</th><th>Actions</th>
-            </tr>
-          </thead>
+        <div class="tbl-wrap">
+            <table class="data-tbl" id="productTable">
+                <thead>
+                    <tr>
+                        <?php if($viewMode === 'expired'): ?>
+                        <th style="width:40px;">
+                            <input type="checkbox" id="selectAllExpired" onchange="toggleAllExpired()" style="width:16px;height:16px;cursor:pointer;">
+                        </th>
+                        <?php endif; ?>
+                        <th>Code</th><th>Name</th><th>Category</th><th>Brand</th>
+                        <th>Seller</th><th>Capital</th><th>Price</th>
+                        <th>Purchased</th><th>Expiry</th><th>Image</th>
+                        <th>Stock</th><th>Refill/Deduct</th><th>Actions</th>
+                    </tr>
+                </thead>
                 <tbody>
 <?php if (empty($activeBatches)): ?>
 <tr>
-    <td colspan="13" style="text-align:center;padding:40px;color:var(--text3);">
+    <td colspan="<?= $viewMode === 'expired' ? '14' : '13' ?>" style="text-align:center;padding:40px;color:var(--text3);">
         <?= $viewMode === 'expired' ? 'No expired products found.' : 'No products found. Add your first product!' ?>
     </td>
 </tr>
 <?php else: ?>
 <?php foreach ($activeBatches as $batch): 
-    // Use aggregated quantities
-    $curQty = ($batch['measurement_type'] === 'kg') ? (float)$batch['total_kg'] : (int)$batch['total_quantity'];
+    // Use aggregated quantities with safe fallback for expired products
+    if ($viewMode === 'expired') {
+        // For expired products, use quantity/kg directly
+        $curQty = ($batch['measurement_type'] === 'kg') ? (float)($batch['kg'] ?? 0) : (int)($batch['quantity'] ?? 0);
+    } else {
+        // For active products, use aggregated totals
+        $curQty = ($batch['measurement_type'] === 'kg') ? (float)($batch['total_kg'] ?? 0) : (int)($batch['total_quantity'] ?? 0);
+    }
     $unit = ($batch['measurement_type'] === 'kg') ? 'kg' : 'pcs';
     $lowThr = ($batch['measurement_type'] === 'kg') ? 20.0 : 20;
     $isOOS = $curQty == 0;
     $isLow = !$isOOS && $curQty <= $lowThr;
     
-    // Use the nearest expiry date for expiry display
-    $expiry_date = !empty($batch['nearest_expiry_date']) ? $batch['nearest_expiry_date'] : $batch['expiry_date'];
-    $hasExp = !empty($expiry_date);
+        // Use the nearest expiry date for expiry display (with safe fallback)
+    $nearestExpiry = isset($batch['nearest_expiry_date']) ? $batch['nearest_expiry_date'] : null;
+    $batchExpiry = isset($batch['expiry_date']) ? $batch['expiry_date'] : null;
+    
+    $expiry_date = !empty($nearestExpiry) ? $nearestExpiry : $batchExpiry;
+    $hasExp = !empty($expiry_date) && $expiry_date != '0000-00-00' && $expiry_date != 'N/A';
     $isExpd = $hasExp && $expiry_date < $today;
     $isNear = $hasExp && !$isExpd && $expiry_date <= $fiveDaysFromNow;
     $dLeft = $hasExp ? floor((strtotime($expiry_date) - strtotime($today)) / (3600*24)) : null;
@@ -1172,8 +1176,16 @@ body.modal-open {
     elseif ($isNear) $rowClass = 'row-nearing';
     
     $qtyClass = $isOOS ? 'qty-oos' : ($isLow ? 'qty-low' : 'qty-ok');
+    
+    // Get the expired record ID for deletion
+    $expiredId = isset($batch['id']) ? $batch['id'] : (isset($batch['batch_id']) ? $batch['batch_id'] : 0);
 ?>
-<tr class="<?= $rowClass ?>">
+<tr class="<?= $rowClass ?>" data-expired-id="<?= $expiredId ?>">
+    <?php if($viewMode === 'expired'): ?>
+    <td style="text-align:center;">
+        <input type="checkbox" class="expired-checkbox" data-id="<?= $expiredId ?>" onchange="updateDeleteButton()" style="width:16px;height:16px;cursor:pointer;">
+    </td>
+    <?php endif; ?>
     <td><span class="td-code"><?= htmlspecialchars($batch['code']) ?></span></td>
     <td>
         <span class="td-name"><?= htmlspecialchars($batch['name']) ?></span>
@@ -1196,7 +1208,7 @@ body.modal-open {
         <?php endif; ?>
         <?php endif; ?>
     </td>
-    <td><a href="product.php?cat=<?= urlencode($batch['category']) ?>" class="cat-chip"><?= htmlspecialchars($batch['category'] ?: '—') ?></a></td>
+    <td><a href="product.php?view=active&cat=<?= urlencode($batch['category']) ?>" class="cat-chip"><?= htmlspecialchars($batch['category'] ?: '—') ?></a></td>
     <td style="color:var(--text2);"><?= htmlspecialchars($batch['brand']) ?></td>
     <td style="color:var(--text3);font-size:10px;"><?= htmlspecialchars($batch['seller_store']) ?></td>
     <td class="td-cap">₱<?= number_format($batch['purchase_price'], 2) ?></td>
@@ -1210,8 +1222,8 @@ body.modal-open {
         <span style="color:var(--text3);">N/A</span>
     <?php endif; ?>
 </td>
-    <td>
-       <?php if ($hasExp): ?>
+       <td>
+       <?php if ($hasExp && !empty($expiry_date) && $expiry_date != '0000-00-00'): ?>
     <?php if ($isExpd): ?>
         <span class="exp-badge exp-dead"><?= date('M j, Y', strtotime($expiry_date)) ?></span>
     <?php elseif ($dLeft !== null && $dLeft <= 5): ?>
@@ -1228,15 +1240,11 @@ body.modal-open {
    <td>
     <?php 
 $image_path = !empty($batch['image_path']) ? $batch['image_path'] : null;
-// Debug: Check if image path exists
-error_log("Image path from DB: " . ($image_path ?? 'null'));
-error_log("Full path: " . ($image_path ? __DIR__ . '/../' . $image_path : 'no image'));
 
 if (!empty($image_path)): 
     // Try different path combinations
     $fullPath = __DIR__ . '/../' . $image_path;
     $altPath = __DIR__ . '/' . $image_path;
-    $rootPath = $_SERVER['DOCUMENT_ROOT'] . '/Store/' . $image_path;
     
     if (file_exists($fullPath)): ?>
         <img src="/Store/<?= htmlspecialchars($image_path) ?>" class="prod-img" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
@@ -1261,7 +1269,7 @@ if (!empty($image_path)):
         <form action="product.php" method="POST" class="refill-form" style="flex-wrap:wrap;">
     <input type="hidden" name="sell_batch" value="1">
     <input type="hidden" name="batch_id" value="0">
-    <input type="hidden" name="product_id" value="<?= $batch['product_id'] ?>">
+        <input type="hidden" name="product_id" value="<?= isset($batch['product_id']) ? $batch['product_id'] : '' ?>">
             <input type="number" name="sell_quantity" placeholder="0" min="1" max="<?= $curQty ?>" class="refill-inp" required>
             <button type="submit" name="action" value="sell" class="rf-btn rf-dec" title="Sell">−</button>
             <button type="button" class="rf-btn rf-inc" title="Restock" onclick="openRestockModal(<?= $batch['product_id'] ?>)">+</button>
@@ -1293,27 +1301,31 @@ if (!empty($image_path)):
         </button>
     </div>
     <?php else: ?>
-    <span style="color:var(--text3);font-size:10px;">Archived</span>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;">
+        <button class="btn btn-red btn-sm" onclick="deleteSingleExpired(<?= $expiredId ?>)" title="Delete from Expired">
+            🗑️
+        </button>
+    </div>
     <?php endif; ?>
 </td>
 </tr>
 <?php endforeach; ?>
 <?php endif; ?>
 </tbody>
-        </table>
-      </div>
-      <?php if($totalPages>1): ?>
-      <div class="pager">
-        <?php
-        $qpBase = 'product.php?cat='.urlencode($activeCat);
-        if($page>1) echo '<a class="pg-btn" href="'.$qpBase.'&page='.($page-1).'">‹</a>';
-        for($i=max(1,$page-2);$i<=min($totalPages,$page+2);$i++) echo '<a class="pg-btn'.($i==$page?' active':'').'" href="'.$qpBase.'&page='.$i.'">'.$i.'</a>';
-        if($page<$totalPages) echo '<a class="pg-btn" href="'.$qpBase.'&page='.($page+1).'">›</a>';
-        ?>
-      </div>
-      <?php endif; ?>
+            </table>
+        </div>
+     <?php if($totalPages>1): ?>
+<div class="pager">
+    <?php
+    $qpBase = 'product.php?cat='.urlencode($activeCat).'&view='.$viewMode;
+    if($page>1) echo '<a class="pg-btn" href="'.$qpBase.'&page='.($page-1).'">‹</a>';
+    for($i=max(1,$page-2);$i<=min($totalPages,$page+2);$i++) echo '<a class="pg-btn'.($i==$page?' active':'').'" href="'.$qpBase.'&page='.$i.'">'.$i.'</a>';
+    if($page<$totalPages) echo '<a class="pg-btn" href="'.$qpBase.'&page='.($page+1).'">›</a>';
+    ?>
+</div>
+<?php endif; ?>
     </div>
-  </div>
+</div>
 
 </div><!-- end main -->
 
@@ -2715,6 +2727,127 @@ function checkConn(){
       el.className = 's-conn offline';
       const span = el.querySelector('span');
       if (span) span.textContent = 'OFFLINE';
+    });
+}
+/* ── Expired Products Functions ── */
+function toggleAllExpired() {
+    const selectAll = document.getElementById('selectAllExpired');
+    const checkboxes = document.querySelectorAll('.expired-checkbox');
+    checkboxes.forEach(cb => cb.checked = selectAll.checked);
+    updateDeleteButton();
+}
+
+function updateDeleteButton() {
+    const checked = document.querySelectorAll('.expired-checkbox:checked');
+    const btn = document.getElementById('deleteSelectedBtn');
+    if (btn) {
+        btn.style.display = checked.length > 0 ? 'inline-flex' : 'none';
+        btn.textContent = `🗑️ Delete Selected (${checked.length})`;
+    }
+}
+
+function deleteSingleExpired(id) {
+    if (!id) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Invalid ID provided',
+            background: '#1e2330',
+            color: '#e8eaf0'
+        });
+        return;
+    }
+    
+    Swal.fire({
+        title: 'Delete Expired Record?',
+        text: 'This will permanently remove this expired product record.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ff4444',
+        cancelButtonColor: '#555',
+        confirmButtonText: 'Yes, delete!',
+        cancelButtonText: 'Cancel',
+        background: '#1e2330',
+        color: '#e8eaf0'
+    }).then(result => {
+        if (result.isConfirmed) {
+            // Simple redirect - this is the most reliable way
+            window.location.href = `delete_expired.php?id=${id}`;
+        }
+    });
+}
+
+function deleteSelectedExpired() {
+    const checkboxes = document.querySelectorAll('.expired-checkbox:checked');
+    const ids = [];
+    checkboxes.forEach(cb => ids.push(cb.dataset.id));
+    
+    if (ids.length === 0) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'No Selection',
+            text: 'Please select at least one expired product to delete.',
+            background: '#1e2330',
+            color: '#e8eaf0'
+        });
+        return;
+    }
+    
+    Swal.fire({
+        title: `Delete ${ids.length} Expired Record${ids.length > 1 ? 's' : ''}?`,
+        text: `This will permanently remove ${ids.length} expired product record${ids.length > 1 ? 's' : ''}. This action cannot be undone.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ff4444',
+        cancelButtonColor: '#555',
+        confirmButtonText: `Yes, delete ${ids.length} record${ids.length > 1 ? 's' : ''}!`,
+        cancelButtonText: 'Cancel',
+        background: '#1e2330',
+        color: '#e8eaf0'
+    }).then(result => {
+        if (result.isConfirmed) {
+            // Use FormData for the request
+            const formData = new FormData();
+            formData.append('delete_expired', '1');
+            formData.append('ids', JSON.stringify(ids));
+            
+            fetch('delete_expired.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Deleted!',
+                        text: `Successfully deleted ${data.deleted} expired record${data.deleted > 1 ? 's' : ''}.`,
+                        background: '#1e2330',
+                        color: '#e8eaf0'
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: data.message || 'Failed to delete records',
+                        background: '#1e2330',
+                        color: '#e8eaf0'
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Delete error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Failed to delete records. Please try again.',
+                    background: '#1e2330',
+                    color: '#e8eaf0'
+                });
+            });
+        }
     });
 }
 setInterval(checkConn,15000); checkConn();

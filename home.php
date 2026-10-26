@@ -43,37 +43,48 @@ while ($row = $result->fetch_assoc()) {
     $paymentMethods[] = $row;
 }
 
-// ─── LOAD PRODUCTS ─────────────────────────────────────────────────────────────
+// ─── LOAD PRODUCTS (EXCLUDE EXPIRED) ─────────────────────────────────────────────
 $products = [];
 $result = $conn->query(
-    "SELECT id, CONCAT('P', id) AS code, name, price,
-            pieces, kg, measurement_type, image_path, brand, category
-     FROM products ORDER BY category, name"
+    "SELECT p.id, CONCAT('P', p.id) AS code, p.name, p.price,
+            p.pieces, p.kg, p.measurement_type, p.image_path, p.brand, p.category,
+            COALESCE((SELECT SUM(quantity) FROM product_batches WHERE product_id = p.id AND status = 'active'), 0) AS total_quantity,
+            COALESCE((SELECT SUM(kg) FROM product_batches WHERE product_id = p.id AND status = 'active'), 0) AS total_kg,
+            (SELECT COUNT(*) FROM product_batches WHERE product_id = p.id AND status = 'active') AS batch_count
+     FROM products p
+     WHERE p.id IN (SELECT DISTINCT product_id FROM product_batches WHERE status = 'active')
+     ORDER BY p.category, p.name"
 );
 if ($result) {
     while ($row = $result->fetch_assoc()) {
-        $row['pieces']           = $row['pieces'] ?? 0;
-        $row['kg']               = $row['kg'] ?? 0;
+        // Use aggregated totals from active batches
+        $row['pieces'] = $row['total_quantity'] ?? 0;
+        $row['kg'] = $row['total_kg'] ?? 0;
         $row['measurement_type'] = $row['measurement_type'] ?? 'pieces';
-        // Fix image path - handle both 'uploads/' and 'product/' prefixes
-if (!empty($row['image_path'])) {
-    // Check if image_path already has a prefix
-    if (strpos($row['image_path'], 'uploads/') === 0) {
-        // Already has uploads/ prefix
-        $row['image_path'] = $row['image_path'];
-    } elseif (strpos($row['image_path'], 'product/') === 0) {
-        // Already has product/ prefix
-        $row['image_path'] = $row['image_path'];
-    } else {
-        // Add uploads/ prefix (matching how admin saves images)
-        $row['image_path'] = 'uploads/' . $row['image_path'];
-    }
-} else {
-    $row['image_path'] = 'image/cake.jfif';
-}
-        $row['is_low_stock']     = ($row['measurement_type'] === 'kg')
-            ? ($row['kg'] < 5.0) : ($row['pieces'] < 5);
-        $products[] = $row;
+        
+        // Fix image path
+        if (!empty($row['image_path'])) {
+            if (strpos($row['image_path'], 'uploads/') === 0 || 
+                strpos($row['image_path'], 'product/') === 0) {
+                // Already has correct prefix
+            } else {
+                $row['image_path'] = 'uploads/' . $row['image_path'];
+            }
+        } else {
+            $row['image_path'] = 'image/cake.jfif';
+        }
+        
+        // Check if product has stock
+        $hasStock = ($row['measurement_type'] === 'kg') 
+            ? ($row['kg'] > 0) 
+            : ($row['pieces'] > 0);
+            
+        // Only show products with stock
+        if ($hasStock) {
+            $row['is_low_stock'] = ($row['measurement_type'] === 'kg')
+                ? ($row['kg'] < 5.0) : ($row['pieces'] < 5);
+            $products[] = $row;
+        }
     }
 }
 
