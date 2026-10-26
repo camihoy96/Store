@@ -913,7 +913,7 @@ body {
       </div>
       <button class="btn btn-primary" onclick="uploadLogo()">⬆ Upload Logo</button>
     </div>
-    <!-- ✅ NEW: Theme Color Settings -->
+    <!--  NEW: Theme Color Settings -->
     <div class="settings-card">
       <h3>🎨 Theme Colors</h3>
       <div class="form-group">
