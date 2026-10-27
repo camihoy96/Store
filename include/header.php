@@ -424,6 +424,9 @@ body {
 .draggable-modal .drag-handle:active {
   cursor: grabbing;
 }
+.sidebar.show {
+  display: flex !important;
+}
 </style>
 <style>
 :root {
@@ -510,6 +513,9 @@ body {
     <div class="top-icon" title="Profile" onclick="location.href='../profile/prof.php'">
       <img src="../image/icons/man.png" alt="Profile" style="width: 25px; height: 25px; object-fit:contain;">
     </div>
+    <div class="top-icon" title="Upload to Cloud" onclick="location.href='../manage/upload.php'">
+      <img src="../image/icons/upload.png" alt="Upload" style="width: 20px; height: 20px; object-fit:contain;">
+    </div>
    <!-- <div class="top-icon" title="Bread Left" onclick="location.href='../manage/remain.php'">
       <img src="../image/icons/inventory.png" alt="Bread Left" style="width: 25px; height: 25px; object-fit:contain;">
     </div> -->
@@ -532,6 +538,10 @@ body {
   <a href="../profile/prof.php">
     <img src="../image/icons/man.png" alt="Profile" style="width: 25px; height: 25px; object-fit:contain;">
     Manage Profile
+  </a>
+  <a href="../manage/upload.php">
+    <img src="../image/icons/upload.png" alt="Upload" style="width: 20px; height: 20px; object-fit:contain;">
+    Upload to Cloud
   </a>
  <!-- <a href="../manage/remain.php">
     <img src="../image/icons/inventory.png" alt="Bread Left" style="width: 25px; height: 25px; object-fit:contain;">
@@ -641,9 +651,22 @@ function closeLogoutModal() {
 }
 
 function confirmLogout() {
-  window.location.href = 'logout.php';
+  window.location.href = '/Store/logout.php';
 }
-
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  if (sidebar) {
+    sidebar.classList.toggle('show');
+  }
+}
+// Optional but recommended: Close sidebar when clicking outside of it
+document.addEventListener('click', function(e) {
+  const sidebar = document.getElementById('sidebar');
+  const menuBtn = document.getElementById('menuBtn');
+  if (sidebar && sidebar.classList.contains('show') && !sidebar.contains(e.target) && !menuBtn.contains(e.target)) {
+    sidebar.classList.remove('show');
+  }
+});
 // Close logout modal when clicking outside
 document.getElementById('logoutModal').addEventListener('click', function(e) {
   if (e.target === this) {

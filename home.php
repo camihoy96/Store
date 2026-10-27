@@ -87,7 +87,11 @@ if ($result) {
         }
     }
 }
-
+// Resolve the logo once — works from any page that includes this header.
+// $logoPath is stored relative to /Store/, e.g. "image/logo/logo.png".
+$logoWebUrl  = '/Store/' . ltrim($logoPath, '/');
+$logoFsPath  = __DIR__ . '/../' . ltrim($logoPath, '/'); // header.php is in /include/
+$logoExists  = !empty($logoPath) && file_exists($logoFsPath);
 // ─── UNIQUE CATEGORIES ─────────────────────────────────────────────────────────
 $categories = [];
 foreach ($products as $p) {
@@ -854,6 +858,9 @@ body {
 </div>
     <div class="top-icon" title="Records"    onclick="location.href='manage/transaction.php'"><img src="image/icons/mail-attachment.png" alt="Records" style="width: 20px; height: 20px; object-fit:contain;"></div>
     <div class="top-icon" title="Profile"    onclick="location.href='profile/prof.php'"><img src="image/icons/man.png" alt="Profile" style="width: 25px; height: 25px; object-fit:contain;"></div>
+     <div class="top-icon" title="Upload to Cloud" onclick="location.href='manage/upload.php'">
+    <img src="image/icons/upload.png" alt="Upload" style="width: 20px; height: 20px; object-fit:contain;">
+  </div>
    <!-- <div class="top-icon" title="Bread Left" onclick="location.href='manage/remain.php'"><img src="image/icons/inventory.png" alt="Bread Left" style="width: 25px; height: 25px; object-fit:contain;"></div> -->
     <div class="top-icon" title="Login"      onclick="openDashLogin()"><img src="image/icons/login.png" alt="Login" style="width: 25px; height: 25px; object-fit:contain;"></div>
     <div class="top-icon" title="Logout" onclick="openLogoutModal()"><img src="image/icons/power.png" alt="Logout" style="width: 20px; height: 20px; object-fit:contain;"></div>
@@ -864,13 +871,14 @@ body {
 <div class="sidebar" id="sidebar">
   <a href="manage/transaction.php"><img src="image/icons/mail-attachment.png" alt="Records" style="width: 20px; height: 20px; object-fit:contain;"> &nbsp;Manage Records</a>
   <a href="profile/prof.php"><img src="image/icons/man.png" alt="Profile" style="width: 25px; height: 25px; object-fit:contain;"> &nbsp;Manage Profile</a>
+  <a href="manage/upload.php">
+  <img src="image/icons/upload.png" alt="Upload" style="width: 20px; height: 20px; object-fit:contain;"> &nbsp;Upload to Cloud
+</a>
   <!-- <a href="manage/remain.php"><img src="image/icons/inventory.png" alt="Bread Left" style="width: 25px; height: 25px; object-fit:contain;"> &nbsp;Record Bread Left</a> -->
  <a href="#" onclick="event.preventDefault(); openLogoutModal();"><img src="image/icons/power.png" alt="Logout" style="width: 20px; height: 20px; object-fit:contain;"> &nbsp;Logout</a>
 </div>
-
 <!-- MAIN WRAP -->
 <div class="main-wrap">
-
   <!-- ──── LEFT: Order Panel ──── -->
   <div class="order-panel">
     <div class="order-type">---Purchase Details---</div>
@@ -999,23 +1007,47 @@ body {
   <span>Close: <span class="hint-key">ESC</span></span>
 </div>
 
-<!-- ══ HIDDEN RECEIPT (print only) ═══════════════════════════════════ -->
-<div id="receipt" style="display:none; padding:10px;">
-  <div class="center">
-    <h2><?= htmlspecialchars($businessName) ?></h2>
-    <div style="font-size:10px;"><?= htmlspecialchars($businessAddress) ?><br><?= htmlspecialchars($businessPhone) ?></div>
+<!-- ══ HIDDEN RECEIPT (print only — mirrors reprint.php) ═════════════ -->
+<div id="receipt" style="display:none;">
+  <div class="receipt">
+    <!-- Header -->
+    <div class="center">
+      <?php if (!empty($logoPath) && file_exists(__DIR__ . '/' . ltrim($logoPath, '/'))): ?>
+        <img src="/Store/<?= htmlspecialchars(ltrim($logoPath, '/')) ?>" alt="Logo" class="logo-img">
+      <?php else: ?>
+    <img src="image/logo.png" alt="Logo"
+         style="display: block; margin: 0 auto 4px; max-width: 55%; max-height: 18mm; width: auto; height: auto;">
+<?php endif; ?>
+      <div class="brand"><?= htmlspecialchars($businessName) ?></div>
+      <?php if (!empty($businessSubtitle)): ?>
+        <div class="subtitle"><?= htmlspecialchars($businessSubtitle) ?></div>
+      <?php endif; ?>
+      <div class="meta">
+        <?= htmlspecialchars($businessAddress) ?><br>
+        <?= htmlspecialchars($businessPhone) ?>
+      </div>
+    </div>
+    <hr>
+    <!-- Transaction meta -->
+    <div class="meta-row"><span>Date</span><span id="r-date"></span></div>
+    <div class="meta-row"><span>Time</span><span id="r-time"></span></div>
+    <div class="meta-row"><span>Cashier</span><span id="r-cashier"></span></div>
+    <hr>
+    <!-- Items -->
+    <div id="r-items"></div>
+    <hr>
+    <!-- Totals -->
+    <div class="totals">
+      <div class="grand"><span>TOTAL</span><span><?= $currencySymbol ?><span id="r-total"></span></span></div>
+      <div id="r-payment-line"></div>
+      <div id="r-change-line" style="display:none;"><span>Change</span><span><?= $currencySymbol ?><span id="r-change"></span></span></div>
+    </div>
+    <hr>
+    <!-- Footer -->
+    <div class="footer">
+      <?= htmlspecialchars($receiptFooter) ?>
+    </div>
   </div>
-  <hr>
-  <div>Date: <span id="r-date"></span> &nbsp; Time: <span id="r-time"></span></div>
-  <div>Cashier: <span id="r-cashier"></span></div>
-  <hr>
-  <div id="r-items"></div>
-  <hr>
-  <div>Total: <?= $currencySymbol ?><span id="r-total"></span></div>
-  <div id="r-payment-line"></div>
-  <div id="r-change-line" style="display:none;">Change: <?= $currencySymbol ?><span id="r-change"></span></div>
-  <hr>
-  <div class="center"><?= htmlspecialchars($receiptFooter) ?></div>
 </div>
 
 <!-- ══ CASH PAYMENT MODAL ════════════════════════════════════════════ -->

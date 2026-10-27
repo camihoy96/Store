@@ -1,5 +1,7 @@
 <?php
 // include/footer.php
+$currentScript = basename($_SERVER['SCRIPT_NAME']);
+$isPosPage     = in_array($currentScript, ['home.php'], true);
 ?>
 <!-- STATUS BAR -->
 <div class="status-bar">
@@ -15,6 +17,8 @@
   <span>Search Input: <span class="hint-key">F5</span></span>
   <span>Close: <span class="hint-key">ESC</span></span>
 </div>
+
+<?php if ($isPosPage): ?>
 
 <!-- ══ HIDDEN RECEIPT (print only) ═══════════════════════════════════ -->
 <div id="receipt" style="display:none; padding:10px;">
@@ -210,29 +214,38 @@
   </div>
 </div>
 
+<!-- ══ SHARED JS (POS-only) ═════════════════════════════════════════════ -->
 <script>
 // Common JavaScript functions
 function updateClock() {
-  document.getElementById('currentTime').textContent =
+  const t = document.getElementById('currentTime');
+  if (!t) return;
+  t.textContent =
     new Date().toLocaleString('en-US',{timeZone:'Asia/Manila',weekday:'short',year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
 }
 setInterval(updateClock,1000); updateClock();
 
 function toggleSidebar() {
   const sb = document.getElementById('sidebar');
+  if (!sb) return;
   sb.style.display = sb.style.display==='flex' ? 'none' : 'flex';
-  document.getElementById('menuBtn').textContent = sb.style.display==='flex' ? '✖' : '☰';
+  const btn = document.getElementById('menuBtn');
+  if (btn) btn.textContent = sb.style.display==='flex' ? '✖' : '☰';
 }
 
 function openDashLogin() {
-  document.getElementById('dashIframe').src = 'login.php?redirect=dashboard.php&iframe=true';
-  document.getElementById('dashModal').classList.add('show');
+  const iframe = document.getElementById('dashIframe');
+  const modal  = document.getElementById('dashModal');
+  if (iframe) iframe.src = 'login.php?redirect=dashboard.php&iframe=true';
+  if (modal)  modal.classList.add('show');
 }
 function closeDashLogin() {
-  document.getElementById('dashModal').classList.remove('show');
-  document.getElementById('dashIframe').src = '';
+  const modal = document.getElementById('dashModal');
+  const iframe = document.getElementById('dashIframe');
+  if (modal)  modal.classList.remove('show');
+  if (iframe) iframe.src = '';
 }
-document.getElementById('dashModal').addEventListener('click',function(e){ if(e.target===this) closeDashLogin(); });
+document.getElementById('dashModal')?.addEventListener('click',function(e){ if(e.target===this) closeDashLogin(); });
 window.addEventListener('message',function(e){
   if(e.origin!==window.location.origin) return;
   if(e.data.action==='loginSuccess'){
@@ -241,13 +254,13 @@ window.addEventListener('message',function(e){
   }
 });
 
-function showErr(msg) { document.getElementById('errMsg').textContent=msg; document.getElementById('errModal').classList.add('show'); }
-function closeErr()   { document.getElementById('errModal').classList.remove('show'); }
-function openHelp()   { document.getElementById('helpModal').classList.add('show'); }
-function closeHelp()  { document.getElementById('helpModal').classList.remove('show'); }
-document.getElementById('helpModal').addEventListener('click',function(e){ if(e.target===this) closeHelp(); });
+function showErr(msg) { const m=document.getElementById('errMsg'), o=document.getElementById('errModal'); if(m) m.textContent=msg; if(o) o.classList.add('show'); }
+function closeErr()   { document.getElementById('errModal')?.classList.remove('show'); }
+function openHelp()   { document.getElementById('helpModal')?.classList.add('show'); }
+function closeHelp()  { document.getElementById('helpModal')?.classList.remove('show'); }
+document.getElementById('helpModal')?.addEventListener('click',function(e){ if(e.target===this) closeHelp(); });
 
-// Cart protection functions
+// Cart protection (only active when `checkout` exists — i.e. on home.php)
 let pendingNavigation = null;
 let warningDismissed = false;
 
@@ -260,7 +273,7 @@ function updateCartProtection() {
   const topIcons = document.querySelectorAll('.top-icon');
   const sidebarLinks = document.querySelectorAll('.sidebar a');
   const menuBtn = document.getElementById('menuBtn');
-  
+
   topIcons.forEach(icon => {
     if (hasItems) {
       icon.classList.add('disabled');
@@ -271,7 +284,7 @@ function updateCartProtection() {
       icon.title = icon.getAttribute('data-original-title') || '';
     }
   });
-  
+
   sidebarLinks.forEach(link => {
     if (hasItems) {
       link.classList.add('disabled');
@@ -283,7 +296,7 @@ function updateCartProtection() {
       if (origHref) link.setAttribute('href', origHref);
     }
   });
-  
+
   if (menuBtn) {
     if (hasItems) {
       menuBtn.classList.add('disabled');
@@ -293,7 +306,7 @@ function updateCartProtection() {
       menuBtn.title = '';
     }
   }
-  
+
   const badge = document.getElementById('cartWarning');
   if (badge) {
     if (hasItems && !warningDismissed) {
@@ -308,7 +321,7 @@ function updateCartProtection() {
       warningDismissed = false;
     }
   }
-  
+
   const connStatus = document.getElementById('connStatus');
   if (connStatus && hasItems) {
     if (!document.getElementById('cartStatusHint')) {
@@ -335,8 +348,8 @@ function dismissWarning() {
 document.addEventListener('click', function(e) {
   let target = e.target;
   while (target) {
-    if (target.classList.contains('disabled') && 
-        (target.classList.contains('top-icon') || 
+    if (target.classList.contains('disabled') &&
+        (target.classList.contains('top-icon') ||
          target.classList.contains('menu-btn') ||
          target.tagName === 'A')) {
       e.preventDefault();
@@ -352,41 +365,35 @@ document.addEventListener('click', function(e) {
 
 function showNavConfirmation(clickedElement) {
   const modal = document.getElementById('navConfirmModal');
-  document.getElementById('navCartCount').textContent = checkout.length;
-  
+  const count = document.getElementById('navCartCount');
+  if (!modal || !count) return; // safety — no cart modal on this page
+  count.textContent = checkout.length;
   if (clickedElement.tagName === 'A') {
-    pendingNavigation = clickedElement.getAttribute('data-original-href') || 
+    pendingNavigation = clickedElement.getAttribute('data-original-href') ||
                        clickedElement.getAttribute('href');
   } else {
-    const onclick = clickedElement.getAttribute('onclick');
-    pendingNavigation = onclick;
+    pendingNavigation = clickedElement.getAttribute('onclick');
   }
-  
   modal.classList.add('show');
 }
 
 function cancelNavigation() {
-  document.getElementById('navConfirmModal').classList.remove('show');
+  document.getElementById('navConfirmModal')?.classList.remove('show');
   pendingNavigation = null;
   warningDismissed = false;
   updateCartProtection();
 }
 
 function confirmNavigation() {
-  document.getElementById('navConfirmModal').classList.remove('show');
-  
-  if (typeof clearCheckout === 'function') {
-    clearCheckout();
-  }
-  
+  document.getElementById('navConfirmModal')?.classList.remove('show');
+  if (typeof clearCheckout === 'function') clearCheckout();
   setTimeout(() => {
     if (pendingNavigation) {
-      if (pendingNavigation.includes('location.href') || 
+      if (pendingNavigation.includes('location.href') ||
           pendingNavigation.includes('onclick')) {
-        const func = new Function(pendingNavigation);
-        func();
-      } else if (pendingNavigation.startsWith('http') || 
-                 pendingNavigation.startsWith('/') || 
+        try { (new Function(pendingNavigation))(); } catch(_) {}
+      } else if (pendingNavigation.startsWith('http') ||
+                 pendingNavigation.startsWith('/') ||
                  pendingNavigation.includes('.php')) {
         window.location.href = pendingNavigation;
       }
@@ -395,13 +402,16 @@ function confirmNavigation() {
   }, 100);
 }
 
-document.getElementById('sidebar').addEventListener('click', function(e) {
-  const link = e.target.closest('a');
-  if (link && hasCartItems() && link.classList.contains('disabled')) {
-    e.preventDefault();
-    showNavConfirmation(link);
-  }
-});
+const _sidebar = document.getElementById('sidebar');
+if (_sidebar) {
+  _sidebar.addEventListener('click', function(e) {
+    const link = e.target.closest('a');
+    if (link && hasCartItems() && link.classList.contains('disabled')) {
+      e.preventDefault();
+      showNavConfirmation(link);
+    }
+  });
+}
 
 window.addEventListener('beforeunload', function(e) {
   if (hasCartItems()) {
@@ -411,5 +421,7 @@ window.addEventListener('beforeunload', function(e) {
   }
 });
 </script>
+
+<?php endif; // $isPosPage ?>
 </body>
 </html>

@@ -712,11 +712,11 @@ body {
       <img src="/Store/image/icons/gear.png" alt="Settings"> System Settings
     </a>
   </div>
-  <div class="sb-divider"></div>
+    <div class="sb-divider"></div>
   <div class="sb-section-label">Account</div>
-  <div class="sb-sub">
+  <div class="sb-sub open"> <!-- Always open since there is no toggle button -->
     <a href="/Store/admin/prof.php" class="<?= $activePage === 'profile' ? 'active disabled' : '' ?>">
-      <img src="/Store/image/icons/man.png" alt="Profile"> My Profile
+      <img src="/Store/image/icons/man.png" alt="Profile"> My Profile 
     </a>
   </div>
 </div>

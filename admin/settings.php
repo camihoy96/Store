@@ -17,91 +17,186 @@ date_default_timezone_set('Asia/Manila');
 
 // ─── DATABASE BACKUP ───────────────────────────────────────────────────────────
 if (isset($_GET['action']) && $_GET['action'] === 'backup_db') {
-    // Disable time limit for large databases
     set_time_limit(300);
-    
-    // Get all tables
+    // Get database name
+    $dbResult = $conn->query("SELECT DATABASE()");
+    $dbName   = $dbResult->fetch_row()[0];
+    // Collect tables and views separately (order matters for restore)
     $tables = [];
-    $result = $conn->query("SHOW TABLES");
-    while ($row = $result->fetch_row()) {
-        $tables[] = $row[0];
+    $views  = [];
+    $tblRes = $conn->query("SELECT TABLE_NAME, TABLE_TYPE FROM information_schema.TABLES
+                            WHERE TABLE_SCHEMA = DATABASE()
+                            ORDER BY TABLE_TYPE DESC, TABLE_NAME ASC");
+    while ($r = $tblRes->fetch_assoc()) {
+        if ($r['TABLE_TYPE'] === 'VIEW') $views[]  = $r['TABLE_NAME'];
+        else                             $tables[] = $r['TABLE_NAME'];
     }
-    
-    if (empty($tables)) {
-        die("No tables found in database.");
+    if (empty($tables) && empty($views)) {
+        die("No tables or views found in database.");
     }
-    
-    // Start building the SQL dump
-    $sql = "-- --------------------------------------------------------\n";
-    $sql .= "-- Database Backup\n";
+    // ─── HEADER ────────────────────────────────────────────────────────────
+    $sql  = "-- --------------------------------------------------------\n";
+    $sql .= "-- Database Backup (full structure)\n";
     $sql .= "-- Generated: " . date('Y-m-d H:i:s') . "\n";
-    $sql .= "-- Database: " . $conn->database . "\n";
+    $sql .= "-- Database:  " . $dbName . "\n";
     $sql .= "-- --------------------------------------------------------\n\n";
     $sql .= "SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO';\n";
-    $sql .= "SET time_zone = '+00:00';\n\n";
-    
-    // Get database name for CREATE DATABASE statement
-    $dbResult = $conn->query("SELECT DATABASE()");
-    $dbName = $dbResult->fetch_row()[0];
-    $sql .= "CREATE DATABASE IF NOT EXISTS `" . $dbName . "`;\n";
+    $sql .= "SET time_zone = '+00:00';\n";
+    $sql .= "SET NAMES utf8mb4;\n";
+    $sql .= "SET CHARACTER SET utf8mb4;\n";
+    $sql .= "SET FOREIGN_KEY_CHECKS = 0;\n";
+    $sql .= "SET UNIQUE_CHECKS = 0;\n";
+    $sql .= "SET AUTOCOMMIT = 0;\n\n";
+    $sql .= "CREATE DATABASE IF NOT EXISTS `" . $dbName . "`
+             DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\n";
     $sql .= "USE `" . $dbName . "`;\n\n";
-    
-    foreach ($tables as $table) {
-        // Get CREATE TABLE statement
-        $createResult = $conn->query("SHOW CREATE TABLE `$table`");
-        $createRow = $createResult->fetch_row();
-        $sql .= "-- --------------------------------------------------------\n";
-        $sql .= "-- Table structure for `$table`\n";
-        $sql .= "-- --------------------------------------------------------\n\n";
-        $sql .= $createRow[1] . ";\n\n";
-        
-        // Get table data
-        $dataResult = $conn->query("SELECT * FROM `$table`");
-        if ($dataResult && $dataResult->num_rows > 0) {
-            $sql .= "--\n-- Dumping data for table `$table`\n--\n\n";
-            
-            $columns = [];
-            $colInfo = $conn->query("SHOW COLUMNS FROM `$table`");
-            while ($col = $colInfo->fetch_assoc()) {
-                $columns[] = $col['Field'];
-            }
-            
-            $rowCount = 0;
-            while ($row = $dataResult->fetch_assoc()) {
-                $rowCount++;
-                $sql .= "INSERT INTO `$table` (`" . implode('`, `', $columns) . "`) VALUES (";
-                $values = [];
-                foreach ($columns as $col) {
-                    $value = $row[$col];
-                    if ($value === null) {
-                        $values[] = "NULL";
-                    } else {
-                        // Escape the value
-                        $value = $conn->real_escape_string($value);
-                        $values[] = "'" . $value . "'";
-                    }
-                }
-                $sql .= implode(', ', $values) . ");\n";
-                
-                // Break into chunks to avoid memory issues
-                if ($rowCount % 1000 === 0) {
-                    $sql .= "\n";
-                }
-            }
-            $sql .= "\n";
+    // ─── TRIGGERS & EVENTS are dropped FIRST so they don't block table drops ──
+    $sql .= "/*!50003 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;\n";
+    $sql .= "/*!50003 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;\n\n";
+    // Drop existing triggers so restore doesn't fail on "trigger already exists"
+    $trigRes = $conn->query("SELECT TRIGGER_NAME FROM information_schema.TRIGGERS
+                             WHERE TRIGGER_SCHEMA = DATABASE()");
+    if ($trigRes) {
+        while ($t = $trigRes->fetch_assoc()) {
+            $sql .= "DROP TRIGGER IF EXISTS `" . $t['TRIGGER_NAME'] . "`;\n";
         }
     }
-    
-    // Create filename
+    // Drop existing events
+    $evRes = $conn->query("SELECT EVENT_NAME FROM information_schema.EVENTS
+                           WHERE EVENT_SCHEMA = DATABASE()");
+    if ($evRes) {
+        while ($e = $evRes->fetch_assoc()) {
+            $sql .= "DROP EVENT IF EXISTS `" . $e['EVENT_NAME'] . "`;\n";
+        }
+    }
+    $sql .= "\n";
+    // ─── TABLE STRUCTURES ──────────────────────────────────────────────────
+    foreach ($tables as $table) {
+        // Drop first so the dump can be restored over an existing DB
+        $sql .= "DROP TABLE IF EXISTS `$table`;\n";
+
+        // SHOW CREATE TABLE includes: columns, types, NOT NULL, defaults,
+        // AUTO_INCREMENT, primary key, unique keys, indexes, FKs, CHECK
+        // constraints, engine, charset, collation, ROW_FORMAT, comments.
+        $createRes = $conn->query("SHOW CREATE TABLE `$table`");
+        $createRow = $createRes->fetch_row();
+        $sql .= $createRow[1] . ";\n\n";
+    }
+    // ─── TABLE DATA ────────────────────────────────────────────────────────
+    foreach ($tables as $table) {
+        $dataRes = $conn->query("SELECT * FROM `$table`");
+        if (!$dataRes || $dataRes->num_rows === 0) continue;
+
+        $sql .= "--\n-- Dumping data for table `$table`\n--\n\n";
+        // Get column list
+        $columns = [];
+        $colInfo = $conn->query("SHOW COLUMNS FROM `$table`");
+        while ($c = $colInfo->fetch_assoc()) {
+            $columns[] = $c['Field'];
+        }
+        $colList = "`" . implode('`, `', $columns) . "`";
+        $rowCount = 0;
+        while ($row = $dataRes->fetch_assoc()) {
+            $rowCount++;
+            $values = [];
+            foreach ($columns as $col) {
+                $v = $row[$col];
+                if ($v === null) {
+                    $values[] = "NULL";
+                } else {
+                    $values[] = "'" . $conn->real_escape_string($v) . "'";
+                }
+            }
+            $sql .= "INSERT INTO `$table` ($colList) VALUES (" . implode(', ', $values) . ");\n";
+
+            if ($rowCount % 1000 === 0) $sql .= "\n";
+        }
+        $sql .= "\n";
+    }
+    // ─── VIEWS (created AFTER tables + data, so they resolve cleanly) ──────
+    if (!empty($views)) {
+        $sql .= "--\n-- Views\n--\n\n";
+        foreach ($views as $view) {
+            $sql .= "DROP VIEW IF EXISTS `$view`;\n";
+            $createRes = $conn->query("SHOW CREATE VIEW `$view`");
+            $createRow = $createRes->fetch_row();
+            $sql .= "/*!50001 " . $createRow[1] . " */;\n\n";
+        }
+    }
+    // ─── STORED PROCEDURES ─────────────────────────────────────────────────
+    $procRes = $conn->query("SHOW PROCEDURE STATUS WHERE Db = DATABASE()");
+    if ($procRes && $procRes->num_rows > 0) {
+        $sql .= "--\n-- Stored Procedures\n--\n\n";
+        $sql .= "DELIMITER ;;\n\n";
+        while ($p = $procRes->fetch_assoc()) {
+            $name      = $p['Name'];
+            $createRes = $conn->query("SHOW CREATE PROCEDURE `$name`");
+            if (!$createRes) continue;
+            $createRow = $createRes->fetch_assoc();
+            $sql .= "DROP PROCEDURE IF EXISTS `$name`;;\n";
+            $sql .= $createRow['Create Procedure'] . ";;\n\n";
+        }
+        $sql .= "DELIMITER ;\n\n";
+    }
+    // ─── STORED FUNCTIONS ──────────────────────────────────────────────────
+    $funcRes = $conn->query("SHOW FUNCTION STATUS WHERE Db = DATABASE()");
+    if ($funcRes && $funcRes->num_rows > 0) {
+        $sql .= "--\n-- Stored Functions\n--\n\n";
+        $sql .= "DELIMITER ;;\n\n";
+        while ($f = $funcRes->fetch_assoc()) {
+            $name      = $f['Name'];
+            $createRes = $conn->query("SHOW CREATE FUNCTION `$name`");
+            if (!$createRes) continue;
+            $createRow = $createRes->fetch_assoc();
+            $sql .= "DROP FUNCTION IF EXISTS `$name`;;\n";
+            $sql .= $createRow['Create Function'] . ";;\n\n";
+        }
+        $sql .= "DELIMITER ;\n\n";
+    }
+    // ─── TRIGGERS (restored after data so BEFORE INSERT triggers don't fire) ──
+    $trigRes = $conn->query("SHOW TRIGGERS");
+    if ($trigRes && $trigRes->num_rows > 0) {
+        $sql .= "--\n-- Triggers\n--\n\n";
+        $sql .= "DELIMITER ;;\n\n";
+        while ($t = $trigRes->fetch_assoc()) {
+            $sql .= "/*!50003 CREATE TRIGGER `" . $t['Trigger'] . "` "
+                  . $t['Timing'] . " " . $t['Event'] . " ON `" . $t['Table'] . "` "
+                  . "FOR EACH ROW " . $t['Statement'] . " */;;\n\n";
+        }
+        $sql .= "DELIMITER ;\n\n";
+    }
+    // ─── EVENTS ────────────────────────────────────────────────────────────
+    $evRes = $conn->query("SHOW EVENTS");
+    if ($evRes && $evRes->num_rows > 0) {
+        $sql .= "--\n-- Scheduled Events\n--\n\n";
+        $sql .= "DELIMITER ;;\n\n";
+        while ($e = $evRes->fetch_assoc()) {
+            $createRes = $conn->query("SHOW CREATE EVENT `" . $e['Name'] . "`");
+            if (!$createRes) continue;
+            $createRow = $createRes->fetch_assoc();
+            $sql .= "/*!50106 " . $createRow['Create Event'] . " */;;\n\n";
+        }
+        $sql .= "DELIMITER ;\n\n";
+    }
+    // ─── FOOTER ────────────────────────────────────────────────────────────
+    $sql .= "\nSET FOREIGN_KEY_CHECKS = 1;\n";
+    $sql .= "SET UNIQUE_CHECKS = 1;\n";
+    $sql .= "SET AUTOCOMMIT = 1;\n";
+    $sql .= "COMMIT;\n\n";
+    $sql .= "/*!50003 SET SQL_MODE=@OLD_SQL_MODE */;\n";
+    $sql .= "/*!50003 SET SQL_NOTES=@OLD_SQL_NOTES */;\n\n";
+    $sql .= "-- End of backup\n";
+    // ─── SAVE TO DISK + DOWNLOAD ───────────────────────────────────────────
+    $backupDir = __DIR__ . '/../backups/';
+    if (!is_dir($backupDir)) mkdir($backupDir, 0777, true);
     $filename = 'backup_' . date('Y-m-d_H-i-s') . '.sql';
-    
-    // Set headers for download
+    file_put_contents($backupDir . $filename, $sql);
     header('Content-Type: application/sql');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     header('Content-Length: ' . strlen($sql));
     header('Cache-Control: private, max-age=0, must-revalidate');
     header('Pragma: public');
-    
+
     echo $sql;
     exit;
 }

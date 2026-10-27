@@ -678,6 +678,29 @@ tbody td .money-change { color: #88ccff; font-weight: 600; }
   padding-bottom: 40px;
   max-height: calc(100vh - 44px - 26px - 10px);
 }
+.pay-ref-under {
+  margin-top: 3px;
+  font-family: ui-monospace, "Consolas", monospace;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--yellow, #ffcc00);
+  background: rgba(255, 204, 0, 0.08);
+  border: 1px solid rgba(255, 204, 0, 0.22);
+  border-radius: 4px;
+  padding: 2px 6px;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+  display: inline-block;
+  transition: background 0.15s, border-color 0.15s;
+}
+.pay-ref-under:hover {
+  background: rgba(255, 204, 0, 0.16);
+  border-color: rgba(255, 204, 0, 0.45);
+}
 </style>
 
 <!-- MAIN -->
@@ -784,26 +807,36 @@ tbody td .money-change { color: #88ccff; font-weight: 600; }
 
             <td style="white-space:nowrap;"><?= date('g:i A', strtotime($row['time'])) ?></td>
 
-           <td>
-              <?php
-              $badgeStyle  = 'background:'.($pmMeta['color'] ?? '#555').';color:white;';
-              $isEwallet   = $pmMeta['type'] === 'ewallet';
-              $hasRef      = $isEwallet && !empty($refNo);
-              ?>
-              <span class="pay-badge <?= $hasRef ? 'clickable' : '' ?>"
-                    style="<?= $badgeStyle ?>"
-                    data-ref-label="<?= htmlspecialchars($pmMeta['label']) ?>"
-                    data-ref-icon="<?= htmlspecialchars($pmMeta['icon']) ?>"
-                    data-ref-number="<?= htmlspecialchars($refNo) ?>"
-                    <?= $hasRef ? 'onclick="showRef(this)"' : '' ?>
-                    title="<?= $hasRef ? 'Click to view reference number' : '' ?>">
-                <span class="pay-icon"><?= getPaymentIcon($pmMeta['icon']) ?></span>
-                <?= htmlspecialchars($pmMeta['label']) ?>
-                <?php if ($hasRef): ?>
-                  <span class="pay-ref">Ref #</span>
-                <?php endif; ?>
-              </span>
-            </td>
+         <td>
+  <?php
+  $badgeStyle  = 'background:'.($pmMeta['color'] ?? '#555').';color:white;';
+  $isEwallet   = $pmMeta['type'] === 'ewallet';
+  $hasRef      = $isEwallet && !empty($refNo);
+  ?>
+  <span class="pay-badge <?= $hasRef ? 'clickable' : '' ?>"
+        style="<?= $badgeStyle ?>"
+        data-ref-label="<?= htmlspecialchars($pmMeta['label']) ?>"
+        data-ref-icon="<?= htmlspecialchars($pmMeta['icon']) ?>"
+        data-ref-number="<?= htmlspecialchars($refNo) ?>"
+        <?= $hasRef ? 'onclick="showRef(this)"' : '' ?>
+        title="<?= $hasRef ? 'Click to view reference number' : '' ?>">
+    <span class="pay-icon"><?= getPaymentIcon($pmMeta['icon']) ?></span>
+    <?= htmlspecialchars($pmMeta['label']) ?>
+    <?php if ($hasRef): ?>
+      <span class="pay-ref">Ref #</span>
+    <?php endif; ?>
+  </span>
+  <?php if ($hasRef): ?>
+    <div class="pay-ref-under"
+         data-ref-label="<?= htmlspecialchars($pmMeta['label']) ?>"
+         data-ref-icon="<?= htmlspecialchars($pmMeta['icon']) ?>"
+         data-ref-number="<?= htmlspecialchars($refNo) ?>"
+         onclick="showRef(this)"
+         title="Click to view / copy reference number">
+      <?= htmlspecialchars($refNo) ?>
+    </div>
+  <?php endif; ?>
+</td>
 
             <td><span class="money"><?= $currencySymbol ?><?= number_format($row['total'],2) ?></span></td>
 
