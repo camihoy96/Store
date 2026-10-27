@@ -5,12 +5,11 @@ require_once __DIR__ . '/include/admin_header.php';
 // ─── QUERIES ──────────────────────────────────────────────────────────────────
 $inventorySummary = $conn->query("
     SELECT COUNT(*) as total_products,
-           SUM(kg) as total_kg,
-           SUM(pieces) as total_pieces,
-           SUM(price * IF(measurement_type='kg', kg, pieces)) as total_inventory_value
+           COALESCE(SUM(kg), 0) as total_kg,
+           COALESCE(SUM(pieces), 0) as total_pieces,
+           COALESCE(SUM(price * IF(measurement_type='kg', kg, pieces)), 0) as total_inventory_value
     FROM products
 ")->fetch_assoc();
-
 $lowStockThresholdPieces = 20;
 $lowStockThresholdKg     = 20.0;
 
@@ -382,9 +381,12 @@ $healthyProducts = max(0, $totalProducts - $lowStockCount);
         ?>
         <div class="kpi-trend flat">↔ <?= $todayTxCount ?> txn today</div>
       </div>
-      <div class="kpi-val orange"><?= $inventorySummary['total_products'] ?></div>
+     <div class="kpi-val orange"><?= (int)($inventorySummary['total_products'] ?? 0) ?></div>
       <div class="kpi-label">Total Products</div>
-      <div class="kpi-sub"><?= number_format($inventorySummary['total_kg'],1) ?> kg + <?= number_format($inventorySummary['total_pieces'],0) ?> pcs in stock</div>
+     <div class="kpi-sub">
+  <?= number_format((float)($inventorySummary['total_kg'] ?? 0), 1) ?> kg +
+  <?= number_format((float)($inventorySummary['total_pieces'] ?? 0), 0) ?> pcs in stock
+</div>
     </div>
 
     <div class="kpi-card accent-green">
@@ -394,7 +396,7 @@ $healthyProducts = max(0, $totalProducts - $lowStockCount);
       </div>
       <div class="kpi-val green">₱<?= number_format($todayTotal,2) ?></div>
       <div class="kpi-label">Today's Sales</div>
-      <div class="kpi-sub">Total stock value ₱<?= number_format($inventorySummary['total_inventory_value'],2) ?></div>
+      <div class="kpi-sub">Total stock value ₱<?= number_format((float)($inventorySummary['total_inventory_value'] ?? 0), 2) ?></div>
     </div>
 
     <div class="kpi-card accent-blue">
@@ -603,15 +605,21 @@ $healthyProducts = max(0, $totalProducts - $lowStockCount);
         <div class="inv-stat-grid">
           <div class="inv-stat">
             <div class="is-label">Total KG Stock</div>
-            <div class="is-val" style="color:var(--orange-lt);"><?= number_format($inventorySummary['total_kg'],2) ?> kg</div>
+            <div class="is-val" style="color:var(--orange-lt);">
+  <?= number_format((float)($inventorySummary['total_kg'] ?? 0), 2) ?> kg
+</div>
           </div>
           <div class="inv-stat">
             <div class="is-label">Total Pieces Stock</div>
-            <div class="is-val" style="color:var(--orange-lt);"><?= number_format($inventorySummary['total_pieces'],0) ?> pcs</div>
+      <div class="is-val" style="color:var(--orange-lt);">
+  <?= number_format((float)($inventorySummary['total_pieces'] ?? 0), 0) ?> pcs
+</div>
           </div>
           <div class="inv-stat">
             <div class="is-label">Total Stock Value</div>
-            <div class="is-val" style="color:#4dff88;">₱<?= number_format($inventorySummary['total_inventory_value'],2) ?></div>
+           <div class="is-val" style="color:#4dff88;">
+  ₱<?= number_format((float)($inventorySummary['total_inventory_value'] ?? 0), 2) ?>
+</div>
           </div>
           <div class="inv-stat">
             <div class="is-label">Products Registered</div>

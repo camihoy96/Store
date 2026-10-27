@@ -461,22 +461,8 @@ while($ed = $eAll->fetch_assoc()){
 .pay-badge{display:inline-flex;align-items:center;gap:4px;border-radius:5px;padding:3px 8px;font-size:11px;font-weight:700;white-space:nowrap;user-select:none;}
 .pay-badge.clickable{cursor:pointer;transition:filter .15s;}
 .pay-badge.clickable:hover{filter:brightness(1.2);}
-.pay-badge .pay-ref-chip{
-  font-size:9px;
-  background:rgba(0,0,0,.25);
-  border-radius:3px;
-  padding:2px 6px;
-  margin-left:2px;
-  cursor:pointer;
-  border:none;
-  color:white;
-  font-family:inherit;
-  font-weight:700;
-  transition:background .15s;
-}
-.pay-badge .pay-ref-chip:hover{
-  background:rgba(0,0,0,.5);
-}
+.pay-badge .pay-ref-chip{font-size:9px;background:rgba(0,0,0,.25);border-radius:3px;padding:1px 4px;margin-left:2px;}
+
 .audit-tag{display:inline-flex;align-items:center;gap:3px;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700;}
 .a-ok{background:rgba(0,200,83,.12);color:#4dff88;border:1px solid rgba(0,200,83,.2);}
 .a-voided{background:rgba(255,68,68,.12);color:#ff8888;border:1px solid rgba(255,68,68,.2);}
@@ -532,10 +518,35 @@ while($ed = $eAll->fetch_assoc()){
 .mclose:hover{background:rgba(0,0,0,.5);}
 .modal-body{padding:16px;overflow-y:auto;flex:1;}
 .modal-foot{padding:10px 16px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;}
+.ref-popup-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.65);
+    z-index: 2147483647;
+    align-items: center;
+    justify-content: center;
+}
 
-.ref-popup-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9500;align-items:center;justify-content:center;}
-.ref-popup-overlay.show{display:flex;}
-.ref-popup{background:var(--card2);border:2px solid var(--border2);border-radius:0;padding:22px 26px;min-width:290px;max-width:380px;box-shadow:0 16px 40px rgba(0,0,0,.7);text-align:center;cursor:grab;position:relative;}
+.ref-popup-overlay.show {
+    display: flex !important;
+}
+
+.ref-popup {
+    background: var(--card2);
+    border: 2px solid var(--border2);
+    border-radius: 0;
+    padding: 22px 26px;
+    min-width: 290px;
+    max-width: 380px;
+    box-shadow: 0 16px 40px rgba(0,0,0,.7);
+    text-align: center;
+    cursor: grab;
+    position: relative;
+}
 .ref-popup:active{cursor:grabbing;}
 .rp-icon{font-size:34px;margin-bottom:6px;}
 .rp-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;}
@@ -543,20 +554,6 @@ while($ed = $eAll->fetch_assoc()){
 .rp-ref-label{font-size:10px;color:var(--text3);margin-bottom:5px;}
 .rp-ref{font-size:16px;font-weight:700;color:var(--yellow);background:var(--bg3);border-radius:0;padding:8px 16px;letter-spacing:1.5px;display:inline-block;border:1px solid var(--border2);}
 .rp-actions{display:flex;gap:8px;justify-content:center;margin-top:14px;}
-.ref-popup .rp-close {
-  margin-top: 14px;
-  background: #444;
-  border: none;
-  color: #ccc;
-  border-radius: 4px;
-  padding: 6px 18px;
-  cursor: pointer;
-  font-size: 12px;
-}
-.ref-popup .rp-close:hover {
-  background: #ff8800;
-  color: white;
-}
 </style>
 
 <!-- MAIN -->
@@ -683,22 +680,14 @@ while($ed = $eAll->fetch_assoc()){
                 <td><span class="td-date"><?= date('g:i A',strtotime($row['time'])) ?></span></td>
                 <td>
                   <!-- Payment badge reads from JS cache on click — no heavy data-* needed -->
-                  <span class="pay-badge"
-      style="background:<?= $pmMeta['color'] ?>;color:white;"
-      title="Payment: <?= htmlspecialchars($pmMeta['label']) ?>">
-    <?= $pmMeta['icon'] ?> <?= htmlspecialchars($pmMeta['label']) ?>
-      <?php if($hasRef): ?>
-      <button type="button"
-              class="pay-ref-chip"
-              data-ref-label="<?= htmlspecialchars($pmMeta['label']) ?>"
-              data-ref-icon="<?= htmlspecialchars($pmMeta['icon']) ?>"
-              data-ref-number="<?= htmlspecialchars($refNo) ?>"
-              onclick="showRef(this)"
-              title="Click to view reference number">
-        Ref #
-      </button>
-    <?php endif; ?>
-</span>
+                  <span class="pay-badge <?= $hasRef?'clickable':'' ?>"
+                        style="background:<?= $pmMeta['color'] ?>;color:white;"
+                        data-txn-id="<?= $row['id'] ?>" data-src="active"
+                        <?= $hasRef?'onclick="showRefFromCache(this)"':'' ?>
+                        title="<?= $hasRef?'Click to view reference':'Payment: '.htmlspecialchars($pmMeta['label']) ?>">
+                    <?= $pmMeta['icon'] ?> <?= htmlspecialchars($pmMeta['label']) ?>
+                    <?php if($hasRef): ?><span class="pay-ref-chip">Ref #</span><?php endif; ?>
+                  </span>
                 </td>
                 <td><span class="td-money">₱<?= number_format($row['total'],2) ?></span></td>
                 <td><span class="td-paid">₱<?= number_format($row['paid'],2) ?></span></td>
@@ -803,22 +792,14 @@ while($ed = $eAll->fetch_assoc()){
                 <td class="td-name"><?= htmlspecialchars($v['cashier_name']) ?></td>
                 <td><span class="td-date"><?= date('M j, Y',strtotime($v['date'])) ?></span></td>
                 <td>
-                  <span class="pay-badge"
-      style="background:<?= $vpmMeta['color'] ?>;color:white;"
-      title="Payment: <?= htmlspecialchars($vpmMeta['label']) ?>">
-    <?= $vpmMeta['icon'] ?> <?= htmlspecialchars($vpmMeta['label']) ?>
-        <?php if($vHasRef): ?>
-      <button type="button"
-              class="pay-ref-chip"
-              data-ref-label="<?= htmlspecialchars($vpmMeta['label']) ?>"
-              data-ref-icon="<?= htmlspecialchars($vpmMeta['icon']) ?>"
-              data-ref-number="<?= htmlspecialchars($vref) ?>"
-              onclick="window.showRefInline(this);"
-              title="Click to view reference number">
-        Ref #
-      </button>
-    <?php endif; ?>
-</span>
+                  <span class="pay-badge <?= $vHasRef?'clickable':'' ?>"
+                        style="background:<?= $vpmMeta['color'] ?>;color:white;"
+                        data-txn-id="<?= $v['id'] ?>" data-src="voided"
+                        <?= $vHasRef?'onclick="showRefFromCache(this)"':'' ?>
+                        title="<?= $vHasRef?'Click to view reference':'Payment' ?>">
+                    <?= $vpmMeta['icon'] ?> <?= htmlspecialchars($vpmMeta['label']) ?>
+                    <?php if($vHasRef): ?><span class="pay-ref-chip">Ref #</span><?php endif; ?>
+                  </span>
                 </td>
                 <td><span class="td-money" style="color:#ff8888;">₱<?= number_format($v['total'],2) ?></span></td>
                 <td style="color:var(--text2);"><?= htmlspecialchars($v['voided_by']??'') ?></td>
@@ -877,22 +858,14 @@ while($ed = $eAll->fetch_assoc()){
                 <td class="td-name"><?= htmlspecialchars($ed['cashier_name']) ?></td>
                 <td><span class="td-date"><?= date('M j, Y',strtotime($ed['date'])) ?></span></td>
                 <td>
-                 <span class="pay-badge"
-      style="background:<?= $epmMeta['color'] ?>;color:white;"
-      title="Payment: <?= htmlspecialchars($epmMeta['label']) ?>">
-    <?= $epmMeta['icon'] ?> <?= htmlspecialchars($epmMeta['label']) ?>
-        <?php if($eHasRef): ?>
-      <button type="button"
-              class="pay-ref-chip"
-              data-ref-label="<?= htmlspecialchars($epmMeta['label']) ?>"
-              data-ref-icon="<?= htmlspecialchars($epmMeta['icon']) ?>"
-              data-ref-number="<?= htmlspecialchars($eref) ?>"
-              onclick="window.showRefInline(this);"
-              title="Click to view reference number">
-        Ref #
-      </button>
-    <?php endif; ?>
-</span>
+                  <span class="pay-badge <?= $eHasRef?'clickable':'' ?>"
+                        style="background:<?= $epmMeta['color'] ?>;color:white;"
+                        data-txn-id="<?= $ed['id'] ?>" data-src="edited"
+                        <?= $eHasRef?'onclick="showRefFromCache(this)"':'' ?>
+                        title="<?= $eHasRef?'Click to view reference':'Payment' ?>">
+                    <?= $epmMeta['icon'] ?> <?= htmlspecialchars($epmMeta['label']) ?>
+                    <?php if($eHasRef): ?><span class="pay-ref-chip">Ref #</span><?php endif; ?>
+                  </span>
                 </td>
                 <td><span class="td-money">₱<?= number_format($ed['total'],2) ?></span></td>
                 <td style="color:var(--text2);"><?= htmlspecialchars($ed['edited_by']??'') ?></td>
@@ -989,16 +962,18 @@ while($ed = $eAll->fetch_assoc()){
 
 </div><!-- /main -->
 
-<!-- ══ REFERENCE NUMBER POPUP ══════════════════════════════════════════ -->
+<!-- ══ REFERENCE POPUP ════════════════════════════════════════════════════ -->
 <div class="ref-popup-overlay" id="refPopup" onclick="if(event.target===this)closeRef()">
-  <div class="ref-popup draggable-modal" id="refPopupBox">
+   <div class="ref-popup" id="refPopupBox">
     <div class="rp-icon" id="refIcon"></div>
-    <div class="rp-label">E-Wallet Payment</div>
-    <div class="rp-name" id="refName"></div>
+    <div class="rp-label">E-Wallet Payment Reference</div>
+    <div class="rp-name" id="refProviderName"></div>
     <div class="rp-ref-label">Reference Number</div>
     <div class="rp-ref" id="refNumber"></div>
-    <br>
-    <button class="rp-close" onclick="closeRef()">Close</button>
+    <div class="rp-actions">
+      <button class="btn btn-dark btn-sm" onclick="closeRef()">✕ Close</button>
+      <button class="btn btn-orange btn-sm" onclick="copyRef()">📋 Copy</button>
+    </div>
   </div>
 </div>
 
@@ -1038,7 +1013,23 @@ while($ed = $eAll->fetch_assoc()){
     </div>
   </div>
 </div>
-
+<!-- ══ NATIVE CONFIRM MODAL (replaces SweetAlert) ══════════════════════ -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal-box" id="confirmModalBox" style="max-width:440px;">
+    <div class="modal-title-bar" id="confirmModalHdr">
+      <span id="confirmTitle">Confirm</span>
+      <button type="button" class="mclose" id="confirmXBtn">✕</button>
+    </div>
+    <div class="modal-body" style="padding:20px 16px;">
+      <div id="confirmIcon" style="font-size:36px;text-align:center;margin-bottom:10px;"></div>
+      <div id="confirmText" style="font-size:13px;color:var(--text);line-height:1.5;text-align:center;"></div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-dark" id="confirmCancelBtn">Cancel</button>
+      <button type="button" class="btn btn-orange" id="confirmOkBtn">Confirm</button>
+    </div>
+  </div>
+</div>
 <!-- ══════════════════════════════════════════════════════════════════════
      TRANSACTION CACHES — PHP embeds all three datasets as JS objects.
      Keys are transaction IDs for O(1) lookup.
@@ -1048,9 +1039,9 @@ while($ed = $eAll->fetch_assoc()){
 ════════════════════════════════════════════════════════════════════════ -->
 <script>
 /* ── Embedded caches (populated at page-paint time by PHP) ── */
-const ACTIVE_CACHE  = <?= json_encode($activeTxnCache,  JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP|JSON_INVALID_UTF8_SUBSTITUTE|JSON_PARTIAL_OUTPUT_ON_ERROR) ?>;
-const VOIDED_CACHE  = <?= json_encode($voidedTxnCache,  JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP|JSON_INVALID_UTF8_SUBSTITUTE|JSON_PARTIAL_OUTPUT_ON_ERROR) ?>;
-const EDITED_CACHE  = <?= json_encode($editedTxnCache,  JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP|JSON_INVALID_UTF8_SUBSTITUTE|JSON_PARTIAL_OUTPUT_ON_ERROR) ?>;
+const ACTIVE_CACHE  = <?= json_encode($activeTxnCache,  JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_INVALID_UTF8_SUBSTITUTE) ?: '{}' ?>;
+const VOIDED_CACHE  = <?= json_encode($voidedTxnCache,  JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_INVALID_UTF8_SUBSTITUTE) ?: '{}' ?>;
+const EDITED_CACHE  = <?= json_encode($editedTxnCache,  JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_INVALID_UTF8_SUBSTITUTE) ?: '{}' ?>;
 
 /*
  * CACHE STRATEGY
@@ -1069,82 +1060,27 @@ const EDITED_CACHE  = <?= json_encode($editedTxnCache,  JSON_HEX_TAG|JSON_HEX_AP
  * data in.  If that endpoint is absent the page keeps working from
  * the initial embedded snapshot.
  */
+
 /* ── Helper: resolve cache by source string ── */
-window.getCache = function(src){
+function getCache(src){
   return src==='voided' ? VOIDED_CACHE : src==='edited' ? EDITED_CACHE : ACTIVE_CACHE;
-};
-// Reference number popup
-window.showRefInline = function (el) {
-    const popup = document.getElementById('refPopup');
-    const iconEl = document.getElementById('refIcon');
-    const nameEl = document.getElementById('refName');
-    const numEl = document.getElementById('refNumber');
-
-    if (!el || !popup || !iconEl || !nameEl || !numEl) {
-        console.error('Reference popup or required elements are missing.');
-        return;
-    }
-
-    iconEl.textContent = el.dataset.refIcon || '📱';
-    nameEl.textContent = el.dataset.refLabel || 'E-Wallet';
-    numEl.textContent = el.dataset.refNumber || '—';
-
-    popup.classList.add('show');
-};
-
-window.closeRef = function () {
-    const popup = document.getElementById('refPopup');
-    const box = document.getElementById('refPopupBox');
-
-    if (popup) popup.classList.remove('show');
-
-    if (box) {
-        box.style.position = '';
-        box.style.left = '';
-        box.style.top = '';
-        box.style.margin = '';
-    }
-};
-/* ── Reference number popup (inline data-* — works like manage/transaction.php) ── */
-
-window.showRefInline = function(el) {
-    if (!el) return;
-    const popup = document.getElementById('refPopup');
-    const iconEl = document.getElementById('refIcon');
-    const nameEl = document.getElementById('refName');
-    const numEl = document.getElementById('refNumber');
-    if (!popup || !iconEl || !nameEl || !numEl) {
-        console.error('Reference popup elements are missing.');
-        return;
-    }
-    iconEl.textContent = el.getAttribute('data-ref-icon') || '📱';
-    nameEl.textContent = el.getAttribute('data-ref-label') || 'E-Wallet';
-    numEl.textContent = el.getAttribute('data-ref-number') || '—';
-
-    popup.classList.add('show');
-};
-
-
-function closeRef(){
-  document.getElementById('refPopup').classList.remove('show');
-  const box = document.getElementById('refPopupBox');
-  if (box) {
-    box.style.position = '';
-    box.style.left = '';
-    box.style.top = '';
-    box.style.margin = '';
-  }
 }
+
 /* ── Cache indicator ── */
 function setCachePill(state, label){
   const el = document.getElementById('cachePill');
   const lb = document.getElementById('cacheLabel');
-  el.className = 'cache-pill' + (state!=='ok'?' '+state:'');
+  if (!el || !lb) return;
+  el.className = 'cache-pill' + (state !== 'ok' ? ' ' + state : '');
   lb.textContent = label;
 }
 
 /* ── Clock ── */
-function updateClock(){document.getElementById('currentTime').textContent=new Date().toLocaleString('en-US',{timeZone:'Asia/Manila',weekday:'short',year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});}
+function updateClock(){
+  const el = document.getElementById('currentTime');
+  if (!el) return;
+  el.textContent = new Date().toLocaleString('en-US',{timeZone:'Asia/Manila',weekday:'short',year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
+}
 setInterval(updateClock,1000); updateClock();
 
 /* ── Sidebar ── */
@@ -1176,14 +1112,31 @@ window.addEventListener('DOMContentLoaded',()=>{
 /* ── Void confirm ── */
 function confirmVoid(e){
   e.preventDefault();
+  e.stopPropagation();
+  console.log('[confirmVoid] fired');
+  console.log('[confirmVoid] nativeConfirm type:', typeof window.nativeConfirm);
+  if (typeof window.nativeConfirm !== 'function') {
+    alert('ERROR: nativeConfirm is not defined. Check the console for the root cause.');
+    return false;
+  }
   const url = e.currentTarget.href;
-  Swal.fire({title:'Confirm Void',text:'Void this transaction? It will be moved to Voided Transactions.',icon:'warning',
-    showCancelButton:true,confirmButtonColor:'#ff4444',cancelButtonColor:'#555',
-    confirmButtonText:'Yes, void it!',background:'#1e2330',color:'#e8eaf0'
-  }).then(r=>{if(r.isConfirmed) window.location.href=url;});
+  try {
+    window.nativeConfirm({
+      title:'Confirm Void',
+      text:'Void this transaction? It will be moved to Voided Transactions.',
+      icon:'warning',
+      confirmButtonColor:'#ff4444',
+      confirmButtonText:'Yes, void it!'
+    }).then(r => {
+      console.log('[confirmVoid] resolved:', r);
+      if(r.isConfirmed) window.location.href = url;
+    });
+  } catch(err) {
+    console.error('[confirmVoid] error:', err);
+    alert('Error opening confirm: ' + err.message);
+  }
   return false;
 }
-
 /* ── Voided client-side search (runs against DOM rows + uses cache for date filter) ── */
 document.getElementById('voidedSearch').addEventListener('input',function(){
   const q=this.value.toLowerCase();
@@ -1207,9 +1160,12 @@ document.getElementById('voidedTimeFlt').addEventListener('change',function(){
 document.querySelectorAll('.delete-voided-btn').forEach(btn=>{
   btn.addEventListener('click',function(){
     const id=this.dataset.id; const row=this.closest('tr');
-    Swal.fire({title:'Delete Permanently?',text:'This voided transaction will be removed forever.',icon:'warning',
-      showCancelButton:true,confirmButtonColor:'#ff4444',cancelButtonColor:'#555',
-      confirmButtonText:'Yes, delete!',background:'#1e2330',color:'#e8eaf0'
+    nativeConfirm({
+      title:'Delete Permanently?',
+      text:'This voided transaction will be removed forever.',
+      icon:'warning',
+      confirmButtonColor:'#ff4444',
+      confirmButtonText:'Yes, delete!'
     }).then(r=>{
       if(!r.isConfirmed) return;
       this.disabled=true;
@@ -1217,12 +1173,13 @@ document.querySelectorAll('.delete-voided-btn').forEach(btn=>{
         .then(r=>r.json()).then(data=>{
           if(data.success){
             row.remove();
-            delete VOIDED_CACHE[id]; // ← invalidate from cache immediately
+            delete VOIDED_CACHE[id];
             const total = Object.keys(ACTIVE_CACHE).length + Object.keys(VOIDED_CACHE).length + Object.keys(EDITED_CACHE).length;
             setCachePill('ok', total + ' records cached');
-            Swal.fire({icon:'success',title:'Deleted!',timer:1500,showConfirmButton:false,background:'#1e2330',color:'#e8eaf0'});
-          } else Swal.fire({icon:'error',title:'Error',text:data.message||'Failed.',background:'#1e2330',color:'#e8eaf0'});
-        }).catch(e=>Swal.fire({icon:'error',title:'Error',text:e.toString(),background:'#1e2330',color:'#e8eaf0'}))
+            toast('Deleted!', 'success');
+          } else toast('Error: ' + (data.message || 'Failed.'), 'error');
+        })
+        .catch(e => toast('Error: ' + e, 'error'))
         .finally(()=>this.disabled=false);
     });
   });
@@ -1240,7 +1197,7 @@ document.querySelectorAll('.view-items-btn').forEach(btn=>{
     // ── Instant O(1) cache lookup — no DOM attribute parsing ──
     const txn = getCache(src)[id];
     if(!txn){
-      Swal.fire({icon:'error',title:'Cache miss',text:'Transaction #'+id+' not found in cache. Refresh the page.',confirmButtonColor:'#ff8800',background:'#1e2330',color:'#e8eaf0'});
+    toast('Transaction #' + id + ' not found in cache. Refresh the page.', 'error');
       return;
     }
 
@@ -1353,23 +1310,57 @@ if(urlTab){ const btn=document.querySelector(`.tab-btn[onclick*="'${urlTab}'"]`)
   }
   setInterval(sync, INTERVAL);
 })();
-function showRef(element) {
-    const popup = document.getElementById('refPopup');
-    const icon = document.getElementById('refIcon');
-    const name = document.getElementById('refName');
-    const number = document.getElementById('refNumber');
+/* ══════════════════════════════════════════════════════════════════════
+   NATIVE CONFIRM — drop-in replacement for Swal.fire({icon:'warning'…})
+   Returns a Promise<{isConfirmed:boolean}>
+   ══════════════════════════════════════════════════════════════════════ */
+window.nativeConfirm = (function(){
+  let resolver = null;
+  const modal   = document.getElementById('confirmModal');
+  const box     = document.getElementById('confirmModalBox');
+  const title   = document.getElementById('confirmTitle');
+  const text    = document.getElementById('confirmText');
+  const icon    = document.getElementById('confirmIcon');
+  const okBtn   = document.getElementById('confirmOkBtn');
+  const cancelBtn = document.getElementById('confirmCancelBtn');
 
-    if (!popup || !icon || !name || !number) {
-        console.error('Reference popup elements are missing in record.php');
-        return;
-    }
+  function close(result){
+     if (!modal.classList.contains('show')) return; 
+    modal.classList.remove('show');
+    box.style.position = '';
+    box.style.left = box.style.top = box.style.margin = '';
+    if (resolver) { const r = resolver; resolver = null; r({ isConfirmed: !!result }); }
+  }
 
-    icon.textContent = element.dataset.refIcon || '📱';
-    name.textContent = element.dataset.refLabel || 'E-Wallet';
-    number.textContent = element.dataset.refNumber || '—';
+  okBtn.addEventListener('click', () => close(true));
+  cancelBtn.addEventListener('click', () => close(false));
+  document.getElementById('confirmXBtn').addEventListener('click', () => close(false));
+  modal.addEventListener('click', e => { if (e.target === modal) close(false); });
+  document.addEventListener('keydown', e => {
+    if (!modal.classList.contains('show')) return;
+    if (e.key === 'Escape') close(false);
+    if (e.key === 'Enter')  close(true);
+  });
 
-    popup.classList.add('show');
-}
+  return function(opts){
+    opts = opts || {};
+    title.textContent = opts.title || 'Confirm';
+    text.innerHTML    = opts.text || opts.html || '';
+    icon.textContent  = opts.icon === 'warning' ? '⚠️'
+                      : opts.icon === 'error'   ? '❌'
+                      : opts.icon === 'success' ? '✅'
+                      : opts.icon === 'info'    ? 'ℹ️' : '';
+    okBtn.textContent     = opts.confirmButtonText || 'Confirm';
+    cancelBtn.textContent = opts.cancelButtonText  || 'Cancel';
+    cancelBtn.style.display = opts.showCancelButton === false ? 'none' : '';
+    okBtn.className = 'btn ' + (opts.confirmButtonColor === '#ff4444' ? 'btn-red' : 'btn-orange');
+
+    if (box) { box.style.position=''; box.style.left=box.style.top=box.style.margin=''; }
+    modal.classList.add('show');
+
+    return new Promise(resolve => { resolver = resolve; });
+  };
+})();
 /* Drag functionality */
 function makeDraggable(modalBoxId, handleId) {
   const modalBox = document.getElementById(modalBoxId);
@@ -1405,5 +1396,30 @@ document.addEventListener('DOMContentLoaded', function() {
   makeDraggable('refPopupBox', null);
 });
 </script>
+<script>
 
+/* ── Reference popup ── */
+function showRefFromCache(el) {
+  const src = el.dataset.src;
+  const id = el.dataset.txnId;
+  const txn = getCache(src)[id];
+
+  if (!txn) {
+    showFallbackRef(el);
+    return;
+  }
+
+  document.getElementById('refIcon').textContent = txn.pm_icon || '📱';
+  document.getElementById('refProviderName').textContent = txn.pm_label || 'E-Wallet';
+  document.getElementById('refNumber').textContent = txn.pm_ref || '—';
+  document.getElementById('refPopup').classList.add('show');
+}
+
+function showFallbackRef(el) {
+  document.getElementById('refIcon').textContent = el.dataset.refIcon || '📱';
+  document.getElementById('refProviderName').textContent = el.dataset.refLabel || 'E-Wallet';
+  document.getElementById('refNumber').textContent = el.dataset.refNumber || '—';
+  document.getElementById('refPopup').classList.add('show');
+}
+</script>
 <?php require_once __DIR__ . '/../include/admin_footer.php'; ?>

@@ -163,13 +163,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registration'])) {
         $regErrorMessages[] = 'Passwords do not match';
     }
 
-    // Registration key validation (kept)
-    $validRegistrationKey = 'FOURACC';
-    if (empty($registrationKey)) {
-        $regErrorMessages[] = 'Registration key is required';
-    } elseif ($registrationKey !== $validRegistrationKey) {
+    // Registration key validation — read from DB, not hardcoded
+if (empty($registrationKey)) {
+    $regErrorMessages[] = 'Registration key is required';
+} else {
+    $validRegistrationKey = null;
+    $keyStmt = $conn->prepare("SELECT reg_key FROM registration_keys ORDER BY updated_at DESC LIMIT 1");
+    if ($keyStmt) {
+        $keyStmt->execute();
+        $keyRow = $keyStmt->get_result()->fetch_assoc();
+        $keyStmt->close();
+        if ($keyRow && isset($keyRow['reg_key'])) {
+            $validRegistrationKey = trim($keyRow['reg_key']);
+        }
+    }
+    // Fallback to a safe default if the table/row is missing
+    if ($validRegistrationKey === null || $validRegistrationKey === '') {
+        $regErrorMessages[] = 'Registration is temporarily disabled (no key configured).';
+    } elseif (!hash_equals($validRegistrationKey, trim($registrationKey))) {
         $regErrorMessages[] = 'Invalid registration key';
     }
+}
 
     // User type validation (kept)
     $allowedTypes = ['cashier', 'staff', 'admin'];
