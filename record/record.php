@@ -11,13 +11,24 @@ if (!isset($_SESSION['loggedin']) || $_SESSION['user_type'] !== 'admin') {
     header("Location: /Store/access_denied.php");
     exit();
 }
+
 // Check if payment columns exist
 $hasPaymentMethod = false;
 $hasReferenceNo   = false;
+$hasSplitCash     = false;
+$hasSplitWallet   = false;
+$hasSplitProvider = false;
+
 $chk1 = $conn->query("SHOW COLUMNS FROM transactions LIKE 'payment_method'");
 if ($chk1 && $chk1->num_rows > 0) $hasPaymentMethod = true;
 $chk2 = $conn->query("SHOW COLUMNS FROM transactions LIKE 'reference_no'");
 if ($chk2 && $chk2->num_rows > 0) $hasReferenceNo = true;
+$chk3 = $conn->query("SHOW COLUMNS FROM transactions LIKE 'split_cash_amount'");
+if ($chk3 && $chk3->num_rows > 0) $hasSplitCash = true;
+$chk4 = $conn->query("SHOW COLUMNS FROM transactions LIKE 'split_wallet_amount'");
+if ($chk4 && $chk4->num_rows > 0) $hasSplitWallet = true;
+$chk5 = $conn->query("SHOW COLUMNS FROM transactions LIKE 'split_wallet_provider'");
+if ($chk5 && $chk5->num_rows > 0) $hasSplitProvider = true;
 
 // E-wallet color/icon map
 $ewalletMeta = [
@@ -34,6 +45,9 @@ function getPaymentMeta($pm, $ewalletMeta) {
     if (!$pm || strtolower(trim($pm)) === 'cash' || trim($pm) === '') {
         return ['label'=>'Cash','color'=>'#2a6e1a','icon'=>'💵','type'=>'cash'];
     }
+    if (strtolower(trim($pm)) === 'split') {
+        return ['label'=>'Split Payment','color'=>'#6a0dad','icon'=>'🔀','type'=>'split'];
+    }
     $key = strtolower(str_replace([' ','-','_'],'',$pm));
     foreach ($ewalletMeta as $k => $meta) {
         if (strpos($key, $k) !== false) return array_merge($meta, ['type'=>'ewallet']);
@@ -41,35 +55,230 @@ function getPaymentMeta($pm, $ewalletMeta) {
     return ['label'=>htmlspecialchars($pm),'color'=>'#7a5c00','icon'=>'📱','type'=>'ewallet'];
 }
 
-/* ═══════════ EXCEL EXPORT - MOVED TO TOP ══════════════════════════════════════════════ */
-if (isset($_POST['export'])) {
-    // Clear any output buffers
+/* ═══════════ PAYMENT BREAKDOWN EXPORT (Excel) ══════════════════════════════════════════════ */
+if (isset($_POST['export_breakdown']) && $_POST['export_breakdown'] === 'excel') {
     ob_end_clean();
     header('Content-Type: application/vnd.ms-excel');
-    $exportType = $_POST['export'] === 'all' ? 'ALL_TRANSACTIONS' : 'FILTERED_TRANSACTIONS';
+    $filename = 'payment_breakdown_' . date('Y-m-d') . '.xls';
+    header('Content-Disposition: attachment;filename=' . $filename);
+    
+    $pbDate = $_POST['pb_date'] ?? '';
+    $pbMonth = $_POST['pb_month'] ?? '';
+    $pbYear = $_POST['pb_year'] ?? '';
+
+    $filterInfo = '';
+    $filters = [];
+    if (!empty($pbDate)) $filters[] = 'Date: ' . $pbDate;
+    if (!empty($pbMonth)) $filters[] = 'Month: ' . date('F', mktime(0,0,0,$pbMonth,1));
+    if (!empty($pbYear)) $filters[] = 'Year: ' . $pbYear;
+    if (!empty($filters)) $filterInfo = ' (Filtered: ' . implode(', ', $filters) . ')';
+    else $filterInfo = ' (All Transactions)';
+
+    $settings = [];
+    $businessName = 'Angel\'s Bakeshop';
+    $settingsResult = $conn->query("SELECT setting_key, setting_value FROM system_settings");
+    if ($settingsResult) {
+        while ($setting = $settingsResult->fetch_assoc()) {
+            $settings[$setting['setting_key']] = $setting['setting_value'];
+        }
+        $businessName = $settings['business_name'] ?? 'Angel\'s Bakeshop';
+    }
+
+    echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+        body{font-family:Arial,sans-serif;}
+        .title{font-size:16pt;font-weight:bold;text-align:center;color:#2c3e50;}
+        .subtitle{font-size:12pt;text-align:center;margin-bottom:5px;color:#555;}
+        .report-type{font-size:10pt;text-align:center;margin-bottom:15px;color:#ff6600;font-weight:bold;}
+        th{background:#2c3e50;color:white;padding:8px;border:1px solid #ddd;}
+        td{padding:6px;border:1px solid #ddd;}
+        .totals{background:#f0f0f0;font-weight:bold;}
+    </style></head><body>
+    <div class="title">' . htmlspecialchars($businessName) . '</div>
+    <div class="subtitle">PAYMENT BREAKDOWN REPORT</div>
+    <div class="report-type">' . htmlspecialchars($filterInfo) . '</div>
+    <div style="text-align:right;font-style:italic;margin-bottom:15px;">Generated: ' . date("F j, Y g:i A") . '</div>
+    <table cellspacing="0"><thead><tr>
+        <th>Trans #</th><th>Payment Type</th><th>Provider</th><th>Ref. No.</th><th>Amount</th>
+    </tr></thead><tbody>';
+
+    $q = "SELECT * FROM transactions WHERE (status IS NULL OR status != 'voided')";
+    $params=[]; $types='';
+    if (!empty($pbDate)) { $q .= " AND date=?"; $params[] = $pbDate; $types .= 's'; }
+    if (!empty($pbMonth)) { $q .= " AND MONTH(date)=?"; $params[] = (int)$pbMonth; $types .= 'i'; }
+    if (!empty($pbYear)) { $q .= " AND YEAR(date)=?"; $params[] = (int)$pbYear; $types .= 'i'; }
+    $q .= " ORDER BY id DESC";
+    
+    $stmt = $conn->prepare($q);
+    if(!empty($params)) $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    
+    $tTotal = 0;
+    while($row = $res->fetch_assoc()){
+        $pm = $hasPaymentMethod ? trim($row['payment_method'] ?? 'Cash') : 'Cash';
+        $total = (float)$row['total'];
+        $ref = $hasReferenceNo ? ($row['reference_no'] ?? '') : '';
+        $tTotal += $total;
+        
+        $displayType = strtoupper($pm);
+        $displayProvider = 'N/A';
+        
+        if (strtolower($pm) === 'split') {
+            $displayType = 'SPLIT PAYMENT';
+            $splitCash = $hasSplitCash ? (float)($row['split_cash_amount'] ?? 0) : 0;
+            $splitWallet = $hasSplitWallet ? (float)($row['split_wallet_amount'] ?? 0) : 0;
+            $splitProvider = $hasSplitProvider ? ($row['split_wallet_provider'] ?? 'E-Wallet') : 'E-Wallet';
+            $displayProvider = $splitProvider . ' (Split)';
+            $amountDisplay = '₱' . number_format($total, 2) . ' (Cash: ₱' . number_format($splitCash, 2) . ' | ' . $splitProvider . ': ₱' . number_format($splitWallet, 2) . ')';
+        } else {
+            $providerLower = strtolower($pm);
+            $isBank = (strpos($providerLower, 'bank') !== false || strpos($providerLower, 'bpi') !== false || strpos($providerLower, 'bdo') !== false || strpos($providerLower, 'metro') !== false || strpos($providerLower, 'union') !== false || strpos($providerLower, 'security') !== false || strpos($providerLower, 'rcbc') !== false);
+            if (!$isBank && $pm !== 'Cash') {
+                $displayProvider = $pm;
+            }
+            $amountDisplay = '₱' . number_format($total, 2);
+        }
+        
+        echo '<tr>
+                <td style="text-align:center;">' . $row['id'] . '</td>
+                <td>' . htmlspecialchars($displayType) . '</td>
+                <td>' . htmlspecialchars($displayProvider) . '</td>
+                <td>' . htmlspecialchars($ref ?: '—') . '</td>
+                <td style="text-align:right;">' . $amountDisplay . '</td>
+              </tr>';
+    }
+    
+    echo '<tr class="totals">
+            <td colspan="4" style="text-align:right;"><strong>TOTAL:</strong></td>
+            <td style="text-align:right;"><strong>₱' . number_format($tTotal, 2) . '</strong></td>
+          </tr></tbody></table>
+    <div style="text-align:center;font-style:italic;margin-top:20px;color:#888;">End of Report - Generated on ' . date("F j, Y g:i A") . '</div></body></html>';
+    exit;
+}
+
+/* ═══════════ PAYMENT BREAKDOWN EXPORT (PDF) ════════════════════════════════════════════════ */
+if (isset($_GET['export_breakdown']) && $_GET['export_breakdown'] === 'pdf') {
+    ob_end_clean();
+    require(__DIR__ . '/../fpdf.php');
+    
+    $pbDate = $_GET['pb_date'] ?? '';
+    $pbMonth = $_GET['pb_month'] ?? '';
+    $pbYear = $_GET['pb_year'] ?? '';
+
+    $filterInfo = '';
+    $filters = [];
+    if (!empty($pbDate)) $filters[] = 'Date: ' . $pbDate;
+    if (!empty($pbMonth)) $filters[] = 'Month: ' . date('F', mktime(0,0,0,$pbMonth,1));
+    if (!empty($pbYear)) $filters[] = 'Year: ' . $pbYear;
+    if (!empty($filters)) $filterInfo = 'Filtered: ' . implode(', ', $filters);
+    else $filterInfo = 'All Transactions';
+
+    $settings = [];
+    $businessName = 'Angel\'s Bakeshop';
+    $settingsResult = $conn->query("SELECT setting_key, setting_value FROM system_settings");
+    if ($settingsResult) {
+        while ($setting = $settingsResult->fetch_assoc()) {
+            $settings[$setting['setting_key']] = $setting['setting_value'];
+        }
+        $businessName = $settings['business_name'] ?? 'Angel\'s Bakeshop';
+    }
+
+    $q = "SELECT * FROM transactions WHERE (status IS NULL OR status != 'voided')";
+    $params=[]; $types='';
+    if (!empty($pbDate)) { $q .= " AND date=?"; $params[] = $pbDate; $types .= 's'; }
+    if (!empty($pbMonth)) { $q .= " AND MONTH(date)=?"; $params[] = (int)$pbMonth; $types .= 'i'; }
+    if (!empty($pbYear)) { $q .= " AND YEAR(date)=?"; $params[] = (int)$pbYear; $types .= 'i'; }
+    $q .= " ORDER BY id DESC";
+    
+    $stmt = $conn->prepare($q);
+    if(!empty($params)) $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $res = $stmt->get_result();
+
+    $pdf = new FPDF('L'); // Landscape for more width
+    $pdf->AddPage();
+    $pdf->SetFont('Arial','B',16);
+    $pdf->Cell(0,10, htmlspecialchars($businessName), 0,1,'C');
+    $pdf->SetFont('Arial','B',12);
+    $pdf->Cell(0,8,'PAYMENT BREAKDOWN REPORT', 0,1,'C');
+    $pdf->SetFont('Arial','I',10);
+    $pdf->Cell(0,6, $filterInfo, 0,1,'C');
+    $pdf->SetFont('Arial','',9);
+    $pdf->Cell(0,6,'Generated: ' . date("F j, Y g:i A"), 0,1,'R');
+    $pdf->Ln(5);
+    
+    $pdf->SetFont('Arial','B',9);
+    $pdf->Cell(25,8,'Trans #',1);
+    $pdf->Cell(40,8,'Payment Type',1);
+    $pdf->Cell(40,8,'Provider',1);
+    $pdf->Cell(40,8,'Ref. No.',1);
+    $pdf->Cell(40,8,'Amount',1);
+    $pdf->Ln();
+    
+    $pdf->SetFont('Arial','',8);
+    $tTotal = 0;
+    while($row = $res->fetch_assoc()){
+        $pm = $hasPaymentMethod ? trim($row['payment_method'] ?? 'Cash') : 'Cash';
+        $total = (float)$row['total'];
+        $ref = $hasReferenceNo ? ($row['reference_no'] ?? '') : '';
+        $tTotal += $total;
+        
+        $displayType = strtoupper($pm);
+        $displayProvider = 'N/A';
+        
+        if (strtolower($pm) === 'split') {
+            $displayType = 'SPLIT';
+            $splitCash = $hasSplitCash ? (float)($row['split_cash_amount'] ?? 0) : 0;
+            $splitWallet = $hasSplitWallet ? (float)($row['split_wallet_amount'] ?? 0) : 0;
+            $splitProvider = $hasSplitProvider ? ($row['split_wallet_provider'] ?? 'E-Wallet') : 'E-Wallet';
+            $displayProvider = $splitProvider;
+            $amountDisplay = 'P' . number_format($total, 2) . ' (C:' . number_format($splitCash, 0) . '|W:' . number_format($splitWallet, 0) . ')';
+        } else {
+            $providerLower = strtolower($pm);
+            $isBank = (strpos($providerLower, 'bank') !== false || strpos($providerLower, 'bpi') !== false || strpos($providerLower, 'bdo') !== false || strpos($providerLower, 'metro') !== false || strpos($providerLower, 'union') !== false || strpos($providerLower, 'security') !== false || strpos($providerLower, 'rcbc') !== false);
+            if (!$isBank && $pm !== 'Cash') {
+                $displayProvider = $pm;
+            }
+            $amountDisplay = 'P' . number_format($total, 2);
+        }
+        
+        $pdf->Cell(25,8, $row['id'],1);
+        $pdf->Cell(40,8, $displayType,1);
+        $pdf->Cell(40,8, $displayProvider,1);
+        $pdf->Cell(40,8, $ref ?: '—',1);
+        $pdf->Cell(40,8, $amountDisplay,1,0,'R');
+        $pdf->Ln();
+    }
+    
+    $pdf->SetFont('Arial','B',9);
+    $pdf->Cell(145,8,'TOTAL:',1,0,'R');
+    $pdf->Cell(40,8,'P' . number_format($tTotal, 2),1,0,'R');
+    $pdf->Ln();
+    
+    $pdf->Output('D', 'Payment_Breakdown_Report_' . date('Ymd_His') . '.pdf');
+    exit;
+}
+
+/* ═══════════ TRANSACTION EXPORT (Excel) ══════════════════════════════════════════════ */
+if (isset($_POST['export'])) {
+    ob_end_clean();
+    header('Content-Type: application/vnd.ms-excel');
     $filename = 'transaction_records_' . date('Y-m-d') . ($_POST['export'] !== 'all' ? '_filtered' : '_all') . '.xls';
     header('Content-Disposition: attachment;filename=' . $filename);
     
-    // Get filter values from POST
     $filterDate    = $_POST['date'] ?? '';
     $filterMonth   = $_POST['month'] ?? '';
     $filterYear    = $_POST['year'] ?? '';
     $filterTransId = $_POST['trans_id'] ?? '';
 
-    // Get business settings for the report header
     $settings = [];
-    $businessName = 'Cozy Corner Café';
-    try {
-        $settingsQuery = "SELECT setting_key, setting_value FROM system_settings";
-        $settingsResult = $conn->query($settingsQuery);
-        if ($settingsResult) {
-            while ($setting = $settingsResult->fetch_assoc()) {
-                $settings[$setting['setting_key']] = $setting['setting_value'];
-            }
-            $businessName = $settings['business_name'] ?? 'Cozy Corner Café';
+    $businessName = 'Angel\'s Bakeshop';
+    $settingsResult = $conn->query("SELECT setting_key, setting_value FROM system_settings");
+    if ($settingsResult) {
+        while ($setting = $settingsResult->fetch_assoc()) {
+            $settings[$setting['setting_key']] = $setting['setting_value'];
         }
-    } catch (Exception $e) {
-        // Use default
+        $businessName = $settings['business_name'] ?? 'Angel\'s Bakeshop';
     }
 
     $filterInfo = '';
@@ -119,7 +328,7 @@ if (isset($_POST['export'])) {
     $stmt->execute();
     $res = $stmt->get_result();
     $tS=0; $tP=0; $tC=0; $tPcs=0; $tKg=0;
-
+    
     while($row = $res->fetch_assoc()){
         $its = json_decode($row['items'], true); $fi = '';
         if(is_array($its)){
@@ -134,10 +343,27 @@ if (isset($_POST['export'])) {
             $fi .= '</tbody></table>';
         }
         $tS += $row['total']; $tP += $row['paid']; $tC += $row['change_due'];
+        
         $pm  = $hasPaymentMethod ? ($row['payment_method'] ?? 'Cash') : 'Cash';
         $ref = $hasReferenceNo   ? ($row['reference_no']   ?? '')      : '';
         if(!$pm) $pm = 'Cash';
-        $pmDisplay = htmlspecialchars(strtoupper($pm)) . ($ref ? ' (Ref: '.htmlspecialchars($ref).')' : '');
+        
+        $splitCash = $hasSplitCash ? (float)($row['split_cash_amount'] ?? 0) : 0;
+        $splitWallet = $hasSplitWallet ? (float)($row['split_wallet_amount'] ?? 0) : 0;
+        $splitProvider = $hasSplitProvider ? ($row['split_wallet_provider'] ?? '') : '';
+        
+        $pmDisplay = htmlspecialchars(strtoupper($pm));
+        if (strtolower($pm) === 'split' && $splitCash > 0 && $splitWallet > 0) {
+            $pmDisplay .= " (Cash: ₱" . number_format($splitCash, 2);
+            if ($splitProvider) {
+                $pmDisplay .= " | " . $splitProvider . ": ₱" . number_format($splitWallet, 2);
+            }
+            $pmDisplay .= ")";
+        }
+        if ($ref) {
+            $pmDisplay .= " [Ref: " . htmlspecialchars($ref) . "]";
+        }
+        
         echo '<tr>
                 <td style="text-align:center;">' . $row['id'] . '</td>
                 <td>' . htmlspecialchars($row['cashier_name']) . '</td>
@@ -162,39 +388,34 @@ if (isset($_POST['export'])) {
     exit;
 }
 
-/* ═══════════ PDF EXPORT - MOVED TO TOP ════════════════════════════════════════════════ */
+/* ═══════════ TRANSACTION EXPORT (PDF) ════════════════════════════════════════════════ */
 if (isset($_GET['export']) && in_array($_GET['export'],['pdf','pdf_all'])) {
-    // Clear any output buffers
     ob_end_clean();
-    
     require(__DIR__ . '/../fpdf.php');
+    
     $settings = [];
-    $businessName = 'Cozy Corner Café';
-    try {
-        $settingsQuery = "SELECT setting_key, setting_value FROM system_settings";
-        $settingsResult = $conn->query($settingsQuery);
-        if ($settingsResult) {
-            while ($setting = $settingsResult->fetch_assoc()) {
-                $settings[$setting['setting_key']] = $setting['setting_value'];
-            }
-            $businessName = $settings['business_name'] ?? 'Cozy Corner Café';
+    $businessName = 'Angel\'s Bakeshop';
+    $settingsResult = $conn->query("SELECT setting_key, setting_value FROM system_settings");
+    if ($settingsResult) {
+        while ($setting = $settingsResult->fetch_assoc()) {
+            $settings[$setting['setting_key']] = $setting['setting_value'];
         }
-    } catch (Exception $e) {
-        // Use default
+        $businessName = $settings['business_name'] ?? 'Angel\'s Bakeshop';
     }
     
     $filterInfo = '';
     if ($_GET['export'] === 'pdf' && !empty($_GET)) {
         $filters = [];
-        if (!empty($_GET['date'])) $filters[] = 'Date: ' . $_GET['date'];
-        if (!empty($_GET['trans_id'])) $filters[] = 'Trans #: ' . $_GET['trans_id'];
-        if (!empty($_GET['month'])) $filters[] = 'Month: ' . date('F', mktime(0,0,0,$_GET['month'],1));
-        if (!empty($_GET['year'])) $filters[] = 'Year: ' . $_GET['year'];
-        $filterInfo = !empty($filters) ? 'Filtered: ' . implode(', ', $filters) : '';
+        if (!empty($_GET['date']))    $filters[] = 'Date: ' . $_GET['date'];
+        if (!empty($_GET['trans_id']))$filters[] = 'Trans #: ' . $_GET['trans_id'];
+        if (!empty($_GET['month']))   $filters[] = 'Month: ' . date('F', mktime(0,0,0,$_GET['month'],1));
+        if (!empty($_GET['year']))    $filters[] = 'Year: ' . $_GET['year'];
+        $filterInfo = !empty($filters) ? 'Filtered: ' . implode(', ', $filters) : 'Filtered';
     } else {
         $filterInfo = 'All Transactions';
     }
-    $q="SELECT * FROM transactions WHERE (status IS NULL OR status != 'voided')";
+    
+    $q = "SELECT * FROM transactions WHERE (status IS NULL OR status != 'voided')";
     if($_GET['export']==='pdf'){
         if(!empty($_GET['date']))     $q.=" AND date='".$conn->real_escape_string($_GET['date'])."'";
         if(!empty($_GET['trans_id'])) $q.=" AND id = ".intval($_GET['trans_id']);
@@ -229,7 +450,20 @@ if (isset($_GET['export']) && in_array($_GET['export'],['pdf','pdf_all'])) {
         $pm  = $hasPaymentMethod ? ($row['payment_method'] ?? 'Cash') : 'Cash';
         $ref = $hasReferenceNo   ? ($row['reference_no']   ?? '')      : '';
         if(!$pm) $pm='Cash';
-        $pmStr = strtoupper($pm) . ($ref ? ' #' . substr($ref,0,10) : '');
+        
+        $splitCash = $hasSplitCash ? (float)($row['split_cash_amount'] ?? 0) : 0;
+        $splitWallet = $hasSplitWallet ? (float)($row['split_wallet_amount'] ?? 0) : 0;
+        $splitProvider = $hasSplitProvider ? ($row['split_wallet_provider'] ?? '') : '';
+        
+        $pmStr = strtoupper($pm);
+        if (strtolower($pm) === 'split' && $splitCash > 0 && $splitWallet > 0) {
+            $pmStr .= " (C:" . number_format($splitCash, 0) . "/W:" . number_format($splitWallet, 0);
+            if ($splitProvider) $pmStr .= " " . substr($splitProvider, 0, 4);
+            $pmStr .= ")";
+        }
+        if ($ref) {
+            $pmStr .= " #" . substr($ref, 0, 10);
+        }
         $pdf->Cell(15,8,$row['id'],1); $pdf->Cell(35,8,substr($row['cashier_name'],0,20),1);
         $pdf->Cell(25,8,date("M j, Y",strtotime($row['date'])),1); $pdf->Cell(20,8,date("g:i A",strtotime($row['time'])),1);
         $pdf->Cell(25,8,$pmStr,1);
@@ -255,7 +489,7 @@ if (isset($_GET['export']) && in_array($_GET['export'],['pdf','pdf_all'])) {
     $pdf->Cell(20,8,'PHP ' . number_format($tC,2),1,0,'R'); $pdf->Ln();
     $pdf->Cell(95,8,'',0);
     $pdf->Cell(66,8,'Total Items: ' . $tPcs . ' pcs / ' . $kgDisplay . ' kg',1,1,'C');
-    $pdf->Output('D','Transaction_Report_' . date('Ymd_His') . ($_GET['export']==='pdf'?'_filtered':'_all') . '.pdf');
+    $pdf->Output('D','Transaction_Report_' . date('Ymd_His') . ($_GET['export']==='pdf'?'_filtered':'_all') . '.pdf'); 
     exit;
 }
 
@@ -300,11 +534,19 @@ while($row=$all->fetch_assoc()){
         $productTotals[$nm]['quantity']+=$qty; $productTotals[$nm]['revenue']+=($qty*$pr);
         if(($it['measurement_type']??'')==='kg') $totalKgSold+=(float)$qty; else $totalPiecesSold+=(int)$qty;
     }
-
     $pmRaw  = $hasPaymentMethod ? ($row['payment_method'] ?? 'Cash') : 'Cash';
     $refRaw = $hasReferenceNo   ? ($row['reference_no']   ?? '')      : '';
     if(!$pmRaw) $pmRaw = 'Cash';
+    
+    $splitCash = $hasSplitCash ? (float)($row['split_cash_amount'] ?? 0) : 0;
+    $splitWallet = $hasSplitWallet ? (float)($row['split_wallet_amount'] ?? 0) : 0;
+    $splitProvider = $hasSplitProvider ? ($row['split_wallet_provider'] ?? '') : '';
     $meta = getPaymentMeta($pmRaw, $ewalletMeta);
+    
+    $displayLabel = $meta['label'];
+    if (strtolower($pmRaw) === 'split' && $splitCash > 0 && $splitWallet > 0) {
+        $displayLabel .= " (₱" . number_format($splitCash, 2) . " + " . ($splitProvider ?: 'Wallet') . " ₱" . number_format($splitWallet, 2) . ")";
+    }
     $activeTxnCache[$row['id']] = [
         'id'             => $row['id'],
         'cashier'        => $row['cashier_name'],
@@ -315,7 +557,7 @@ while($row=$all->fetch_assoc()){
         'edited_by'      => $row['edited_by'] ?? '',
         'edited_at'      => $row['edited_at'] ?? '',
         'edit_remarks'   => $row['edit_remarks'] ?? '',
-        'pm_label'       => $meta['label'],
+        'pm_label'       => $displayLabel,
         'pm_icon'        => $meta['icon'],
         'pm_color'       => $meta['color'],
         'pm_type'        => $meta['type'],
@@ -338,7 +580,16 @@ while($v = $vAll->fetch_assoc()){
     $vpmRaw  = $hasPaymentMethod ? ($v['payment_method'] ?? 'Cash') : 'Cash';
     $vrefRaw = $hasReferenceNo   ? ($v['reference_no']   ?? '')      : '';
     if(!$vpmRaw) $vpmRaw = 'Cash';
+    
+    $vSplitCash = $hasSplitCash ? (float)($v['split_cash_amount'] ?? 0) : 0;
+    $vSplitWallet = $hasSplitWallet ? (float)($v['split_wallet_amount'] ?? 0) : 0;
+    $vSplitProvider = $hasSplitProvider ? ($v['split_wallet_provider'] ?? '') : '';
     $vmeta = getPaymentMeta($vpmRaw, $ewalletMeta);
+    
+    $vTablePmLabel = $vmeta['label'];
+    if (strtolower($vpmRaw) === 'split' && $vSplitCash > 0 && $vSplitWallet > 0) {
+        $vTablePmLabel .= " (₱" . number_format($vSplitCash, 2) . " + " . ($vSplitProvider ?: 'Wallet') . " ₱" . number_format($vSplitWallet, 2) . ")";
+    }
     $voidedTxnCache[$v['id']] = [
         'id'          => $v['id'],
         'cashier'     => $v['cashier_name'],
@@ -349,7 +600,7 @@ while($v = $vAll->fetch_assoc()){
         'voided_by'   => $v['voided_by']   ?? '',
         'voided_at'   => $v['voided_at']   ?? '',
         'void_reason' => $v['void_reason'] ?? '',
-        'pm_label'    => $vmeta['label'],
+        'pm_label'    => $vTablePmLabel,
         'pm_icon'     => $vmeta['icon'],
         'pm_color'    => $vmeta['color'],
         'pm_type'     => $vmeta['type'],
@@ -370,7 +621,16 @@ while($ed = $eAll->fetch_assoc()){
     $epmRaw  = $hasPaymentMethod ? ($ed['payment_method'] ?? 'Cash') : 'Cash';
     $erefRaw = $hasReferenceNo   ? ($ed['reference_no']   ?? '')      : '';
     if(!$epmRaw) $epmRaw = 'Cash';
+    
+    $eSplitCash = $hasSplitCash ? (float)($ed['split_cash_amount'] ?? 0) : 0;
+    $eSplitWallet = $hasSplitWallet ? (float)($ed['split_wallet_amount'] ?? 0) : 0;
+    $eSplitProvider = $hasSplitProvider ? ($ed['split_wallet_provider'] ?? '') : '';
     $emeta = getPaymentMeta($epmRaw, $ewalletMeta);
+    
+    $eTablePmLabel = $emeta['label'];
+    if (strtolower($epmRaw) === 'split' && $eSplitCash > 0 && $eSplitWallet > 0) {
+        $eTablePmLabel .= " (₱" . number_format($eSplitCash, 2) . " + " . ($eSplitProvider ?: 'Wallet') . " ₱" . number_format($eSplitWallet, 2) . ")";
+    }
     $editedTxnCache[$ed['id']] = [
         'id'             => $ed['id'],
         'cashier'        => $ed['cashier_name'],
@@ -381,12 +641,108 @@ while($ed = $eAll->fetch_assoc()){
         'edited_by'      => $ed['edited_by']   ?? '',
         'edited_at'      => $ed['edited_at']   ?? '',
         'edit_remarks'   => $ed['edit_remarks'] ?? '',
-        'pm_label'       => $emeta['label'],
+        'pm_label'       => $eTablePmLabel,
         'pm_icon'        => $emeta['icon'],
         'pm_color'       => $emeta['color'],
         'pm_type'        => $emeta['type'],
         'pm_ref'         => $erefRaw,
     ];
+}
+
+// ─── PAYMENT BREAKDOWN LOGIC ─────────────────────────────────────────────────────────
+$pbDate = $_GET['pb_date'] ?? '';
+$pbMonth = $_GET['pb_month'] ?? '';
+$pbYear = $_GET['pb_year'] ?? '';
+
+$pbQuery = "SELECT * FROM transactions WHERE (status IS NULL OR status != 'voided')";
+$pbParams = [];
+$pbTypes = '';
+
+if (!empty($pbDate)) {
+    $pbQuery .= " AND date = ?";
+    $pbParams[] = $pbDate;
+    $pbTypes .= 's';
+}
+if (!empty($pbMonth)) {
+    $pbQuery .= " AND MONTH(date) = ?";
+    $pbParams[] = (int)$pbMonth;
+    $pbTypes .= 'i';
+}
+if (!empty($pbYear)) {
+    $pbQuery .= " AND YEAR(date) = ?";
+    $pbParams[] = (int)$pbYear;
+    $pbTypes .= 'i';
+}
+$pbQuery .= " ORDER BY id DESC";
+
+$stmtPB = $conn->prepare($pbQuery);
+if (!empty($pbParams)) {
+    $stmtPB->bind_param($pbTypes, ...$pbParams);
+}
+$stmtPB->execute();
+$resPB = $stmtPB->get_result();
+
+$pbCashTotal = 0;
+$pbEwalletTotal = 0;
+$pbBankTotal = 0;
+$pbSplitTotal = 0;
+$pbOverallTotal = 0;
+$pbTransactions = [];
+
+while ($rowPB = $resPB->fetch_assoc()) {
+    $pm = $hasPaymentMethod ? trim($rowPB['payment_method'] ?? 'Cash') : 'Cash';
+    $total = (float)$rowPB['total'];
+    $ref = $hasReferenceNo ? ($rowPB['reference_no'] ?? '') : '';
+    
+    $pbOverallTotal += $total;
+    
+    $txn = [
+        'id' => $rowPB['id'],
+        'payment_method' => $pm,
+        'provider' => '',
+        'ref_no' => $ref,
+        'amount' => $total,
+        'is_split' => false,
+        'split_cash' => 0,
+        'split_wallet' => 0
+    ];
+
+    if (strtolower($pm) === 'cash') {
+        $pbCashTotal += $total;
+    } elseif (strtolower($pm) === 'split') {
+        $pbSplitTotal += $total;
+        $splitCash = $hasSplitCash ? (float)($rowPB['split_cash_amount'] ?? 0) : 0;
+        $splitWallet = $hasSplitWallet ? (float)($rowPB['split_wallet_amount'] ?? 0) : 0;
+        $splitProvider = $hasSplitProvider ? ($rowPB['split_wallet_provider'] ?? 'E-Wallet') : 'E-Wallet';
+        
+        $pbCashTotal += $splitCash;
+        
+        $providerLower = strtolower($splitProvider);
+        $isBank = (strpos($providerLower, 'bank') !== false || strpos($providerLower, 'bpi') !== false || strpos($providerLower, 'bdo') !== false || strpos($providerLower, 'metro') !== false || strpos($providerLower, 'union') !== false || strpos($providerLower, 'security') !== false || strpos($providerLower, 'rcbc') !== false);
+        
+        if ($isBank) {
+            $pbBankTotal += $splitWallet;
+        } else {
+            $pbEwalletTotal += $splitWallet;
+        }
+        
+        $txn['is_split'] = true;
+        $txn['provider'] = $splitProvider;
+        $txn['split_cash'] = $splitCash;
+        $txn['split_wallet'] = $splitWallet;
+    } else {
+        $providerLower = strtolower($pm);
+        $isBank = (strpos($providerLower, 'bank') !== false || strpos($providerLower, 'bpi') !== false || strpos($providerLower, 'bdo') !== false || strpos($providerLower, 'metro') !== false || strpos($providerLower, 'union') !== false || strpos($providerLower, 'security') !== false || strpos($providerLower, 'rcbc') !== false);
+        
+        if ($isBank) {
+            $pbBankTotal += $total;
+            $txn['provider'] = $pm;
+        } else {
+            $pbEwalletTotal += $total;
+            $txn['provider'] = $pm;
+        }
+    }
+    $pbTransactions[] = $txn;
 }
 ?>
 
@@ -413,6 +769,7 @@ while($ed = $eAll->fetch_assoc()){
 .tb-dot.orange{background:var(--orange);box-shadow:0 0 5px var(--orange);}
 .tb-dot.red{background:var(--red);box-shadow:0 0 5px var(--red);}
 .tb-dot.yellow{background:var(--yellow);box-shadow:0 0 5px var(--yellow);}
+.tb-dot.green{background:var(--green);box-shadow:0 0 5px var(--green);}
 .tab-panel{display:none;animation:fadein .2s ease;}
 .tab-panel.active{display:block;}
 @keyframes fadein{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
@@ -424,6 +781,7 @@ while($ed = $eAll->fetch_assoc()){
 .pt-dot.orange{background:var(--orange);box-shadow:0 0 5px var(--orange);}
 .pt-dot.red{background:var(--red);box-shadow:0 0 5px var(--red);}
 .pt-dot.yellow{background:var(--yellow);box-shadow:0 0 5px var(--yellow);}
+.pt-dot.green{background:var(--green);box-shadow:0 0 5px var(--green);}
 .panel-body{padding:14px;}
 .panel-body.no-pad{padding:0;}
 
@@ -596,6 +954,9 @@ while($ed = $eAll->fetch_assoc()){
       <div class="tb-dot orange"></div> Product Breakdown
       <span class="tb-count"><?= count($productTotals) ?></span>
     </button>
+    <button class="tab-btn" onclick="switchTab('payment_breakdown',this)">
+      <div class="tb-dot green"></div> Payment Breakdown
+    </button>
   </div>
 
   <!-- ══ TAB: ACTIVE ══════════════════════════════════════════════════════ -->
@@ -625,25 +986,40 @@ while($ed = $eAll->fetch_assoc()){
     </form>
 
     <div class="export-strip">
-       <form method="post" action="" style="display:inline;">
+      <!-- Export Filtered (Excel) -->
+      <form method="post" action="" style="display:inline;">
         <input type="hidden" name="date"     value="<?= htmlspecialchars($_GET['date'] ?? '') ?>">
         <input type="hidden" name="month"    value="<?= htmlspecialchars($_GET['month'] ?? '') ?>">
         <input type="hidden" name="year"     value="<?= htmlspecialchars($_GET['year'] ?? '') ?>">
         <input type="hidden" name="trans_id" value="<?= htmlspecialchars($_GET['trans_id'] ?? '') ?>">
-        <button type="submit" name="export" value="filtered" class="btn btn-green">📊 Export Filtered (Excel)</button>
-    </form>
-       <form method="post" action="" style="display:inline;">
-        <button type="submit" name="export" value="all" class="btn btn-blue">📊 Export All (Excel)</button>
-    </form>
+        <button type="submit" name="export" value="filtered" class="btn btn-green">
+          <span>📊</span> Export Filtered (Excel)
+        </button>
+      </form>
+      
+      <!-- Export All (Excel) -->
+      <form method="post" action="" style="display:inline;">
+        <button type="submit" name="export" value="all" class="btn btn-blue">
+          <span>📊</span> Export All (Excel)
+        </button>
+      </form>
+
       <?php
-    $pdfFilteredUrl = '?export=pdf';
-    if (!empty($_GET['date']))     $pdfFilteredUrl .= '&date=' . urlencode($_GET['date']);
-    if (!empty($_GET['month']))    $pdfFilteredUrl .= '&month=' . urlencode($_GET['month']);
-    if (!empty($_GET['year']))     $pdfFilteredUrl .= '&year=' . urlencode($_GET['year']);
-    if (!empty($_GET['trans_id'])) $pdfFilteredUrl .= '&trans_id=' . urlencode($_GET['trans_id']);
-    ?>
-     <a href="<?= $pdfFilteredUrl ?>" class="btn btn-red">📄 Export Filtered (PDF)</a>
-      <a href="?export=pdf_all" class="btn btn-yellow">📄 Export All (PDF)</a>
+      // Export Filtered (PDF)
+      $pdfFilteredUrl = '?export=pdf';
+      if (!empty($_GET['date']))     $pdfFilteredUrl .= '&date=' . urlencode($_GET['date']);
+      if (!empty($_GET['month']))    $pdfFilteredUrl .= '&month=' . urlencode($_GET['month']);
+      if (!empty($_GET['year']))     $pdfFilteredUrl .= '&year=' . urlencode($_GET['year']);
+      if (!empty($_GET['trans_id'])) $pdfFilteredUrl .= '&trans_id=' . urlencode($_GET['trans_id']);
+      ?>
+      <a href="<?= $pdfFilteredUrl ?>" class="btn btn-red">
+        <span>📄</span> Export Filtered (PDF)
+      </a>
+      
+      <!-- Export All (PDF) -->
+      <a href="?export=pdf_all" class="btn btn-yellow">
+        <span>📄</span> Export All (PDF)
+      </a>
     </div>
 
     <div class="sum-grid">
@@ -673,10 +1049,19 @@ while($ed = $eAll->fetch_assoc()){
               <?php $result->data_seek(0); while($row=$result->fetch_assoc()):
                 $pm    = $hasPaymentMethod ? ($row['payment_method'] ?? 'Cash') : 'Cash';
                 $refNo = $hasReferenceNo   ? ($row['reference_no']   ?? '')      : '';
-                if(!$pm) $pm='Cash';
-                $pmMeta   = getPaymentMeta($pm, $ewalletMeta);
-                $hasRef   = $pmMeta['type']==='ewallet' && !empty($refNo);
-                $wasEdited= !empty($row['edited_by']);
+                if(!$pm) $pm='Cash';          
+                
+                $splitCash = $hasSplitCash ? (float)($row['split_cash_amount'] ?? 0) : 0;
+                $splitWallet = $hasSplitWallet ? (float)($row['split_wallet_amount'] ?? 0) : 0;
+                $splitProvider = $hasSplitProvider ? ($row['split_wallet_provider'] ?? '') : '';              
+                $pmMeta   = getPaymentMeta($pm, $ewalletMeta);               
+                
+                $tablePmLabel = $pmMeta['label'];
+                if (strtolower($pm) === 'split' && $splitCash > 0 && $splitWallet > 0) {
+                    $tablePmLabel .= " (₱" . number_format($splitCash, 2) . " + " . ($splitProvider ?: 'Wallet') . " ₱" . number_format($splitWallet, 2) . ")";
+                }
+                $hasRef   = ($pmMeta['type']==='ewallet' || $pmMeta['type']==='split') && !empty($refNo);
+                $wasEdited = !empty($row['edited_by']);
               ?>
               <tr>
                 <td><span class="td-id"><?= $row['id'] ?></span></td>
@@ -684,13 +1069,12 @@ while($ed = $eAll->fetch_assoc()){
                 <td><span class="td-date"><?= date('M j, Y',strtotime($row['date'])) ?></span></td>
                 <td><span class="td-date"><?= date('g:i A',strtotime($row['time'])) ?></span></td>
               <td>
-  <!-- Payment badge reads from JS cache on click — no heavy data-* needed -->
   <span class="pay-badge <?= $hasRef?'clickable':'' ?>"
         style="background:<?= $pmMeta['color'] ?>;color:white;"
         data-txn-id="<?= $row['id'] ?>" data-src="active"
         <?= $hasRef?'onclick="showRefFromCache(this)"':'' ?>
-        title="<?= $hasRef?'Click to view reference':'Payment: '.htmlspecialchars($pmMeta['label']) ?>">
-    <?= $pmMeta['icon'] ?> <?= htmlspecialchars($pmMeta['label']) ?>
+        title="<?= $hasRef?'Click to view reference':'Payment: '.htmlspecialchars($tablePmLabel) ?>">
+    <?= $pmMeta['icon'] ?> <?= htmlspecialchars($tablePmLabel) ?>
     <?php if($hasRef): ?><span class="pay-ref-chip">Ref #</span><?php endif; ?>
   </span>
   <?php if($hasRef): ?>
@@ -736,10 +1120,7 @@ while($ed = $eAll->fetch_assoc()){
                 <td style="white-space:nowrap;">
                   <a href="reprint.php?id=<?= $row['id'] ?>" target="_blank" class="btn btn-blue btn-sm">🖨 Print</a>
                   <?php if($row['status']!=='voided'): ?>
-                  <!-- View Items — reads from JS cache, only carries the ID -->
-                  <button class="btn btn-orange btn-sm view-items-btn"
-                          data-txn-id="<?= $row['id'] ?>"
-                          data-src="active">🔍 View</button>
+                  <button class="btn btn-orange btn-sm view-items-btn" data-txn-id="<?= $row['id'] ?>" data-src="active">🔍 View</button>
                   <a href="void_transaction.php?id=<?= $row['id'] ?>" class="btn btn-red btn-sm" onclick="return confirmVoid(event)">🗑 Void</a>
                   <?php endif; ?>
                 </td>
@@ -797,8 +1178,16 @@ while($ed = $eAll->fetch_assoc()){
                 $vpm   = $hasPaymentMethod ? ($v['payment_method'] ?? 'Cash') : 'Cash';
                 $vref  = $hasReferenceNo   ? ($v['reference_no']   ?? '')      : '';
                 if(!$vpm) $vpm='Cash';
+                
+                $vSplitCash = $hasSplitCash ? (float)($v['split_cash_amount'] ?? 0) : 0;
+                $vSplitWallet = $hasSplitWallet ? (float)($v['split_wallet_amount'] ?? 0) : 0;
+                $vSplitProvider = $hasSplitProvider ? ($v['split_wallet_provider'] ?? '') : '';
                 $vpmMeta  = getPaymentMeta($vpm, $ewalletMeta);
-                $vHasRef  = $vpmMeta['type']==='ewallet' && !empty($vref);
+                $vTablePmLabel = $vpmMeta['label'];
+                if (strtolower($vpm) === 'split' && $vSplitCash > 0 && $vSplitWallet > 0) {
+                    $vTablePmLabel .= " (₱" . number_format($vSplitCash, 2) . " + " . ($vSplitProvider ?: 'Wallet') . " ₱" . number_format($vSplitWallet, 2) . ")";
+                }
+                $vHasRef  = ($vpmMeta['type']==='ewallet' || $vpmMeta['type']==='split') && !empty($vref);
               ?>
               <tr data-voided-at="<?= $v['voided_at']??'' ?>">
                 <td><span class="td-id"><?= $v['id'] ?></span></td>
@@ -810,7 +1199,7 @@ while($ed = $eAll->fetch_assoc()){
                         data-txn-id="<?= $v['id'] ?>" data-src="voided"
                         <?= $vHasRef?'onclick="showRefFromCache(this)"':'' ?>
                         title="<?= $vHasRef?'Click to view reference':'Payment' ?>">
-                    <?= $vpmMeta['icon'] ?> <?= htmlspecialchars($vpmMeta['label']) ?>
+                    <?= $vpmMeta['icon'] ?> <?= htmlspecialchars($vTablePmLabel) ?>
                     <?php if($vHasRef): ?><span class="pay-ref-chip">Ref #</span><?php endif; ?>
                   </span>
                 </td>
@@ -821,10 +1210,7 @@ while($ed = $eAll->fetch_assoc()){
                   <?php $vr=trim($v['void_reason']??''); echo $vr?htmlspecialchars(mb_substr($vr,0,55).(mb_strlen($vr)>55?'…':'')):'<span style="color:var(--text3);">—</span>'; ?>
                 </td>
                 <td style="white-space:nowrap;">
-                  <!-- View button reads from JS cache -->
-                  <button class="btn btn-blue btn-sm view-items-btn"
-                          data-txn-id="<?= $v['id'] ?>"
-                          data-src="voided">🔍 View</button>
+                  <button class="btn btn-blue btn-sm view-items-btn" data-txn-id="<?= $v['id'] ?>" data-src="voided">🔍 View</button>
                   <button class="btn btn-red btn-sm delete-voided-btn" data-id="<?= $v['id'] ?>">🗑 Delete</button>
                 </td>
               </tr>
@@ -863,8 +1249,15 @@ while($ed = $eAll->fetch_assoc()){
                 $epm   = $hasPaymentMethod ? ($ed['payment_method'] ?? 'Cash') : 'Cash';
                 $eref  = $hasReferenceNo   ? ($ed['reference_no']   ?? '')      : '';
                 if(!$epm) $epm='Cash';
+                $eSplitCash = $hasSplitCash ? (float)($ed['split_cash_amount'] ?? 0) : 0;
+                $eSplitWallet = $hasSplitWallet ? (float)($ed['split_wallet_amount'] ?? 0) : 0;
+                $eSplitProvider = $hasSplitProvider ? ($ed['split_wallet_provider'] ?? '') : '';
                 $epmMeta = getPaymentMeta($epm, $ewalletMeta);
-                $eHasRef = $epmMeta['type']==='ewallet' && !empty($eref);
+                $eTablePmLabel = $epmMeta['label'];
+                if (strtolower($epm) === 'split' && $eSplitCash > 0 && $eSplitWallet > 0) {
+                    $eTablePmLabel .= " (₱" . number_format($eSplitCash, 2) . " + " . ($eSplitProvider ?: 'Wallet') . " ₱" . number_format($eSplitWallet, 2) . ")";
+                }
+                $eHasRef = ($epmMeta['type']==='ewallet' || $epmMeta['type']==='split') && !empty($eref);
               ?>
               <tr>
                 <td><span class="td-id"><?= $ed['id'] ?></span></td>
@@ -876,7 +1269,7 @@ while($ed = $eAll->fetch_assoc()){
                         data-txn-id="<?= $ed['id'] ?>" data-src="edited"
                         <?= $eHasRef?'onclick="showRefFromCache(this)"':'' ?>
                         title="<?= $eHasRef?'Click to view reference':'Payment' ?>">
-                    <?= $epmMeta['icon'] ?> <?= htmlspecialchars($epmMeta['label']) ?>
+                    <?= $epmMeta['icon'] ?> <?= htmlspecialchars($eTablePmLabel) ?>
                     <?php if($eHasRef): ?><span class="pay-ref-chip">Ref #</span><?php endif; ?>
                   </span>
                 </td>
@@ -887,9 +1280,7 @@ while($ed = $eAll->fetch_assoc()){
                   <?php $er=trim($ed['edit_remarks']??''); echo $er?htmlspecialchars(mb_substr($er,0,55).(mb_strlen($er)>55?'…':'')):'<span style="color:var(--text3);">—</span>'; ?>
                 </td>
                 <td>
-                  <button class="btn btn-blue btn-sm view-items-btn"
-                          data-txn-id="<?= $ed['id'] ?>"
-                          data-src="edited">🔍 View</button>
+                  <button class="btn btn-blue btn-sm view-items-btn" data-txn-id="<?= $ed['id'] ?>" data-src="edited">🔍 View</button>
                 </td>
               </tr>
               <?php endwhile; else: ?>
@@ -909,7 +1300,7 @@ while($ed = $eAll->fetch_assoc()){
     </div>
   </div>
 
-  <!-- ══ TAB: BREAKDOWN ══════════════════════════════════════════════════ -->
+  <!-- ══ TAB: PRODUCT BREAKDOWN ══════════════════════════════════════════════════ -->
   <div class="tab-panel" id="tab-breakdown">
     <div class="sum-grid">
       <div class="sum-tile"><div class="st-label">Unique Products</div><div class="st-val orange"><?= count($productTotals) ?></div></div>
@@ -973,6 +1364,119 @@ while($ed = $eAll->fetch_assoc()){
     </div>
   </div>
 
+  <!-- ══ TAB: PAYMENT BREAKDOWN ══════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-payment_breakdown">
+    <form method="get" class="filter-strip">
+      <input type="hidden" name="tab" value="payment_breakdown">
+      <div><label>Date</label><input type="date" name="pb_date" class="f-input" value="<?= htmlspecialchars($pbDate) ?>"></div>
+      <div>
+        <label>Month</label>
+        <select name="pb_month" class="f-input">
+          <option value="">All Months</option>
+          <?php $months=['January','February','March','April','May','June','July','August','September','October','November','December'];
+          foreach($months as $i=>$m){ $n=$i+1; $sel=($pbMonth==$n)?'selected':''; echo "<option value='$n' $sel>$m</option>"; } ?>
+        </select>
+      </div>
+      <div>
+        <label>Year</label>
+        <select name="pb_year" class="f-input">
+          <option value="">All Years</option>
+          <?php for($y=date('Y');$y>=2020;$y--){ $sel=($pbYear==$y)?'selected':''; echo "<option value='$y' $sel>$y</option>"; } ?>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-orange">🔍 Filter</button>
+      <a href="record.php?tab=payment_breakdown" class="btn btn-dark">✕ Clear</a>
+    </form>
+
+    <div class="export-strip">
+      <form method="post" action="" style="display:inline;">
+        <input type="hidden" name="export_breakdown" value="excel">
+        <input type="hidden" name="pb_date" value="<?= htmlspecialchars($pbDate) ?>">
+        <input type="hidden" name="pb_month" value="<?= htmlspecialchars($pbMonth) ?>">
+        <input type="hidden" name="pb_year" value="<?= htmlspecialchars($pbYear) ?>">
+        <button type="submit" class="btn btn-green">📊 Export Breakdown (Excel)</button>
+      </form>
+      <?php
+      $pbPdfUrl = '?export_breakdown=pdf';
+      if (!empty($pbDate)) $pbPdfUrl .= '&pb_date=' . urlencode($pbDate);
+      if (!empty($pbMonth)) $pbPdfUrl .= '&pb_month=' . urlencode($pbMonth);
+      if (!empty($pbYear)) $pbPdfUrl .= '&pb_year=' . urlencode($pbYear);
+      ?>
+      <a href="<?= $pbPdfUrl ?>" class="btn btn-red">📄 Export Breakdown (PDF)</a>
+    </div>
+
+    <div class="sum-grid">
+      <div class="sum-tile"><div class="st-label">💵 Cash Total</div><div class="st-val green">₱<?= number_format($pbCashTotal, 2) ?></div></div>
+      <div class="sum-tile"><div class="st-label">📱 E-Wallet Total</div><div class="st-val blue">₱<?= number_format($pbEwalletTotal, 2) ?></div></div>
+      <div class="sum-tile"><div class="st-label">🏦 Bank Total</div><div class="st-val yellow">₱<?= number_format($pbBankTotal, 2) ?></div></div>
+      <div class="sum-tile"><div class="st-label">🔀 Split Total</div><div class="st-val orange">₱<?= number_format($pbSplitTotal, 2) ?></div></div>
+      <div class="sum-tile" style="border-color: var(--orange);"><div class="st-label">💰 OVERALL TOTAL</div><div class="st-val" style="color: var(--orange);">₱<?= number_format($pbOverallTotal, 2) ?></div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><div class="pt-dot green"></div>Payment Details</div>
+      </div>
+      <div class="panel-body no-pad">
+        <div class="tbl-wrap">
+          <table class="data-tbl">
+            <thead>
+              <tr>
+                <th>Trans #</th>
+                <th>Payment Type</th>
+                <th>Provider</th>
+                <th>Ref. No.</th>
+                <th style="text-align:right;">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php if (empty($pbTransactions)): ?>
+                <tr><td colspan="5" class="td-empty">No transactions found for this filter.</td></tr>
+              <?php else: ?>
+                <?php foreach ($pbTransactions as $pbTxn): 
+                  $meta = getPaymentMeta($pbTxn['payment_method'], $ewalletMeta);
+                  $displayType = $meta['label'];
+                  $displayProvider = $pbTxn['provider'] ?: 'N/A';
+                  $displayRef = $pbTxn['ref_no'] ?: '—';
+                  
+                  if ($pbTxn['is_split']) {
+                      $displayType = 'Split Payment';
+                      $displayProvider = $pbTxn['provider'] . ' (Split)';
+                  }
+                ?>
+                <tr>
+                  <td><span class="td-id">#<?= $pbTxn['id'] ?></span></td>
+                  <td>
+                    <span class="pay-badge" style="background:<?= $meta['color'] ?>;color:white;">
+                      <?= $meta['icon'] ?> <?= htmlspecialchars($displayType) ?>
+                    </span>
+                  </td>
+                  <td><?= htmlspecialchars($displayProvider) ?></td>
+                  <td><?= htmlspecialchars($displayRef) ?></td>
+                  <td style="text-align:right; font-weight:700; color:var(--green);">
+                    ₱<?= number_format($pbTxn['amount'], 2) ?>
+                    <?php if ($pbTxn['is_split']): ?>
+                      <div style="font-size:9px; color:var(--text3); font-weight:400; text-align:right;">
+                        (Cash: ₱<?= number_format($pbTxn['split_cash'], 2) ?> | <?= htmlspecialchars($pbTxn['provider']) ?>: ₱<?= number_format($pbTxn['split_wallet'], 2) ?>)
+                      </div>
+                    <?php endif; ?>
+                  </td>
+                </tr>
+                <?php endforeach; ?>
+              <?php endif; ?>
+            </tbody>
+            <tfoot>
+              <tr style="background: var(--bg3); font-weight: 700;">
+                <td colspan="4" style="text-align:right; padding: 12px;">TOTAL:</td>
+                <td style="text-align:right; padding: 12px; color: var(--orange);">₱<?= number_format($pbOverallTotal, 2) ?></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /main -->
 
 <!-- ══ REFERENCE POPUP ════════════════════════════════════════════════════ -->
@@ -1027,36 +1531,11 @@ while($ed = $eAll->fetch_assoc()){
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════════════════════════════════
-     TRANSACTION CACHES — PHP embeds all three datasets as JS objects.
-     Keys are transaction IDs for O(1) lookup.
-     Buttons only carry data-txn-id + data-src; the modal/popup reads
-     from these objects instantly — no DOM attribute parsing, no extra
-     HTTP requests.
-════════════════════════════════════════════════════════════════════════ -->
 <script>
 /* ── Embedded caches (populated at page-paint time by PHP) ── */
 const ACTIVE_CACHE  = <?= json_encode($activeTxnCache,  JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
 const VOIDED_CACHE  = <?= json_encode($voidedTxnCache,  JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
 const EDITED_CACHE  = <?= json_encode($editedTxnCache,  JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
-
-/*
- * CACHE STRATEGY
- * ──────────────────────────────────────────────────────────────────
- * PHP builds three associative arrays (ACTIVE, VOIDED, EDITED) and
- * encodes them as JS objects embedded in the page.  Every modal open,
- * ref-popup, and delete operation reads from these objects — zero
- * additional HTTP requests.
- *
- * After a successful delete (voided tab) the entry is removed from
- * VOIDED_CACHE immediately so re-opens before any page reload are
- * safe.  A full page reload always refreshes all three caches.
- *
- * The 60-second background sync polls get_transactions_json.php
- * (same helper from the cashier transaction.php) and merges fresh
- * data in.  If that endpoint is absent the page keeps working from
- * the initial embedded snapshot.
- */
 
 /* ── Helper: resolve cache by source string ── */
 function getCache(src){
@@ -1112,7 +1591,7 @@ function confirmVoid(e){
   return false;
 }
 
-/* ── Voided client-side search (runs against DOM rows + uses cache for date filter) ── */
+/* ── Voided client-side search ── */
 document.getElementById('voidedSearch').addEventListener('input',function(){
   const q=this.value.toLowerCase();
   document.querySelectorAll('#voidedTbl tbody tr').forEach(r=>{
@@ -1145,7 +1624,7 @@ document.querySelectorAll('.delete-voided-btn').forEach(btn=>{
         .then(r=>r.json()).then(data=>{
           if(data.success){
             row.remove();
-            delete VOIDED_CACHE[id]; // ← invalidate from cache immediately
+            delete VOIDED_CACHE[id];
             const total = Object.keys(ACTIVE_CACHE).length + Object.keys(VOIDED_CACHE).length + Object.keys(EDITED_CACHE).length;
             setCachePill('ok', total + ' records cached');
             Swal.fire({icon:'success',title:'Deleted!',timer:1500,showConfirmButton:false,background:'#1e2330',color:'#e8eaf0'});
@@ -1156,7 +1635,7 @@ document.querySelectorAll('.delete-voided-btn').forEach(btn=>{
   });
 });
 
-/* ── Reference popup — reads from JS cache ── */
+/* ── Reference popup ── */
 function showRefFromCache(el){
   const src = el.dataset.src;
   const id  = el.dataset.txnId;
@@ -1168,7 +1647,6 @@ function showRefFromCache(el){
   document.getElementById('refPopup').classList.add('show');
 }
 function showFallbackRef(el){
-  // Graceful fallback to data-* if cache somehow missed the entry
   document.getElementById('refIcon').textContent         = el.dataset.refIcon   || '📱';
   document.getElementById('refProviderName').textContent = el.dataset.refLabel  || 'E-Wallet';
   document.getElementById('refNumber').textContent       = el.dataset.refNumber || '—';
@@ -1182,7 +1660,7 @@ function copyRef(){
     .catch(()=>Swal.fire({icon:'info',title:'Ref No.',text:ref,background:'#1e2330',color:'#e8eaf0'}));
 }
 
-/* ── Items View Modal — reads from JS cache ── */
+/* ── Items View Modal ── */
 function closeItemsModal(){ document.getElementById('itemsModal').classList.remove('show'); }
 document.getElementById('itemsModal').addEventListener('click',function(e){if(e.target===this)closeItemsModal();});
 
@@ -1190,60 +1668,34 @@ document.querySelectorAll('.view-items-btn').forEach(btn=>{
   btn.addEventListener('click', function(){
     const src = this.dataset.src;
     const id  = this.dataset.txnId;
-
-    // ── Instant O(1) cache lookup — no DOM attribute parsing ──
     const txn = getCache(src)[id];
     if(!txn){
       Swal.fire({icon:'error',title:'Cache miss',text:'Transaction #'+id+' not found in cache. Refresh the page.',confirmButtonColor:'#ff8800',background:'#1e2330',color:'#e8eaf0'});
       return;
     }
-
     let items=[], origItems=[];
     try{ items     = JSON.parse(txn.items          || '[]'); }catch{}
     try{ origItems = JSON.parse(txn.original_items || '[]'); }catch{}
-
-    document.getElementById('modalTitle').textContent =
-      'Transaction #' + txn.id + ' — ' + txn.cashier;
-
-    /* Status badges */
-    const statusBadge = txn.status==='voided'
-      ? '<span class="badge b-danger">VOIDED</span>'
-      : txn.status==='edited' || txn.edited_by
-        ? '<span class="badge b-warning">EDITED</span>'
-        : '<span class="badge b-success">COMPLETED</span>';
-    document.getElementById('mInfoBadges').innerHTML = `
-      <span class="badge b-orange">ID: #${txn.id}</span>
-      <span class="badge b-info">${txn.cashier}</span>
-      <span class="badge b-info">${new Date(txn.date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</span>
-      ${statusBadge}
-      <span class="badge" style="background:${txn.pm_color||'#555'};color:white;">${txn.pm_icon||'💳'} ${txn.pm_label||'Cash'}</span>`;
-
-    /* Payment info */
+    document.getElementById('modalTitle').textContent = 'Transaction #' + txn.id + ' — ' + txn.cashier;
+    const statusBadge = txn.status==='voided' ? '<span class="badge b-danger">VOIDED</span>' : txn.status==='edited' || txn.edited_by ? '<span class="badge b-warning">EDITED</span>' : '<span class="badge b-success">COMPLETED</span>';
+    document.getElementById('mInfoBadges').innerHTML = `<span class="badge b-orange">ID: #${txn.id}</span><span class="badge b-info">${txn.cashier}</span><span class="badge b-info">${new Date(txn.date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</span>${statusBadge}<span class="badge" style="background:${txn.pm_color||'#555'};color:white;">${txn.pm_icon||'💳'} ${txn.pm_label||'Cash'}</span>`;
     const pi = document.getElementById('mPaymentInfo');
     if(txn.pm_label && txn.pm_label.toLowerCase()!=='cash'){
       pi.style.display='block';
-      document.getElementById('mPaymentDetail').innerHTML =
-        `<strong>${txn.pm_icon||'📱'} ${txn.pm_label}</strong>` +
-        (txn.pm_ref ? ` &nbsp;·&nbsp; Ref: <strong style="color:var(--yellow);">${txn.pm_ref}</strong>` : '');
+      document.getElementById('mPaymentDetail').innerHTML = `<strong>${txn.pm_icon||'📱'} ${txn.pm_label}</strong>` + (txn.pm_ref ? ` &nbsp;·&nbsp; Ref: <strong style="color:var(--yellow);">${txn.pm_ref}</strong>` : '');
     } else pi.style.display='none';
-
-    /* Void info */
     const vi = document.getElementById('mVoidInfo');
     if(txn.status==='voided'){
       vi.style.display='block';
       document.getElementById('mVoidReason').textContent = 'Reason: '+(txn.void_reason||'No reason provided');
       document.getElementById('mVoidedBy').textContent   = 'Voided by '+(txn.voided_by||'Unknown')+' on '+(txn.voided_at||'');
     } else vi.style.display='none';
-
-    /* Edit info */
     const ei = document.getElementById('mEditInfo');
     if(txn.edited_by){
       ei.style.display='block';
       document.getElementById('mEditRemarks').textContent = 'Remarks: '+(txn.edit_remarks||'No remarks');
       document.getElementById('mEditedBy').textContent    = 'Edited by '+(txn.edited_by||'Unknown')+' on '+(txn.edited_at||'');
     } else ei.style.display='none';
-
-    /* Items rows */
     const tbody = document.getElementById('mItemsBody');
     tbody.innerHTML = '';
     let total = 0;
@@ -1253,25 +1705,13 @@ document.querySelectorAll('.view-items-btn').forEach(btn=>{
       const pr    = parseFloat(it.price) || 0;
       const tot   = qty * pr;
       const st    = it.status || '';
-      const edited = st!=='voided' && orig.name &&
-        (orig.name!==it.name || parseFloat(orig.qty)!==qty || parseFloat(orig.price)!==pr);
+      const edited = st!=='voided' && orig.name && (orig.name!==it.name || parseFloat(orig.qty)!==qty || parseFloat(orig.price)!==pr);
       if(st!=='voided') total += tot;
       const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td class="td-name">${it.name||''}${edited?'<span class="badge b-warning" style="margin-left:4px;">Edited</span>':''}</td>
-        <td style="text-align:center;">${st==='voided'?'<del>'+qty.toFixed(2)+'</del>':qty.toFixed(2)} ${it.unit||''}</td>
-        <td style="text-align:right;">${st==='voided'?'<del>₱'+pr.toFixed(2)+'</del>':'₱'+pr.toFixed(2)}</td>
-        <td style="text-align:right;">${st==='voided'?'<del>₱0.00</del>':'<span class="td-money">₱'+tot.toFixed(2)+'</span>'}</td>
-        <td>${st==='voided'?'<span class="badge b-danger">Voided</span>':''}</td>`;
+      tr.innerHTML = `<td class="td-name">${it.name||''}${edited?'<span class="badge b-warning" style="margin-left:4px;">Edited</span>':''}</td><td style="text-align:center;">${st==='voided'?'<del>'+qty.toFixed(2)+'</del>':qty.toFixed(2)} ${it.unit||''}</td><td style="text-align:right;">${st==='voided'?'<del>₱'+pr.toFixed(2)+'</del>':'₱'+pr.toFixed(2)}</td><td style="text-align:right;">${st==='voided'?'<del>₱0.00</del>':'<span class="td-money">₱'+tot.toFixed(2)+'</span>'}</td><td>${st==='voided'?'<span class="badge b-danger">Voided</span>':''}</td>`;
       tbody.appendChild(tr);
     });
-    document.getElementById('mItemsFoot').innerHTML =
-      `<tr style="border-top:1px solid var(--border);">
-         <td colspan="3" style="text-align:right;font-weight:700;color:var(--text2);padding:8px 12px;">Total:</td>
-         <td style="text-align:right;padding:8px 12px;"><span class="td-money">₱${total.toFixed(2)}</span></td>
-         <td></td>
-       </tr>`;
-
+    document.getElementById('mItemsFoot').innerHTML = `<tr style="border-top:1px solid var(--border);"><td colspan="3" style="text-align:right;font-weight:700;color:var(--text2);padding:8px 12px;">Total:</td><td style="text-align:right;padding:8px 12px;"><span class="td-money">₱${total.toFixed(2)}</span></td><td></td></tr>`;
     document.getElementById('itemsModal').classList.add('show');
   });
 });
@@ -1280,14 +1720,10 @@ document.querySelectorAll('.view-items-btn').forEach(btn=>{
 const urlTab = new URLSearchParams(window.location.search).get('tab');
 if(urlTab){ const btn=document.querySelector(`.tab-btn[onclick*="'${urlTab}'"]`); if(btn) btn.click(); }
 
-/* ── 60-second background cache sync ────────────────────────────────────
-   Polls get_transactions_json.php and silently merges fresh rows into
-   the three cache objects. No page flicker.  Requires the helper file
-   to exist — fails gracefully if it doesn't. ── */
+/* ── 60-second background cache sync ── */
 (function startSync(){
   const INTERVAL = 60_000;
   async function sync(){
-    // Don't disrupt an open modal
     if(document.getElementById('itemsModal').classList.contains('show')) return;
     setCachePill('syncing','Syncing…');
     try{
@@ -1300,7 +1736,6 @@ if(urlTab){ const btn=document.querySelector(`.tab-btn[onclick*="'${urlTab}'"]`)
       (data.edited  ||[]).forEach(t=>{ EDITED_CACHE[t.id]  = t; count++; });
       setCachePill('ok', count+' records cached');
     } catch {
-      // Silently fall back to embedded snapshot
       const total = Object.keys(ACTIVE_CACHE).length + Object.keys(VOIDED_CACHE).length + Object.keys(EDITED_CACHE).length;
       setCachePill('ok', total+' records cached');
     }

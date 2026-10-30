@@ -6,7 +6,123 @@ if (!isset($_SESSION['loggedin']) || $_SESSION['user_type'] !== 'admin') {
     header("Location: ../access_denied.php"); exit();
 }
 
-// Handle Edit
+// ═══════════════════════════════════════════════════════
+// HANDLE REGISTRATION (Add New User)
+// ═══════════════════════════════════════════════════════
+$regErrorMessages = [];
+$regUsername = '';
+$regFullname = '';
+$regEmail    = '';
+$regType     = 'cashier';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registration'])) {
+    $regUsername     = trim($_POST['username'] ?? '');
+    $regFullname     = trim($_POST['fullname'] ?? '');
+    $regEmail        = trim($_POST['email'] ?? '');
+    $password        = $_POST['password'] ?? '';
+    $confirmPassword = $_POST['confirm_password'] ?? '';
+    $registrationKey = trim($_POST['registration_key'] ?? '');
+    $regType         = $_POST['type'] ?? 'cashier';
+
+    // Username validation
+    if (empty($regUsername)) {
+        $regErrorMessages[] = 'Username is required';
+    } elseif (strlen($regUsername) < 4) {
+        $regErrorMessages[] = 'Username must be at least 4 characters';
+    } elseif (!preg_match('/^[a-zA-Z0-9_]+$/', $regUsername)) {
+        $regErrorMessages[] = 'Username can only contain letters, numbers, and underscores';
+    }
+
+    // Full name validation
+    if (empty($regFullname)) {
+        $regErrorMessages[] = 'Full name is required';
+    } elseif (strlen($regFullname) < 2) {
+        $regErrorMessages[] = 'Full name must be at least 2 characters';
+    } elseif (strlen($regFullname) > 100) {
+        $regErrorMessages[] = 'Full name cannot exceed 100 characters';
+    }
+
+    // Email validation
+    if (empty($regEmail)) {
+        $regErrorMessages[] = 'Email is required';
+    } elseif (!filter_var($regEmail, FILTER_VALIDATE_EMAIL)) {
+        $regErrorMessages[] = 'Invalid email format';
+    } elseif (strlen($regEmail) > 100) {
+        $regErrorMessages[] = 'Email cannot exceed 100 characters';
+    }
+
+    // Password validation
+    if (empty($password)) {
+        $regErrorMessages[] = 'Password is required';
+    }
+    if ($password !== $confirmPassword) {
+        $regErrorMessages[] = 'Passwords do not match';
+    }
+
+    // Registration key validation
+    if (empty($registrationKey)) {
+        $regErrorMessages[] = 'Registration key is required';
+    } else {
+        $validRegistrationKey = null;
+        $keyStmt = $conn->prepare("SELECT reg_key FROM registration_keys ORDER BY updated_at DESC LIMIT 1");
+        if ($keyStmt) {
+            $keyStmt->execute();
+            $keyRow = $keyStmt->get_result()->fetch_assoc();
+            $keyStmt->close();
+            if ($keyRow && isset($keyRow['reg_key'])) {
+                $validRegistrationKey = trim($keyRow['reg_key']);
+            }
+        }
+        if ($validRegistrationKey === null || $validRegistrationKey === '') {
+            $regErrorMessages[] = 'Registration is temporarily disabled (no key configured).';
+        } elseif (!hash_equals($validRegistrationKey, trim($registrationKey))) {
+            $regErrorMessages[] = 'Invalid registration key';
+        }
+    }
+
+    // User type validation
+    $allowedTypes = ['cashier', 'staff', 'admin'];
+    if (empty($regType) || !in_array($regType, $allowedTypes)) {
+        $regErrorMessages[] = 'Invalid user type selected';
+    }
+
+    // Check for existing records
+    if (empty($regErrorMessages)) {
+        $checkStmt = $conn->prepare("SELECT id FROM new_user WHERE username = ?");
+        $checkStmt->bind_param("s", $regUsername);
+        $checkStmt->execute();
+        if ($checkStmt->get_result()->num_rows > 0) {
+            $regErrorMessages[] = 'Username already exists';
+        }
+        $checkStmt->close();
+
+        $checkStmt2 = $conn->prepare("SELECT id FROM new_user WHERE email = ?");
+        $checkStmt2->bind_param("s", $regEmail);
+        $checkStmt2->execute();
+        if ($checkStmt2->get_result()->num_rows > 0) {
+            $regErrorMessages[] = 'Email already exists';
+        }
+        $checkStmt2->close();
+
+        if (empty($regErrorMessages)) {
+            $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+            $insertStmt = $conn->prepare("INSERT INTO new_user (username, fullname, email, type, password) VALUES (?, ?, ?, ?, ?)");
+            $insertStmt->bind_param("sssss", $regUsername, $regFullname, $regEmail, $regType, $hashedPassword);
+            if ($insertStmt->execute()) {
+                $_SESSION['swal'] = ['type'=>'success','title'=>'Added!','text'=>'User registered successfully.'];
+                header("Location: user.php");
+                exit;
+            } else {
+                $regErrorMessages[] = 'Database error: Unable to create account.';
+            }
+            $insertStmt->close();
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+// HANDLE EDIT
+// ═══════════════════════════════════════════════════════
 if (isset($_POST['edit_user'])) {
     $id       = intval($_POST['id']);
     $username = $conn->real_escape_string($_POST['username']);
@@ -27,7 +143,9 @@ if (isset($_POST['edit_user'])) {
     header("Location: user.php"); exit;
 }
 
-// Handle Delete
+// ═══════════════════════════════════════════════════════
+// HANDLE DELETE
+// ═══════════════════════════════════════════════════════
 if (isset($_GET['delete'])) {
     $id   = intval($_GET['delete']);
     $stmt = $conn->prepare("DELETE FROM new_user WHERE id=?");
@@ -52,13 +170,6 @@ while ($row = $result->fetch_assoc()) {
     $systemSettings[$row['setting_key']] = $row['setting_value'];
 }
 
-$businessName = $systemSettings['business_name'] ?? 'Angel\'s Bakeshop';
-$businessSubtitle = $systemSettings['business_subtitle'] ?? 'POS SYSTEM';
-$businessAddress = $systemSettings['business_address'] ?? 'Upper Batinguel, Dumaguete City, Negros Oriental 6200';
-$businessPhone = $systemSettings['business_phone'] ?? '0905 615 2262';
-$currencySymbol = $systemSettings['currency_symbol'] ?? '₱';
-
-// Set page title for header
 $pageTitle = 'User Management';
 $activePage = 'user';
 ?>
@@ -158,7 +269,7 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
 .btn-sm    {padding:3px 9px;font-size:10px;}
 
 /* MODAL */
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);backdrop-filter:blur(6px);z-index:9000;align-items:center;justify-content:center;}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(54, 51, 51, 0.8);z-index:9000;align-items:center;justify-content:center;}
 .modal-overlay.show{display:flex;}
 .modal-box{background:var(--card2);border:1px solid var(--border2);border-radius:12px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.8);animation:mfade .2s ease;}
 @keyframes mfade{from{opacity:0;transform:scale(.95) translateY(-8px);}to{opacity:1;transform:none;}}
@@ -169,23 +280,42 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
 .modal-body{padding:18px 20px;overflow-y:auto;}
 .modal-foot{padding:10px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;}
 
-/* Edit modal */
-.edit-modal-box{width:90%;max-width:440px;}
+/* Form Fields in Modal */
+.edit-modal-box{width:90%;max-width:480px;}
 .mfg{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;}
 .mfg label{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;}
 .mfg input,.mfg select{background:var(--bg3);border:1.5px solid var(--border);color:var(--text);border-radius:6px;padding:8px 11px;font-size:12px;width:100%;transition:border-color .15s;}
 .mfg input:focus,.mfg select:focus{outline:none;border-color:var(--orange);background:rgba(255,136,0,.03);}
 .mfg input::placeholder{color:var(--text3);}
 .mfg select option{background:var(--card2);}
-.pw-wrap{position:relative;}
-.pw-wrap input{padding-right:36px;}
-.pw-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;transition:color .15s;}
-.pw-toggle:hover{color:var(--orange);}
 
-/* Signup iframe modal */
-.iframe-modal-box{width:92%;max-width:480px;}
-.iframe-modal-box iframe{width:100%;height:520px;border:none;border-radius:0 0 10px 10px;}
+/* Input Wraps with Icons */
+.input-wrap { position: relative; }
+.input-wrap .input-icon {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  font-size: 14px; opacity: 0.6; pointer-events: none; z-index: 1;
+}
+.input-wrap .field-with-icon { padding-left: 34px !important; }
+.input-wrap .field-with-icon-pw { padding-left: 34px !important; padding-right: 36px !important; }
+
+.pw-toggle {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; color: var(--text3); cursor: pointer;
+  font-size: 14px; transition: color .15s; z-index: 2;
+}
+.pw-toggle:hover { color: var(--orange); }
+
+/* Error/Success Messages in Modal */
+.msg-box {
+  display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px;
+  border-radius: 6px; font-size: 12px; font-weight: 500; margin-bottom: 15px;
+}
+.msg-box.success { background: rgba(0,200,83,.1); border: 1px solid rgba(0,200,83,.3); color: #4dff88; }
+.msg-box.error { background: rgba(255,68,68,.1); border: 1px solid rgba(255,68,68,.3); color: #ff8888; }
+.msg-box ul { margin: 4px 0 0; padding-left: 16px; }
+.msg-box li { margin-bottom: 2px; }
 </style>
+
 <!-- Include Admin Header -->
 <?php include('../include/admin_header.php'); ?>
 
@@ -310,18 +440,106 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
 <!-- Include Admin Footer -->
 <?php include('../include/admin_footer.php'); ?>
 
-<!-- SIGNUP MODAL (iframe) -->
+<!-- ═══════ ADD USER MODAL (Direct Form) ═══════ -->
 <div class="modal-overlay" id="signupModal">
-  <div class="modal-box iframe-modal-box">
+  <div class="modal-box edit-modal-box">
     <div class="modal-title-bar">
       <span>➕ Add New User</span>
       <button class="mclose" onclick="closeSignupModal()">✕</button>
     </div>
-    <iframe id="signupFrame" src="" scrolling="auto"></iframe>
+    <form method="POST" id="signupForm" novalidate autocomplete="off">
+      <input type="hidden" name="registration" value="true">
+      <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
+        
+        <?php if (!empty($regErrorMessages)): ?>
+          <div class="msg-box error">
+            <span>⚠</span>
+            <ul>
+              <?php foreach ($regErrorMessages as $err): ?>
+                <li><?= htmlspecialchars($err) ?></li>
+              <?php endforeach; ?>
+            </ul>
+          </div>
+        <?php endif; ?>
+
+        <div class="mfg">
+          <label>Username *</label>
+          <div class="input-wrap">
+            <span class="input-icon">👤</span>
+            <input type="text" name="username" id="reg_username" class="field-with-icon" placeholder="Min. 4 chars" required minlength="4" maxlength="30" pattern="[a-zA-Z0-9_]+" value="<?= htmlspecialchars($regUsername) ?>">
+          </div>
+        </div>
+
+        <div class="mfg">
+          <label>Full Name *</label>
+          <div class="input-wrap">
+            <span class="input-icon">📝</span>
+            <input type="text" name="fullname" id="reg_fullname" class="field-with-icon" placeholder="Enter full name" required minlength="2" maxlength="100" value="<?= htmlspecialchars($regFullname) ?>">
+          </div>
+        </div>
+
+        <div class="mfg">
+          <label>Email *</label>
+          <div class="input-wrap">
+            <span class="input-icon">📧</span>
+            <input type="email" name="email" id="reg_email" class="field-with-icon" placeholder="Enter email" required maxlength="100" value="<?= htmlspecialchars($regEmail) ?>">
+          </div>
+        </div>
+
+        <div class="mfg">
+          <label>Role *</label>
+          <div class="input-wrap">
+            <span class="input-icon">🎖</span>
+            <select name="type" class="field-with-icon" required>
+              <option value="">— Select Role —</option>
+              <option value="cashier" <?= $regType === 'cashier' ? 'selected' : '' ?>>Cashier</option>
+              <option value="staff"   <?= $regType === 'staff'   ? 'selected' : '' ?>>Staff</option>
+              <option value="admin"   <?= $regType === 'admin'   ? 'selected' : '' ?>>Administrator</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mfg">
+          <label>Password *</label>
+          <div class="input-wrap">
+            <span class="input-icon">🔒</span>
+            <input type="password" name="password" id="reg_password" class="field-with-icon-pw" placeholder="Enter password" required>
+            <button type="button" class="pw-toggle" onclick="togglePw('reg_password','toggleIconRegPw')">
+              <span id="toggleIconRegPw">👁️</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="mfg">
+          <label>Confirm Password *</label>
+          <div class="input-wrap">
+            <span class="input-icon">🔒</span>
+            <input type="password" name="confirm_password" id="reg_confirm_password" class="field-with-icon-pw" placeholder="Repeat password" required>
+            <button type="button" class="pw-toggle" onclick="togglePw('reg_confirm_password','toggleIconConfPw')">
+              <span id="toggleIconConfPw">👁️</span>
+            </button>
+          </div>
+          <div id="pwMatchMsg" style="font-size:10px; margin-top:4px; color:var(--text3);"></div>
+        </div>
+
+        <div class="mfg">
+          <label>Registration Key *</label>
+          <div class="input-wrap">
+            <span class="input-icon">🔑</span>
+            <input type="password" name="registration_key" id="registration_key" class="field-with-icon" placeholder="Enter authorisation key" required>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-dark" onclick="closeSignupModal()">Cancel</button>
+        <button type="submit" class="btn btn-orange" id="signupSubmitBtn">➕ Create Account</button>
+      </div>
+    </form>
   </div>
 </div>
 
-<!-- EDIT USER MODAL -->
+<!-- ═══════ EDIT USER MODAL ═══════ -->
 <div class="modal-overlay" id="editModal">
   <div class="modal-box edit-modal-box">
     <div class="modal-title-bar">
@@ -354,9 +572,11 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
         </div>
         <div class="mfg">
           <label>New Password <span style="color:var(--text3);font-weight:400;text-transform:none;">(leave blank to keep)</span></label>
-          <div class="pw-wrap">
-            <input type="password" name="password" id="editPassword" placeholder="••••••••">
-            <button type="button" class="pw-toggle" onclick="togglePw('editPassword',this)">👁</button>
+          <div class="input-wrap">
+            <input type="password" name="password" id="editPassword" placeholder="••••••••" style="padding-right:36px;">
+            <button type="button" class="pw-toggle" onclick="togglePw('editPassword','toggleIconEditPw')">
+              <span id="toggleIconEditPw">👁️</span>
+            </button>
           </div>
         </div>
       </div>
@@ -369,10 +589,6 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
 </div>
 
 <script>
-/* Clock is now handled by admin_header.php */
-
-/* Connectivity - now handled by admin_footer.php */
-
 /* Session flash */
 <?php if(isset($_SESSION['swal'])): ?>
 document.addEventListener('DOMContentLoaded',function(){
@@ -388,17 +604,14 @@ document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click
 
 /* Signup modal */
 function openSignupModal(){
-  document.getElementById('signupFrame').src='../enter/sign_up.php?iframe=true';
   document.getElementById('signupModal').classList.add('show');
 }
 function closeSignupModal(){
   document.getElementById('signupModal').classList.remove('show');
-  document.getElementById('signupFrame').src='';
+  document.getElementById('signupForm').reset();
+  const msg = document.getElementById('pwMatchMsg');
+  if(msg) msg.textContent = '';
 }
-window.addEventListener('message',function(e){
-  if(e.origin!==window.location.origin) return;
-  if(e.data.action==='signupSuccess') { closeSignupModal(); location.reload(); }
-});
 
 /* Edit modal */
 document.querySelectorAll('.edit-btn').forEach(btn=>{
@@ -415,10 +628,35 @@ document.querySelectorAll('.edit-btn').forEach(btn=>{
 });
 
 /* Password toggle */
-function togglePw(id,btn){
-  const inp=document.getElementById(id);
-  if(inp.type==='password'){inp.type='text';btn.textContent='🙈';}
-  else{inp.type='password';btn.textContent='👁';}
+function togglePw(fieldId, iconId) {
+  const field = document.getElementById(fieldId);
+  const icon  = document.getElementById(iconId);
+  if (field.type === 'password') { field.type = 'text'; icon.textContent = '🙈'; }
+  else { field.type = 'password'; icon.textContent = '👁️'; }
+}
+
+/* Password match check for signup */
+const regPwField = document.getElementById('reg_password');
+const regConfField = document.getElementById('reg_confirm_password');
+const pwMatchMsg = document.getElementById('pwMatchMsg');
+
+if (regConfField && regPwField && pwMatchMsg) {
+  function checkPwMatch() {
+    const pw = regPwField.value;
+    const conf = regConfField.value;
+    if (!conf) {
+      pwMatchMsg.textContent = '';
+      pwMatchMsg.style.color = 'var(--text3)';
+    } else if (pw === conf) {
+      pwMatchMsg.textContent = '✓ Passwords match';
+      pwMatchMsg.style.color = '#4dff88';
+    } else {
+      pwMatchMsg.textContent = '✗ Passwords do not match';
+      pwMatchMsg.style.color = '#ff8888';
+    }
+  }
+  regConfField.addEventListener('input', checkPwMatch);
+  regPwField.addEventListener('input', checkPwMatch);
 }
 
 /* Delete confirm */
@@ -452,14 +690,11 @@ function clearSearch(){
 let currentRole='all';
 function filterByRole(role, tile, tab){
   currentRole=role;
-  // Update tiles
   document.querySelectorAll('.stat-tile').forEach(t=>t.classList.remove('active-filter'));
   if(tile) tile.classList.add('active-filter');
-  // Update tabs
   document.querySelectorAll('.filter-tab').forEach(t=>t.classList.remove('active'));
   if(tab) tab.classList.add('active');
   else {
-    // sync tab if called from tile
     document.querySelectorAll('.filter-tab').forEach(t=>{ if(t.dataset.role===role) t.classList.add('active'); });
   }
   updateVisible(document.getElementById('searchInput').value.toUpperCase(), role);

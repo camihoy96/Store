@@ -931,15 +931,16 @@ body {
     </div>
 
     <table class="payment-methods-table">
-      <thead>
+        <thead>
         <tr>
           <th>QR Code</th>
-          <th>Name / Account</th>
-          <th>Provider</th>
+          <th>Category / Account</th>
+          <th>Provider / Bank</th>
           <th>Order</th>
           <th>Status</th>
           <th>Actions</th>
         </tr>
+      </thead>
       </thead>
       <tbody id="paymentMethodsList">
         <?php foreach ($payment_methods as $pm): ?>
@@ -1270,23 +1271,22 @@ body {
       <div class="modal-body">
         <input type="hidden" name="ajax_action" id="ajaxAction" value="add_payment_method">
         <input type="hidden" name="id" id="paymentId">
-
-        <div class="form-group">
-          <label>Payment Name</label>
-          <input type="text" name="name" id="paymentName" required
-                 placeholder="e.g., GCash, Maya, GrabPay">
+                <div class="form-group">
+          <label>Payment Category</label>
+          <select name="name" id="paymentName" required>
+            <option value="E-wallet">E-wallet</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+          </select>
         </div>
-
         <div class="form-group">
-          <label>Provider Key</label>
+          <label>Provider / Bank Name</label>
           <input type="text" name="provider" id="paymentProvider" required
-                 placeholder="e.g., GCash (must match exactly)">
+                 placeholder="e.g., GCash, Maya, BPI, Metrobank, BDO">
           <small style="color:var(--text3);display:block;margin-top:4px;">
-            Used to match QR config in POS. Recommended: GCash, Maya, GrabPay, or Other
+            The specific E-wallet app or Bank name. Used to match QR config in POS.
           </small>
         </div>
-
-        <div class="form-row-2">
+          <div class="form-row-2">
           <div class="form-group">
             <label>Account Name</label>
             <input type="text" name="account_name" id="paymentAccountName"
@@ -1298,7 +1298,6 @@ body {
                    placeholder="09191234567">
           </div>
         </div>
-
         <div class="form-group">
           <label>QR Code Image</label>
           <input type="file" name="qr_code" id="paymentQr" accept="image/*"
@@ -1549,13 +1548,16 @@ function resetThemeColors() {
   });
 }
 /* ─── Payment Modal: Open (Edit) ─── */
+/* ─── Payment Modal: Open (Edit) ─── */
 function editPaymentMethod(id){
   const row = document.querySelector(`tr[data-id="${id}"]`);
   if(!row) return;
-
   document.getElementById('paymentId').value            = id;
   document.getElementById('ajaxAction').value           = 'update_payment_method';
-  document.getElementById('paymentName').value          = row.dataset.name          || '';
+  // Fallback to 'E-wallet' if legacy data has a specific name instead of a category
+  const validCategories = ['E-wallet', 'Bank Transfer', 'Cash', 'Other'];
+  const categoryName = validCategories.includes(row.dataset.name) ? row.dataset.name : 'E-wallet';
+  document.getElementById('paymentName').value          = categoryName;
   document.getElementById('paymentProvider').value      = row.dataset.provider      || '';
   document.getElementById('paymentAccountName').value   = row.dataset.accountName   || '';
   document.getElementById('paymentAccountNumber').value = row.dataset.accountNumber || '';
@@ -1564,7 +1566,6 @@ function editPaymentMethod(id){
   document.getElementById('paymentActive').checked      = row.dataset.active        === '1';
   document.getElementById('qrPreviewBox').style.display = 'none';
   document.getElementById('modalTitle').textContent     = 'Edit Payment Method';
-
   // Show existing QR thumbnail if available
   const qrPath = row.dataset.qr;
   if(qrPath){
@@ -1573,7 +1574,6 @@ function editPaymentMethod(id){
     img.src = '../' + qrPath;
     box.style.display = 'block';
   }
-
   document.getElementById('paymentModal').classList.add('show');
 }
 

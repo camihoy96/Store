@@ -18,6 +18,7 @@ function getSetting($conn, $key) {
     $row = $stmt->get_result()->fetch_assoc();
     return $row['setting_value'] ?? null;
 }
+
 function setSetting($conn, $key, $val) {
     $stmt = $conn->prepare("INSERT INTO system_settings (setting_key, setting_value)
                             VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
@@ -25,99 +26,169 @@ function setSetting($conn, $key, $val) {
     $stmt->execute();
 }
 
+/**
+ * Per-table "recency" column. This is the single source of truth for how
+ * we determine "changed since last sync" for each table.
+ */
+$RECENCY_COLUMN = [
+    'transactions'      => "CONCAT(`date`, ' ', `time`)",
+    'products'          => "`date_added`",
+    'new_user'          => "`created_at`",
+    'product_batches'   => "`batch_date`",
+    'expired_products'  => "`moved_at`",
+    'restock_requests'  => "`requested_at`",
+    'inventory_audit'   => "`created_at`",
+    'edit_deletion_log' => "`deleted_at`",
+];
+
+/**
+ * Mapping from the "logical type" the UI uses → the actual DB table(s).
+ * Order matters if a type expands to several tables.
+ */
+$TYPE_TO_TABLES = [
+    'transactions' => ['transactions'],
+    'products'     => ['products'],
+    'users'        => ['new_user'],
+    'others'       => [
+        'product_batches',
+        'expired_products',
+        'restock_requests',
+        'inventory_audit',
+        'edit_deletion_log',
+    ],
+];
+
+/**
+ * Build the WHERE clause that selects "records changed since $lastSync".
+ * For transactions, we ALSO include everything that has not been uploaded
+ * yet regardless of timestamp — voided records must propagate to the cloud.
+ */
+function buildWhere($conn, $table, $lastSync, $onlyUnsynced) {
+    global $RECENCY_COLUMN;
+
+    if (!isset($RECENCY_COLUMN[$table])) {
+        return '';
+    }
+
+    if (!$onlyUnsynced || empty($lastSync)) {
+        return '';
+    }
+
+    $esc = $conn->real_escape_string($lastSync);
+
+    if ($table === 'transactions') {
+        return "WHERE (
+            CONCAT(`date`, ' ', `time`) > '{$esc}'
+            OR (
+                `edited_at` IS NOT NULL
+                AND `edited_at` > '{$esc}'
+            )
+            OR (
+                `status` = 'voided'
+                AND `voided_at` IS NOT NULL
+                AND `voided_at` > (
+                    SELECT IFNULL(
+                        MAX(setting_value),
+                        '1970-01-01 00:00:00'
+                    )
+                    FROM system_settings
+                    WHERE setting_key = 'last_sync_voided'
+                )
+            )
+        )";
+    }
+
+    return "WHERE {$RECENCY_COLUMN[$table]} > '{$esc}'";
+}
 if ($action === 'build') {
     $body = json_decode(file_get_contents('php://input'), true) ?: [];
     $onlyUnsynced = !empty($body['only_unsynced']);
-    $lastSync = getSetting($conn, 'last_sync_at') ?: '1970-01-01 00:00:00';
-    $lastSyncEsc = $conn->real_escape_string($lastSync);
 
-    // ─── transactions ──────────────────────────────────────────────
-    $txnWhere = $onlyUnsynced ? "AND CONCAT(date,' ',time) > '$lastSyncEsc'" : "";
-    $transactions = [];
-    $res = $conn->query("SELECT * FROM transactions
-                         WHERE (status IS NULL OR status != 'voided') $txnWhere
-                         ORDER BY id ASC");
-    while ($row = $res->fetch_assoc()) $transactions[] = $row;
+    $requestedTypes = $body['types'] ?? ['transactions', 'products', 'users', 'others'];
 
-    // ─── products (uses date_added, no updated_at) ────────────────
-    $prodWhere = $onlyUnsynced ? "WHERE date_added > '$lastSyncEsc'" : "";
-    $products = [];
-    $res = $conn->query("SELECT * FROM products $prodWhere ORDER BY id ASC");
-    while ($row = $res->fetch_assoc()) $products[] = $row;
+    // Expand logical types to real table names.
+    $tables = [];
+    foreach ($requestedTypes as $t) {
+        foreach (($TYPE_TO_TABLES[$t] ?? []) as $tbl) {
+            $tables[] = $tbl;
+        }
+    }
+    $tables = array_values(array_unique($tables));
 
-    // ─── new_user (created_at) — omit password ────────────────────
-    $userWhere = $onlyUnsynced ? "WHERE created_at > '$lastSyncEsc'" : "";
-    $users = [];
-    $res = $conn->query("SELECT id, username, fullname, type, email, created_at
-                         FROM new_user $userWhere ORDER BY id ASC");
-    while ($row = $res->fetch_assoc()) $users[] = $row;
-
-    // ─── product_batches (batch_date as recency) ──────────────────
-    $batchWhere = $onlyUnsynced ? "WHERE batch_date > '$lastSyncEsc'" : "";
-    $batches = [];
-    $res = $conn->query("SELECT * FROM product_batches $batchWhere ORDER BY id ASC");
-    while ($row = $res->fetch_assoc()) $batches[] = $row;
-
-    // ─── expired_products (moved_at as recency) ───────────────────
-    $expWhere = $onlyUnsynced ? "WHERE moved_at > '$lastSyncEsc'" : "";
-    $expired = [];
-    $res = $conn->query("SELECT * FROM expired_products $expWhere ORDER BY id ASC");
-    while ($row = $res->fetch_assoc()) $expired[] = $row;
-
-    // ─── restock_requests (requested_at as recency) ───────────────
-    $reqWhere = $onlyUnsynced ? "WHERE requested_at > '$lastSyncEsc'" : "";
-    $restocks = [];
-    $res = $conn->query("SELECT * FROM restock_requests $reqWhere ORDER BY id ASC");
-    while ($row = $res->fetch_assoc()) $restocks[] = $row;
-
-    // ─── inventory_audit (created_at) ─────────────────────────────
-    $auditWhere = $onlyUnsynced ? "WHERE created_at > '$lastSyncEsc'" : "";
-    $audits = [];
-    $res = $conn->query("SELECT * FROM inventory_audit $auditWhere ORDER BY id ASC");
-    while ($row = $res->fetch_assoc()) $audits[] = $row;
-
-    // ─── edit_deletion_log (deleted_at) ───────────────────────────
-    $logWhere = $onlyUnsynced ? "WHERE deleted_at > '$lastSyncEsc'" : "";
-    $logs = [];
-    $res = $conn->query("SELECT * FROM edit_deletion_log $logWhere ORDER BY id ASC");
-    while ($row = $res->fetch_assoc()) $logs[] = $row;
-
-    echo json_encode([
+    $out = [
         'ok'        => true,
         'timestamp' => date('Y-m-d H:i:s'),
         'origin'    => gethostname(),
-        'counts' => [
-            'transactions'     => count($transactions),
-            'products'         => count($products),
-            'users'            => count($users),
-            'product_batches'  => count($batches),
-            'expired_products' => count($expired),
-            'restock_requests' => count($restocks),
-            'inventory_audit'  => count($audits),
-            'edit_deletion_log'=> count($logs),
-        ],
-        'data' => [
-            'transactions'      => $transactions,
-            'products'          => $products,
-            'users'             => $users,
-            'product_batches'   => $batches,
-            'expired_products'  => $expired,
-            'restock_requests'  => $restocks,
-            'inventory_audit'   => $audits,
-            'edit_deletion_log' => $logs,
-        ],
+        'counts'    => [],
+        'data'      => [],
+    ];
+
+    foreach ($tables as $table) {
+        // Special-case: users must exclude password.
+        $cols = ($table === 'new_user')
+            ? 'id, username, fullname, type, email, created_at'
+            : '*';
+
+        $lastSync = getSetting($conn, 'last_sync_' . $table . '_at');
+        $where    = buildWhere($conn, $table, $lastSync, $onlyUnsynced);
+
+        $rows = [];
+        $sql = "SELECT {$cols} FROM `{$table}` {$where} ORDER BY id ASC";
+$res = $conn->query($sql);
+if (!$res) {
+    http_response_code(500);
+    echo json_encode([
+        'ok' => false,
+        'message' => "Failed to read local table: {$table}",
+        'error' => $conn->error
     ]);
+    exit;
+}
+while ($row = $res->fetch_assoc()) {
+    $rows[] = $row;
+}
+        $out['counts'][$table] = count($rows);
+        $out['data'][$table]   = $rows;
+    }
+
+    // Friendly aliases so the UI log still shows familiar names.
+    $out['counts'] = array_merge(
+        [
+            'transactions' => $out['counts']['transactions'] ?? 0,
+            'products'     => $out['counts']['products']     ?? 0,
+            'users'        => $out['counts']['new_user']     ?? 0,
+        ],
+        $out['counts']
+    );
+
+    echo json_encode($out);
     exit;
 }
 
 if ($action === 'mark_synced') {
     $body = json_decode(file_get_contents('php://input'), true) ?: [];
     $now  = date('Y-m-d H:i:s');
-    setSetting($conn, 'last_sync_at', $now);
-    foreach (($body['counts'] ?? []) as $k => $v) {
-        setSetting($conn, 'last_sync_' . $k, (string)$v);
+
+    // Only update the timestamp for tables that were actually pushed.
+    // This prevents losing changes made on tables the user skipped.
+    $syncedTables = $body['synced_tables'] ?? [];
+
+    foreach ($syncedTables as $table) {
+        setSetting($conn, 'last_sync_' . $table . '_at', $now);
     }
-    echo json_encode(['ok' => true]);
+
+    // Global timestamp: only advance if ALL types were synced.
+    $allTypes = ['transactions', 'products', 'new_user', 'product_batches',
+                 'expired_products', 'restock_requests', 'inventory_audit',
+                 'edit_deletion_log'];
+    $allSynced = !array_diff($allTypes, $syncedTables);
+    if ($allSynced) {
+        setSetting($conn, 'last_sync_at', $now);
+    }
+if (in_array('transactions', $syncedTables, true)) {
+    setSetting($conn, 'last_sync_voided', $now);
+}
+    echo json_encode(['ok' => true, 'marked' => $syncedTables]);
     exit;
 }
 

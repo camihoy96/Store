@@ -913,6 +913,10 @@ body {
     <span class="hint-key" style="margin-top:2px;">F3</span>
   </button>
         <?php endif; ?>
+        <button class="pay-btn more" onclick="openSplitModal()" style="background: linear-gradient(180deg, #4a90e2, #357abd);">
+  <span class="icon">🔀</span><span>Split</span>
+  <span class="hint-key" style="margin-top:2px;">F4</span>
+</button>
         <button class="pay-btn more" onclick="promptClearCart()">
   <span class="icon">✕</span><span>Clear</span>
   <span class="hint-key" style="margin-top:2px;">F2</span>
@@ -1012,12 +1016,8 @@ body {
   <div class="receipt">
     <!-- Header -->
     <div class="center">
-      <?php if (!empty($logoPath) && file_exists(__DIR__ . '/' . ltrim($logoPath, '/'))): ?>
-        <img src="/Store/<?= htmlspecialchars(ltrim($logoPath, '/')) ?>" alt="Logo" class="logo-img">
-      <?php else: ?>
     <img src="image/logo.png" alt="Logo"
          style="display: block; margin: 0 auto 4px; max-width: 55%; max-height: 18mm; width: auto; height: auto;">
-<?php endif; ?>
       <div class="brand"><?= htmlspecialchars($businessName) ?></div>
       <?php if (!empty($businessSubtitle)): ?>
         <div class="subtitle"><?= htmlspecialchars($businessSubtitle) ?></div>
@@ -1075,74 +1075,69 @@ body {
 </div>
   </div>
 </div>
-
-<!-- ══ E-WALLET PAYMENT MODAL ════════════════════════════════════════ -->
+<!-- ══ PAYMENT MODAL (HYBRID: Direct E-wallet / 2-Step Bank) ════════════════════════════════════════ -->
 <div class="modal-overlay" id="walletModal">
   <div class="pay-modal" style="width: 600px; max-width: 95vw; max-height: 90vh;">
     <div class="pay-modal-title">
-      <span id="walletModalTitle">E-WALLET PAYMENT</span>
+      <span id="walletModalTitle">SELECT PAYMENT METHOD</span>
       <button class="modal-x" onclick="closeWalletModal()">✕</button>
     </div>
     <div class="pay-modal-body" style="max-height: calc(90vh - 60px); overflow-y: auto; padding: 16px;">
       <div class="pm-summary" id="wmSummary"></div>
       
+           <!-- Step 1: Payment Method (E-wallets direct, or Bank Transfer trigger) -->
       <div class="pm-row">
         <span class="pm-label">Payment Method</span>
-        <div style="display:flex;gap:6px;flex:1;">
-          <select class="pm-input" id="wmProvider" onchange="updateWalletHints()" style="flex:1;">
-            <option value="">-- Select Payment --</option>
-            <?php foreach ($paymentMethods as $pm): ?>
-            <option value="<?= htmlspecialchars($pm['provider']) ?>"
-                    data-qr="<?= htmlspecialchars($pm['qr_code_path'] ?? '') ?>"
-                    data-name="<?= htmlspecialchars($pm['name']) ?>"
-                    data-account-name="<?= htmlspecialchars($pm['account_name'] ?? '') ?>"
-                    data-account-number="<?= htmlspecialchars($pm['account_number'] ?? '') ?>">
-              <?= htmlspecialchars($pm['name']) ?>
-            </option>
-            <?php endforeach; ?>
-          </select>
-          <button type="button" id="btnShowQR" onclick="toggleQRCode()"
-                  style="padding:7px 12px;background:linear-gradient(180deg,#4a90e2,#357abd);
-                         color:white;border:none;border-radius:4px;font-size:11px;
-                         font-weight:600;cursor:pointer;white-space:nowrap;display:none;">
-            📷 Show QR
-          </button>
-        </div>
+        <select class="pm-input" id="wmProvider" onchange="handlePaymentSelection()" style="flex:1; font-weight:700;">
+          <option value="">-- Select Payment Method --</option>
+          <!-- Populated dynamically by JavaScript -->
+        </select>
+        <button type="button" id="btnShowQR" onclick="toggleQRCode()"
+                style="padding:7px 12px;background:linear-gradient(180deg,#4a90e2,#357abd);
+                       color:white;border:none;border-radius:4px;font-size:11px;
+                       font-weight:600;cursor:pointer;white-space:nowrap;display:none;margin-left:6px;">
+          📷 Show QR
+        </button>
       </div>
-
-     <!-- QR Card - HORIZONTAL LAYOUT with full-size QR -->
-<div id="qrContainer" style="display:none;margin:4px 0 12px;">
-  <div id="qrCard" style="border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.2);width:100%;">
-    <div style="display:flex;flex-direction:row;align-items:stretch;">
-      <!-- Left: QR Code - Full size -->
-      <div style="flex:0 0 auto;background:white;padding:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:1px solid #eee;min-width:220px;">
-        <div style="width:200px;height:200px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:white;border-radius:10px;border:3px solid #eee;">
-          <img id="qrImage" src="" alt="QR Code" style="width:100%;height:100%;object-fit:contain;display:none;">
-          <div id="qrPlaceholder" style="text-align:center;padding:10px;">
-            <div style="font-size:46px;">📱</div>
-            <div style="font-size:10px;color:#aaa;margin-top:6px;line-height:1.5;">No QR configured<br>Upload in Settings</div>
+      <!-- Step 2: Specific Bank (Hidden until "Bank Transfer" is chosen) -->
+      <div class="pm-row" id="wmBankRow" style="display:none;">
+        <span class="pm-label">Select Bank</span>
+        <select class="pm-input" id="wmBankProvider" onchange="updateBankDetails()" style="flex:1; font-weight:700;">
+          <option value="">-- Select Specific Bank --</option>
+          <!-- Populated dynamically by JavaScript -->
+        </select>
+      </div>
+      <!-- QR Card - HORIZONTAL LAYOUT -->
+      <div id="qrContainer" style="display:none;margin:4px 0 12px;">
+        <div id="qrCard" style="border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.2);width:100%;">
+          <div style="display:flex;flex-direction:row;align-items:stretch;">
+            <!-- Left: QR Code -->
+            <div style="flex:0 0 auto;background:white;padding:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:1px solid #eee;min-width:220px;">
+              <div style="width:200px;height:200px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:white;border-radius:10px;border:3px solid #eee;">
+                <img id="qrImage" src="" alt="QR Code" style="width:100%;height:100%;object-fit:contain;display:none;">
+                <div id="qrPlaceholder" style="text-align:center;padding:10px;">
+                  <div style="font-size:46px;">📱</div>
+                  <div style="font-size:10px;color:#aaa;margin-top:6px;line-height:1.5;">No QR configured<br>Upload in Settings</div>
+                </div>
+              </div>
+              <div id="qrAmountLabel" style="margin-top:10px;font-size:20px;font-weight:900;color:#006600;"></div>
+            </div>
+            <!-- Right: Account Details -->
+            <div style="flex:1;padding:16px 20px;background:#f8f8f8;display:flex;flex-direction:column;justify-content:center;min-width:160px;">
+              <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;font-weight:600;margin-bottom:4px;">📱 Scan to Pay</div>
+              <div id="qrLogoText" style="font-size:22px;font-weight:900;color:#222;letter-spacing:0.5px;"></div>
+              <div id="qrAccountName" style="font-size:15px;font-weight:700;color:#444;margin-top:4px;"></div>
+              <div id="qrAccountNumber" style="font-size:14px;font-weight:600;color:#666;margin-top:3px;letter-spacing:0.5px;"></div>
+              <div style="margin-top:8px;font-size:11px;color:#888;">Scan with <strong id="qrScanLabel" style="color:#222;">app</strong></div>
+              <button type="button" onclick="toggleQRCode()" style="margin-top:10px;padding:5px 20px;background:linear-gradient(135deg,#666,#444);color:white;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;align-self:flex-start;transition:background 0.15s;">✕ Hide QR</button>
+            </div>
           </div>
         </div>
-        <div id="qrAmountLabel" style="margin-top:10px;font-size:20px;font-weight:900;color:#006600;"></div>
       </div>
-      <!-- Right: Account Details -->
-      <div style="flex:1;padding:16px 20px;background:#f8f8f8;display:flex;flex-direction:column;justify-content:center;min-width:160px;">
-        <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;font-weight:600;margin-bottom:4px;">📱 Scan to Pay</div>
-        <div id="qrLogoText" style="font-size:22px;font-weight:900;color:#222;letter-spacing:0.5px;"></div>
-        <div id="qrAccountName" style="font-size:15px;font-weight:700;color:#444;margin-top:4px;"></div>
-        <div id="qrAccountNumber" style="font-size:14px;font-weight:600;color:#666;margin-top:3px;letter-spacing:0.5px;"></div>
-        <div style="margin-top:8px;font-size:11px;color:#888;">Scan with <strong id="qrScanLabel" style="color:#222;">e-wallet</strong> app</div>
-        <button type="button" onclick="toggleQRCode()" style="margin-top:10px;padding:5px 20px;background:linear-gradient(135deg,#666,#444);color:white;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;align-self:flex-start;transition:background 0.15s;">✕ Hide QR</button>
-      </div>
-    </div>
-    <div id="qrCardHeader" style="display:none;"></div>
-  </div>
-</div>
 
       <div class="pm-row">
         <span class="pm-label">Ref. No.</span>
-        <input type="text" class="pm-input" id="wmRefNo"
-               placeholder="Enter transaction reference" maxlength="50">
+        <input type="text" class="pm-input" id="wmRefNo" placeholder="Enter transaction reference" maxlength="50">
       </div>
       <div class="pm-row">
         <span class="pm-label">Amount <?= $currencySymbol ?></span>
@@ -1150,15 +1145,89 @@ body {
       </div>
       <div class="pm-change" id="wmStatus">Awaiting confirmation</div>
       <div class="pm-btns">
-        <button class="pm-btn cancel" onclick="closeWalletModal()">
-  Cancel <span class="hint-key" style="margin-left:6px;">Esc</span>
-</button>
-        <button type="button" class="pm-btn proceed" onclick="processWalletPayment()">
-  ✓ Confirm <span class="hint-key" style="margin-left:6px;">Enter</span>
-</button>
+        <button class="pm-btn cancel" onclick="closeWalletModal()">Cancel <span class="hint-key" style="margin-left:6px;">Esc</span></button>
+        <button type="button" class="pm-btn proceed" onclick="processWalletPayment()">✓ Confirm <span class="hint-key" style="margin-left:6px;">Enter</span></button>
       </div>
       <div style="margin-top:10px;font-size:10px;color:#888;text-align:center;">
         💡 Ensure customer payment is completed before confirming.
+      </div>
+    </div>
+  </div>
+</div>
+<!-- ══ SPLIT PAYMENT MODAL ════════════════════════════════════════════ -->
+<div class="modal-overlay" id="splitModal">
+  <div class="pay-modal" style="width: 550px; max-width: 95vw;">
+    <div class="pay-modal-title" style="background: linear-gradient(180deg, #4a90e2, #357abd);">
+      <span>🔀 SPLIT PAYMENT</span>
+      <button class="modal-x" onclick="closeSplitModal()">✕</button>
+    </div>
+    <div class="pay-modal-body">
+      <div class="pm-summary" id="splitSummary"></div>
+      <!-- Step 1: Cash -->
+      <div style="background:#f0f8ff; padding:12px; border-radius:6px; margin-bottom:12px; border:1px solid #cce5ff;">
+        <div style="font-weight:700; font-size:12px; color:#0056b3; margin-bottom:8px;">💵 Step 1: Cash Payment</div>
+        <div class="pm-row" style="margin-bottom:0;">
+          <span class="pm-label">Amount</span>
+          <input type="number" class="pm-input" id="splitCashAmount" placeholder="0.00" oninput="calcSplitRemaining()" style="font-weight:700; color:#0056b3;">
+        </div>
+      </div>
+      <!-- Step 2: E-Wallet / Bank -->
+      <div style="background:#fff8f0; padding:12px; border-radius:6px; margin-bottom:12px; border:1px solid #ffe5cc;">
+        <div style="font-weight:700; font-size:12px; color:#cc5500; margin-bottom:8px;">📱 Step 2: E-Wallet / Bank (Remaining Balance)</div>
+        <div class="pm-row" style="margin-bottom:4px;">
+          <span class="pm-label">Method</span>
+          <select class="pm-input" id="splitWalletProvider" onchange="handleSplitProviderChange()" style="font-weight:700; color:#cc5500;">
+            <option value="">-- Select Provider --</option>
+          </select>
+          <button type="button" id="splitBtnShowQR" onclick="toggleSplitQR()"
+                  style="padding:7px 12px;background:linear-gradient(180deg,#4a90e2,#357abd);
+                         color:white;border:none;border-radius:4px;font-size:11px;
+                         font-weight:600;cursor:pointer;white-space:nowrap;display:none;margin-left:6px;">
+            📷 Show QR
+          </button>
+        </div>
+        <div class="pm-row" id="splitRefRow" style="display:none; margin-bottom:4px;">
+          <span class="pm-label">Ref. No.</span>
+          <input type="text" class="pm-input" id="splitRefNo" placeholder="Transaction Reference" maxlength="50" oninput="validateSplitPayment()">
+        </div>
+        <!-- QR Card for Split Payment -->
+        <div id="splitQrContainer" style="display:none; margin-top:8px;">
+          <div style="border-radius:8px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,0.1); width:100%; background:white;">
+            <div style="display:flex; flex-direction:row; align-items:stretch;">
+              <!-- Left: QR Code -->
+              <div style="flex:0 0 auto; background:white; padding:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; border-right:1px solid #eee; min-width:160px;">
+                <div style="width:140px; height:140px; display:flex; align-items:center; justify-content:center; overflow:hidden; background:white; border-radius:6px; border:2px solid #eee;">
+                  <img id="splitQrImage" src="" alt="QR Code" style="width:100%; height:100%; object-fit:contain; display:none;">
+                  <div id="splitQrPlaceholder" style="text-align:center; padding:10px;">
+                    <div style="font-size:32px;">📱</div>
+                    <div style="font-size:9px; color:#aaa; margin-top:4px; line-height:1.4;">No QR configured</div>
+                  </div>
+                </div>
+                <div id="splitQrAmountLabel" style="margin-top:8px; font-size:16px; font-weight:900; color:#006600;"></div>
+              </div>
+              <!-- Right: Account Details -->
+              <div style="flex:1; padding:12px 16px; background:#f8f8f8; display:flex; flex-direction:column; justify-content:center; min-width:140px;">
+                <div style="font-size:10px; color:#888; text-transform:uppercase; letter-spacing:1px; font-weight:600; margin-bottom:4px;">📱 Scan to Pay</div>
+                <div id="splitQrLogoText" style="font-size:18px; font-weight:900; color:#222; letter-spacing:0.5px;"></div>
+                <div id="splitQrAccountName" style="font-size:13px; font-weight:700; color:#444; margin-top:4px;"></div>
+                <div id="splitQrAccountNumber" style="font-size:12px; font-weight:600; color:#666; margin-top:2px; letter-spacing:0.5px;"></div>
+                <div style="margin-top:6px; font-size:10px; color:#888;">Scan with <strong id="splitQrScanLabel" style="color:#222;">app</strong></div>
+                <button type="button" onclick="toggleSplitQR()" style="margin-top:8px; padding:4px 16px; background:linear-gradient(135deg,#666,#444); color:white; border:none; border-radius:4px; font-size:10px; font-weight:600; cursor:pointer; align-self:flex-start;">✕ Hide QR</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Totals -->
+      <div style="display:flex; justify-content:space-between; font-size:14px; font-weight:700; margin-bottom:12px; padding:10px; background:#2a2a2a; color:#fff; border-radius:6px;">
+        <span>Total: <span id="splitTotalDisplay">0.00</span></span>
+        <span style="color:#ffcc66;">Remaining: <span id="splitRemainingDisplay">0.00</span></span>
+      </div>
+      <div class="pm-btns">
+        <button class="pm-btn cancel" onclick="closeSplitModal()">Cancel</button>
+        <button type="button" class="pm-btn proceed" id="btnCompleteSplit" onclick="processSplitPayment()" disabled style="background: linear-gradient(180deg, #4a90e2, #357abd);">
+          ✓ Complete Split Payment
+        </button>
       </div>
     </div>
   </div>
@@ -1209,6 +1278,7 @@ body {
           <tr style="border-bottom:1px solid #f0f0f0;"><td style="padding:7px 10px;"><span style="background:#333;color:#1ffa02;font-family:monospace;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;">Enter</span></td><td style="padding:7px 10px;font-weight:600;">Cash Payment</td><td style="padding:7px 10px;color:#666;">Opens the cash payment modal</td></tr>
           <tr style="border-bottom:1px solid #f0f0f0;background:#fafafa;"><td style="padding:7px 10px;"><span style="background:#333;color:#1ffa02;font-family:monospace;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;">F2</span></td><td style="padding:7px 10px;font-weight:600;">Clear / Cancel</td><td style="padding:7px 10px;color:#666;">Clears all items from the current order</td></tr>
           <tr style="border-bottom:1px solid #f0f0f0;"><td style="padding:7px 10px;"><span style="background:#333;color:#1ffa02;font-family:monospace;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;">F3</span></td><td style="padding:7px 10px;font-weight:600;">E-Wallet Payment</td><td style="padding:7px 10px;color:#666;">Opens GCash / Maya / GrabPay payment modal</td></tr>
+          <tr style="border-bottom:1px solid #f0f0f0;"><td style="padding:7px 10px;"><span style="background:#333;color:#1ffa02;font-family:monospace;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;">F4</span></td><td style="padding:7px 10px;font-weight:600;">Split Payment</td><td style="padding:7px 10px;color:#666;">Opens the split payment modal</td></tr>
           <tr style="border-bottom:1px solid #f0f0f0;background:#fafafa;"><td style="padding:7px 10px;"><span style="background:#333;color:#1ffa02;font-family:monospace;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;">F5</span></td><td style="padding:7px 10px;font-weight:600;">Focus Search</td><td style="padding:7px 10px;color:#666;">Jumps focus to the product search bar</td></tr>
           <tr style="border-bottom:1px solid #f0f0f0;"><td style="padding:7px 10px;"><span style="background:#333;color:#1ffa02;font-family:monospace;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;">F8</span></td><td style="padding:7px 10px;font-weight:600;">Custom Product</td><td style="padding:7px 10px;color:#666;">Focuses the custom product name input</td></tr>
           <tr style="border-bottom:1px solid #f0f0f0;"><td style="padding:7px 10px;"><span style="background:#333;color:#1ffa02;font-family:monospace;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:700;">F9</span></td><td style="padding:7px 10px;font-weight:600;">Add Custom Product</td><td style="padding:7px 10px;color:#666;">Adds the custom product currently filled in the strip</td></tr>
@@ -1566,16 +1636,13 @@ function updateItemQty(idx,newVal) {
 document.addEventListener('keydown', function(e) {
   // Only handle Enter key
   if (e.key !== 'Enter') return;
-  
   const payModal = document.getElementById('payModal');
   const walletModal = document.getElementById('walletModal');
   const activeElement = document.activeElement;
-  
   // ── CASH PAYMENT MODAL ──
   if (payModal && payModal.classList.contains('show')) {
     e.preventDefault();
     e.stopPropagation();
-    
     // If focus is on the cash input OR confirm button, process payment
     if (activeElement && (activeElement.id === 'pmCash' || 
         (activeElement.classList && activeElement.classList.contains('pm-btn') && 
@@ -1584,18 +1651,15 @@ document.addEventListener('keydown', function(e) {
       return;
     }
   }
-  
   // ── WALLET PAYMENT MODAL ──
   if (walletModal && walletModal.classList.contains('show')) {
     e.preventDefault();
     e.stopPropagation();
-    
     // If focus is on reference number input, just blur it (don't submit)
     if (activeElement && activeElement.id === 'wmRefNo') {
       activeElement.blur();
       return;
     }
-    
     // If focus is on confirm button OR if user presses Enter while in the modal
     if (activeElement && 
         ((activeElement.classList && activeElement.classList.contains('pm-btn') && 
@@ -1640,6 +1704,7 @@ function pmCalcChange() {
 
 // ── E-wallet modal ─────────────────────────────────────────────────
 function openWalletModal() {
+   resetWalletModal();
   if (!checkout.length) return showErr('Please add items to the order first.');
   const total = checkout.reduce((s,i)=>s+i.price*i.qty,0);
   document.getElementById('wmSummary').innerHTML =
@@ -1941,7 +2006,7 @@ async function processPayment() {
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   E-WALLET PAYMENT
+   E-WALLET / BANK PAYMENT (HYBRID LOGIC)
 ══════════════════════════════════════════════════════════════════ */
 async function processWalletPayment() {
   if (isProcessingPayment) return;
@@ -1957,16 +2022,28 @@ async function processWalletPayment() {
     return showErr('Cart is empty.');
   }
 
-  const sel = document.getElementById('wmProvider');
-  const provider = sel.value;
-  const selectedOpt = sel.options[sel.selectedIndex];
-  const providerName = selectedOpt.dataset.name || provider;
+  // HYBRID LOGIC: Check if Bank Transfer was selected in the main dropdown
+  const mainSel = document.getElementById('wmProvider');
+  let provider = mainSel.value;
+  let selectedOpt = mainSel.options[mainSel.selectedIndex];
+  
+  // If the user selected the "Bank Transfer" trigger, get the actual bank from the second dropdown
+  if (provider === 'Bank Transfer') {
+      const bankSel = document.getElementById('wmBankProvider');
+      provider = bankSel.value;
+      selectedOpt = bankSel.options[bankSel.selectedIndex];
+  }
+
+  // Get the category name (E-wallet or Bank Transfer) for receipts/modals
+  const categoryName = selectedOpt.dataset.category || (mainSel.value === 'Bank Transfer' ? 'Bank Transfer' : 'E-wallet');
+  const providerName = provider; // The actual provider name (e.g., "GCash", "BPI")
+  
   const refNo = document.getElementById('wmRefNo').value.trim();
   const total = checkout.reduce((s, i) => s + i.price * i.qty, 0);
 
-  if (!provider) {
+  if (!provider || provider === 'Bank Transfer') {
     isProcessingPayment = false; // Reset flag
-    return showErr('Please select an e-wallet provider.');
+    return showErr('Please select a specific payment provider.');
   }
   if (!refNo) {
     isProcessingPayment = false; // Reset flag
@@ -2003,7 +2080,7 @@ async function processWalletPayment() {
         cashier,
         date,
         time,
-        payment_method: 'wallet',
+        payment_method: 'wallet', // Kept as 'wallet' for backend compatibility
         wallet_provider: providerName,
         wallet_ref: refNo
       })
@@ -2018,8 +2095,9 @@ async function processWalletPayment() {
 
     /* Fill receipt */
     _fillReceiptCommon(date, time, cashier, itemsData, total);
+    // Shows e.g., "BPI (Bank Transfer): ₱500.00 <br> Ref: 12345"
     document.getElementById('r-payment-line').innerHTML =
-      `${providerName}: ${currencySymbol}${total.toFixed(2)}<br>Ref: ${refNo}`;
+      `${providerName} (${categoryName}): ${currencySymbol}${total.toFixed(2)}<br>Ref: ${refNo}`;
     document.getElementById('r-change-line').style.display = 'none';
 
     // Print receipt using custom function
@@ -2043,13 +2121,18 @@ async function processWalletPayment() {
     });
     clearCheckout(true);
 
+    // Dynamic success modal content based on category
+    const isBank = categoryName.toLowerCase().includes('bank');
+    const successIcon = isBank ? '🏦' : '📱';
+    const successType = isBank ? 'Bank Transfer' : 'E-wallet';
+
     // NOW show success modal AFTER printing is done
     await new Promise(r => setTimeout(r, 300)); // Delay for print window
     openSuccessModal({
-      title: `${providerName} Payment Confirmed! 📱`,
-      subtitle: 'E-wallet payment completed successfully',
+      title: `${providerName} Payment Confirmed! ${successIcon}`,
+      subtitle: `${successType} payment completed successfully`,
       txnId: data.transaction_id || 'N/A',
-      method: `${providerName} 📱`,
+      method: `${providerName} ${successIcon}`,
       cashier: cashier,
       ref: refNo,
       total: total.toFixed(2)
@@ -2265,6 +2348,7 @@ document.addEventListener('keydown',function(e){
   if (e.key==='Enter'||e.keyCode===13){ e.preventDefault(); openPayModal('Cash'); return; }
   if (e.key==='F2'||e.keyCode===113){ e.preventDefault(); promptClearCart(); return; }
   if (e.key==='F3'||e.keyCode===114){ e.preventDefault(); openWalletModal(); return; }
+  if (e.key==='F4'||e.keyCode===115){ e.preventDefault(); openSplitModal(); return; } 
 });
 
 document.getElementById('searchInput').addEventListener('keypress',function(e){
@@ -2706,6 +2790,417 @@ function confirmClearCart() {
     const s = document.getElementById('searchInput');
     if (s) s.focus();
   }, 100);
+}
+</script>
+<script>
+// Pass active payment methods from PHP to JS (This is the exact same data that worked in your 2-step version)
+const allPaymentMethods = <?= json_encode(array_filter($paymentMethods, fn($pm) => $pm['is_active'] == 1)) ?>;
+
+// 1. Populate the hybrid dropdowns dynamically based on exact DB data
+function populateHybridPayments() {
+    const mainSelect = document.getElementById('wmProvider');
+    const bankSelect = document.getElementById('wmBankProvider');
+    
+    // Keep the default first option
+    mainSelect.innerHTML = '<option value="">-- Select Payment Method --</option>';
+    bankSelect.innerHTML = '<option value="">-- Select Specific Bank --</option>';
+    
+    let hasBank = false;
+    
+    allPaymentMethods.forEach(pm => {
+        const nameLower = pm.name.toLowerCase();
+        
+        // If the name contains "bank", add it to the hidden 2nd dropdown
+        if (nameLower.includes('bank')) {
+            hasBank = true;
+            const opt = document.createElement('option');
+            opt.value = pm.provider;
+            opt.dataset.type = 'bank';
+            opt.dataset.category = pm.name;
+            opt.dataset.qr = pm.qr_code_path || '';
+            opt.dataset.accountName = pm.account_name || '';
+            opt.dataset.accountNumber = pm.account_number || '';
+            opt.textContent = pm.provider;
+            bankSelect.appendChild(opt);
+        } 
+        // Otherwise, add it directly to the main dropdown (E-wallets, etc.)
+        else {
+            const opt = document.createElement('option');
+            opt.value = pm.provider;
+            opt.dataset.type = 'ewallet';
+            opt.dataset.category = pm.name;
+            opt.dataset.qr = pm.qr_code_path || '';
+            opt.dataset.accountName = pm.account_name || '';
+            opt.dataset.accountNumber = pm.account_number || '';
+            // Append the category name in parentheses so the cashier knows (e.g., "GCash (E-wallet)")
+            opt.textContent = pm.provider + (pm.name ? ` (${pm.name})` : '');
+            mainSelect.appendChild(opt);
+        }
+    });
+    
+    // Add the "Bank Transfer" trigger at the end of the main dropdown if banks exist
+    if (hasBank) {
+        const triggerOpt = document.createElement('option');
+        triggerOpt.value = 'Bank Transfer';
+        triggerOpt.dataset.type = 'bank_trigger';
+        triggerOpt.textContent = '🏦 Bank Transfer';
+        mainSelect.appendChild(triggerOpt);
+    }
+}
+
+// 2. Handle selection in the main dropdown
+function handlePaymentSelection() {
+    const provSelect = document.getElementById('wmProvider');
+    const selectedOption = provSelect.options[provSelect.selectedIndex];
+    const bankRow = document.getElementById('wmBankRow');
+    const bankSelect = document.getElementById('wmBankProvider');
+    
+    // Reset state
+    hideQRCode();
+    document.getElementById('wmRefNo').value = '';
+    
+    if (selectedOption.dataset.type === 'bank_trigger') {
+        // Show the bank dropdown
+        bankRow.style.display = 'flex';
+        bankSelect.value = ''; // Reset bank selection
+        document.getElementById('walletModalTitle').textContent = 'BANK TRANSFER PAYMENT';
+    } else if (selectedOption.dataset.type === 'ewallet') {
+        // Hide bank dropdown, show E-wallet details directly
+        bankRow.style.display = 'none';
+        document.getElementById('walletModalTitle').textContent = 'E-WALLET PAYMENT';
+        showPaymentDetails(selectedOption);
+    } else {
+        // Reset
+        bankRow.style.display = 'none';
+        document.getElementById('walletModalTitle').textContent = 'SELECT PAYMENT METHOD';
+    }
+}
+
+// 3. Handle selection in the specific bank dropdown
+function updateBankDetails() {
+    const bankSelect = document.getElementById('wmBankProvider');
+    const selectedOption = bankSelect.options[bankSelect.selectedIndex];
+    
+    if (bankSelect.value) {
+        showPaymentDetails(selectedOption);
+    } else {
+        hideQRCode();
+    }
+}
+// Shared function to display QR and account details
+function showPaymentDetails(option) {
+    const qrPath = option.dataset.qr || '';
+    const category = option.dataset.category || '';
+    const provider = option.value;
+    const accName = option.dataset.accountName || '';
+    const accNumber = option.dataset.accountNumber || '';
+    const total = document.getElementById('wmAmount').value;
+    
+    // Dynamic labeling
+    const isBank = category.toLowerCase().includes('bank');
+    document.getElementById('qrScanLabel').textContent = isBank ? 'banking app' : 'e-wallet app';
+    
+    // Prepare QR data
+    document.getElementById('qrImage').src = qrPath ? qrPath : '';
+    document.getElementById('qrPlaceholder').style.display = qrPath ? 'none' : 'block';
+    document.getElementById('qrImage').style.display = qrPath ? 'block' : 'none';
+    
+    document.getElementById('qrLogoText').textContent = provider;
+    document.getElementById('qrAccountName').textContent = accName ? 'Account: ' + accName : '';
+    document.getElementById('qrAccountNumber').textContent = accNumber ? accNumber : '';
+    document.getElementById('qrAmountLabel').textContent = total ? '<?= $currencySymbol ?>' + parseFloat(total).toFixed(2) : '';
+    
+    // Auto-show QR if it exists, and set button to "Hide QR"
+    if (qrPath) {
+        const btn = document.getElementById('btnShowQR');
+        btn.style.display = 'inline-block';
+        btn.innerHTML = '✕ Hide QR'; // <-- Changed text
+        document.getElementById('qrContainer').style.display = 'block';
+    } else {
+        const btn = document.getElementById('btnShowQR');
+        btn.style.display = 'none';
+        btn.innerHTML = '📷 Show QR'; // <-- Reset text
+        document.getElementById('qrContainer').style.display = 'none';
+    }
+}
+
+function hideQRCode() {
+    document.getElementById('qrContainer').style.display = 'none';
+    const btn = document.getElementById('btnShowQR');
+    btn.style.display = 'none';
+    btn.innerHTML = '📷 Show QR'; // <-- Reset text for next time
+}
+
+function toggleQRCode() {
+    const container = document.getElementById('qrContainer');
+    const btn = document.getElementById('btnShowQR');
+    
+    // Toggle visibility and button text
+    if (container.style.display === 'none' || container.style.display === '') {
+        container.style.display = 'block';
+        btn.innerHTML = '✕ Hide QR';
+    } else {
+        container.style.display = 'none';
+        btn.innerHTML = '📷 Show QR';
+    }
+}
+// 5. Helper: Resets the modal every time it is opened
+function resetWalletModal() {
+    document.getElementById('wmProvider').value = '';
+    document.getElementById('wmBankProvider').value = '';
+    document.getElementById('wmBankRow').style.display = 'none';
+    document.getElementById('walletModalTitle').textContent = 'SELECT PAYMENT METHOD';
+    document.getElementById('wmRefNo').value = '';
+    hideQRCode();
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', populateHybridPayments);
+</script>
+<script>
+/* ─── SPLIT PAYMENT LOGIC ─────────────────────────────────────────── */
+let splitTotal = 0;
+
+function openSplitModal() {
+  if (!checkout.length) return showErr('Please add items to the order first.');
+  
+  splitTotal = checkout.reduce((s, i) => s + i.price * i.qty, 0);
+  
+  // Populate summary
+  document.getElementById('splitSummary').innerHTML = 
+    checkout.map(i => `<div class="pm-summary-row"><span>${i.qty}× ${i.name}</span><span>${currencySymbol}${(i.price*i.qty).toFixed(2)}</span></div>`).join('') +
+    `<div class="pm-summary-row total"><span>TOTAL</span><span>${currencySymbol}${splitTotal.toFixed(2)}</span></div>`;
+  
+  document.getElementById('splitTotalDisplay').textContent = currencySymbol + splitTotal.toFixed(2);
+  
+  // Populate provider dropdown
+  const provSelect = document.getElementById('splitWalletProvider');
+  provSelect.innerHTML = '<option value="">-- Select Provider --</option>';
+  allPaymentMethods.forEach(pm => {
+    const opt = document.createElement('option');
+    opt.value = pm.provider;
+    opt.textContent = pm.provider + (pm.name ? ` (${pm.name})` : '');
+    provSelect.appendChild(opt);
+  });
+  
+  // Reset inputs
+  document.getElementById('splitCashAmount').value = '';
+  document.getElementById('splitWalletProvider').value = '';
+  document.getElementById('splitRefNo').value = '';
+  document.getElementById('splitRefRow').style.display = 'none';
+  hideSplitQR(); // Reset QR state
+  document.getElementById('btnCompleteSplit').disabled = true;
+  
+  calcSplitRemaining();
+  document.getElementById('splitModal').classList.add('show');
+  setTimeout(() => document.getElementById('splitCashAmount').focus(), 100);
+}
+
+function closeSplitModal() {
+  document.getElementById('splitModal').classList.remove('show');
+  hideSplitQR();
+  isProcessingPayment = false;
+}
+
+function handleSplitProviderChange() {
+  const provider = document.getElementById('splitWalletProvider').value;
+  const refRow = document.getElementById('splitRefRow');
+  
+  if (provider) {
+    refRow.style.display = 'flex';
+    showSplitQR(provider);
+  } else {
+    refRow.style.display = 'none';
+    hideSplitQR();
+  }
+  validateSplitPayment();
+}
+
+function showSplitQR(providerName) {
+  const pm = allPaymentMethods.find(p => p.provider === providerName);
+  if (!pm) return;
+  
+  const qrPath = pm.qr_code_path || '';
+  const accName = pm.account_name || '';
+  const accNumber = pm.account_number || '';
+  const category = pm.name || '';
+  
+  const cashAmt = parseFloat(document.getElementById('splitCashAmount').value) || 0;
+  const remaining = Math.max(0, splitTotal - cashAmt);
+  
+  const isBank = category.toLowerCase().includes('bank');
+  document.getElementById('splitQrScanLabel').textContent = isBank ? 'banking app' : 'e-wallet app';
+  
+  document.getElementById('splitQrImage').src = qrPath ? qrPath : '';
+  document.getElementById('splitQrPlaceholder').style.display = qrPath ? 'none' : 'block';
+  document.getElementById('splitQrImage').style.display = qrPath ? 'block' : 'none';
+  
+  document.getElementById('splitQrLogoText').textContent = providerName;
+  document.getElementById('splitQrAccountName').textContent = accName ? 'Account: ' + accName : '';
+  document.getElementById('splitQrAccountNumber').textContent = accNumber ? accNumber : '';
+  document.getElementById('splitQrAmountLabel').textContent = remaining > 0 ? currencySymbol + remaining.toFixed(2) : '';
+  
+  if (qrPath) {
+    document.getElementById('splitBtnShowQR').style.display = 'inline-block';
+    document.getElementById('splitBtnShowQR').innerHTML = '✕ Hide QR';
+    document.getElementById('splitQrContainer').style.display = 'block';
+  } else {
+    document.getElementById('splitBtnShowQR').style.display = 'none';
+    document.getElementById('splitQrContainer').style.display = 'none';
+  }
+}
+
+function hideSplitQR() {
+  document.getElementById('splitQrContainer').style.display = 'none';
+  const btn = document.getElementById('splitBtnShowQR');
+  btn.style.display = 'none';
+  btn.innerHTML = '📷 Show QR';
+}
+
+function toggleSplitQR() {
+  const container = document.getElementById('splitQrContainer');
+  const btn = document.getElementById('splitBtnShowQR');
+  
+  if (container.style.display === 'none' || container.style.display === '') {
+    container.style.display = 'block';
+    btn.innerHTML = '✕ Hide QR';
+  } else {
+    container.style.display = 'none';
+    btn.innerHTML = '📷 Show QR';
+  }
+}
+
+function calcSplitRemaining() {
+  const cashAmt = parseFloat(document.getElementById('splitCashAmount').value) || 0;
+  const remaining = Math.max(0, splitTotal - cashAmt);
+  
+  document.getElementById('splitRemainingDisplay').textContent = currencySymbol + remaining.toFixed(2);
+  
+  // Update QR amount label dynamically if visible
+  const qrAmountLabel = document.getElementById('splitQrAmountLabel');
+  if (qrAmountLabel && document.getElementById('splitQrContainer').style.display !== 'none') {
+    qrAmountLabel.textContent = remaining > 0 ? currencySymbol + remaining.toFixed(2) : '';
+  }
+  
+  // Color code the remaining balance
+  const remDisplay = document.getElementById('splitRemainingDisplay');
+  remDisplay.style.color = remaining === 0 ? '#4dff88' : '#ffcc66';
+  
+  validateSplitPayment();
+}
+
+function validateSplitPayment() {
+  const cashAmt = parseFloat(document.getElementById('splitCashAmount').value) || 0;
+  const remaining = splitTotal - cashAmt;
+  const provider = document.getElementById('splitWalletProvider').value;
+  const refNo = document.getElementById('splitRefNo').value.trim();
+  const btn = document.getElementById('btnCompleteSplit');
+  
+  // Valid if: Cash > 0, Remaining > 0, Provider selected, and Ref No is valid (min 5 chars)
+  if (cashAmt > 0 && remaining > 0 && provider && refNo.length >= 5) {
+    btn.disabled = false;
+  } else {
+    btn.disabled = true;
+  }
+}
+async function processSplitPayment() {
+  if (isProcessingPayment) return;
+  isProcessingPayment = true;
+  
+  const cashier = document.getElementById('activeCashier').textContent.trim();
+  if (!cashier || cashier === 'Not logged in') {
+    isProcessingPayment = false;
+    return showErr('Please log in before processing payment.');
+  }
+
+  const cashAmt = parseFloat(document.getElementById('splitCashAmount').value) || 0;
+  const remaining = splitTotal - cashAmt;
+  const provider = document.getElementById('splitWalletProvider').value;
+  const refNo = document.getElementById('splitRefNo').value.trim();
+
+  if (cashAmt <= 0) return showErr('Cash amount must be greater than 0.');
+  if (remaining <= 0) return showErr('Remaining amount must be greater than 0. Use normal Cash payment instead.');
+  if (!provider) return showErr('Please select an E-wallet/Bank provider.');
+  if (refNo.length < 5) return showErr('Reference number seems too short. Please verify.');
+
+  const now = new Date();
+  const date = now.toISOString().split('T')[0];
+  const time = now.toTimeString().split(' ')[0];
+
+  const itemsData = checkout.map(item => ({
+    id: item.id, name: item.name, qty: item.qty, price: item.price,
+    measurement_type: item.measurement_type, unit: item.unit,
+    total: (item.price * item.qty).toFixed(2)
+  }));
+
+  try {
+    const res = await fetch('record/transaction.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: itemsData,
+        total: splitTotal.toFixed(2),
+        paid: splitTotal.toFixed(2),
+        change: '0.00',
+        cashier, date, time,
+        payment_method: 'Split',
+        
+        // Standard fields
+        wallet_provider: provider,
+        wallet_ref: refNo,
+        
+        // NEW: Structured split payment fields for the database columns
+        split_cash_amount: cashAmt.toFixed(2),
+        split_wallet_amount: remaining.toFixed(2),
+        split_wallet_provider: provider
+      })
+    });
+    
+    const data = await res.json();
+    if (!res.ok || data.status !== 'success') {
+      throw new Error(data.message || 'Transaction failed.');
+    }
+
+    closeSplitModal();
+
+    // Fill Receipt with Split Breakdown
+    _fillReceiptCommon(date, time, cashier, itemsData, splitTotal);
+    document.getElementById('r-payment-line').innerHTML = 
+      `💵 Cash: ${currencySymbol}${cashAmt.toFixed(2)}<br>` +
+      `📱 ${provider}: ${currencySymbol}${remaining.toFixed(2)}<br>` +
+      `🔖 Ref: ${refNo}`;
+    document.getElementById('r-change-line').style.display = 'none';
+
+    if (autoPrintReceipt) {
+      await new Promise(r => setTimeout(r, 100));
+      printReceipt();
+    }
+
+    Cache.pushTransaction({
+      id: data.transaction_id || Date.now(),
+      date, time, cashier, items: itemsData,
+      total: splitTotal.toFixed(2), paid: splitTotal.toFixed(2),
+      change: '0.00', method: 'Split', ref: refNo
+    });
+    
+    clearCheckout(true);
+
+    await new Promise(r => setTimeout(r, 300));
+    openSuccessModal({
+      title: 'Split Payment Confirmed! 🔀',
+      subtitle: 'Transaction completed successfully',
+      txnId: data.transaction_id || 'N/A',
+      method: 'Split Payment',
+      cashier: cashier,
+      ref: refNo,
+      total: splitTotal.toFixed(2)
+    });
+    
+    isProcessingPayment = false;
+  } catch (err) {
+    isProcessingPayment = false;
+    showErr(err.message || 'Payment failed. Please try again.');
+  }
 }
 </script>
 </body>

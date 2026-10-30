@@ -81,6 +81,8 @@ if (empty($activePage)) {
     } elseif ($currentPage === 'record.php' && $currentDir === 'record') {
         $activePage = 'records';
     }
+    } elseif ($currentPage === 'admin_upload.php' && $currentDir === 'cloud') {
+    $activePage = 'cloud';
 }
 
 // Helper function to check if a page is active
@@ -625,6 +627,10 @@ body {
     <img src="/Store/image/icons/man.png" alt="Profile">
     <?php if(isset($lowStockCount) && isset($expiringCount) && ($lowStockCount>0||$expiringCount>0)): ?><span class="notif-dot"></span><?php endif; ?>
   </a>
+  <a class="tb-icon <?= $activePage === 'cloud' ? 'active disabled' : '' ?>"
+   href="/Store/cloud/admin_upload.php" title="Upload to Cloud">
+    <img src="/Store/image/icons/upload.png" alt="Upload">
+</a>
  <!-- <a class="tb-icon <?= $activePage === 'breads' ? 'active disabled' : '' ?>" 
      href="/Store/product/bread.php" title="Manage Breads">
     <img src="/Store/image/icons/bakery.png" alt="Breads">
