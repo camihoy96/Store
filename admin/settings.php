@@ -1348,7 +1348,6 @@ function switchTab(tab){
   });
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
-  
   const url = new URL(window.location);
   url.searchParams.set('tab', tab);
   history.replaceState({}, '', url);
@@ -1358,36 +1357,24 @@ function switchTab(tab){
 function copyKey(){
   const keyText = document.getElementById('regKey').textContent;
   navigator.clipboard.writeText(keyText)
-    .then(() => {
-      Swal.fire({ icon:'success', title:'Copied!', text:'Registration key copied to clipboard.', timer:1500, showConfirmButton:false, background:'#1e2330', color:'#e8eaf0' });
-    })
-    .catch(() => {
-      Swal.fire({ icon:'error', title:'Failed', text:'Unable to copy key.', confirmButtonColor:'#ff8800', background:'#1e2330', color:'#e8eaf0' });
-    });
+    .then(() => showCustomAlert('Copied!', 'Registration key copied to clipboard.', 'success'))
+    .catch(() => showCustomAlert('Failed', 'Unable to copy key.', 'error'));
 }
 
 /* ─── Registration Key Modal ─── */
-function openKeyModal(){
-  document.getElementById('keyModal').classList.add('show');
-}
-function closeKeyModal(){
-  document.getElementById('keyModal').classList.remove('show');
-}
+function openKeyModal(){ document.getElementById('keyModal').classList.add('show'); }
+function closeKeyModal(){ document.getElementById('keyModal').classList.remove('show'); }
 
 /* ─── Save General Settings ─── */
 document.getElementById('generalSettingsForm').addEventListener('submit', async function(e){
   e.preventDefault();
-  
   const submitBtn = this.querySelector('button[type="submit"]');
   const originalText = submitBtn.textContent;
-  submitBtn.disabled = true;
-  submitBtn.textContent = '⏳ Saving...';
+  submitBtn.disabled = true; submitBtn.textContent = '⏳ Saving...';
   
   const formData = new FormData(this);
   const settings = {};
-  for(let [key, value] of formData.entries()) {
-    settings[key] = value;
-  }
+  for(let [key, value] of formData.entries()) settings[key] = value;
   
   const requestData = new FormData();
   requestData.append('ajax_action', 'save_settings');
@@ -1396,24 +1383,15 @@ document.getElementById('generalSettingsForm').addEventListener('submit', async 
   try {
     const res = await fetch('settings.php', { method: 'POST', body: requestData });
     const data = await res.json();
-    
-    Swal.fire({ 
-      icon: data.success ? 'success' : 'error',
-      title: data.success ? 'Settings Saved' : 'Error',
-      text: data.message, 
-      confirmButtonColor: '#ff8800',
-      background: '#1e2330',
-      color: '#e8eaf0'
-    });
+    showCustomAlert(data.success ? 'Settings Saved' : 'Error', data.message, data.success ? 'success' : 'error');
   } catch (error) {
-    Swal.fire({ icon:'error', title:'Error', text:'Failed to save settings: ' + error.message, confirmButtonColor:'#ff8800', background:'#1e2330', color:'#e8eaf0' });
+    showCustomAlert('Error', 'Failed to save settings: ' + error.message, 'error');
   } finally {
-    submitBtn.disabled = false;
-    submitBtn.textContent = originalText;
+    submitBtn.disabled = false; submitBtn.textContent = originalText;
   }
 });
 
-/* ─── QR image preview ─── */
+/* ─── QR & Logo preview ─── */
 function previewQR(input){
   const box = document.getElementById('qrPreviewBox');
   const img = document.getElementById('qrPreviewImg');
@@ -1423,8 +1401,6 @@ function previewQR(input){
     r.readAsDataURL(input.files[0]);
   }
 }
-
-/* ─── Logo preview ─── */
 function previewLogo(input){
   const preview = document.getElementById('logoPreview');
   if(input.files && input.files[0]){
@@ -1434,40 +1410,105 @@ function previewLogo(input){
   }
 }
 
-/* ─── Payment Modal: Open (Add) ─── */
+/* ─── Payment Modal ─── */
 function openPaymentModal(){
   document.getElementById('paymentMethodForm').reset();
-  document.getElementById('paymentId').value          = '';
-  document.getElementById('ajaxAction').value         = 'add_payment_method';
-  document.getElementById('modalTitle').textContent   = 'Add Payment Method';
+  document.getElementById('paymentId').value = '';
+  document.getElementById('ajaxAction').value = 'add_payment_method';
+  document.getElementById('modalTitle').textContent = 'Add Payment Method';
   document.getElementById('qrPreviewBox').style.display = 'none';
   document.getElementById('paymentModal').classList.add('show');
 }
-function updateThemePreview() {
-  const bgColor = document.getElementById('themeBgColor').value;
-  const cardColor = document.getElementById('themeCardColor').value;
-  const accentColor = document.getElementById('themeAccentColor').value;
-  const logoPillBg = document.getElementById('logoPillBgColor').value;
-  const logoPillText = document.getElementById('logoPillTextColor').value;
+function editPaymentMethod(id){
+  const row = document.querySelector(`tr[data-id="${id}"]`);
+  if(!row) return;
+  document.getElementById('paymentId').value = id;
+  document.getElementById('ajaxAction').value = 'update_payment_method';
+  const validCategories = ['E-wallet', 'Bank Transfer', 'Cash', 'Other'];
+  document.getElementById('paymentName').value = validCategories.includes(row.dataset.name) ? row.dataset.name : 'E-wallet';
+  document.getElementById('paymentProvider').value = row.dataset.provider || '';
+  document.getElementById('paymentAccountName').value = row.dataset.accountName || '';
+  document.getElementById('paymentAccountNumber').value = row.dataset.accountNumber || '';
+  document.getElementById('paymentOrder').value = row.dataset.order || '0';
+  document.getElementById('paymentDescription').value = row.dataset.desc || '';
+  document.getElementById('paymentActive').checked = row.dataset.active === '1';
+  document.getElementById('qrPreviewBox').style.display = 'none';
+  document.getElementById('modalTitle').textContent = 'Edit Payment Method';
+  if(row.dataset.qr){
+    document.getElementById('qrPreviewImg').src = '../' + row.dataset.qr;
+    document.getElementById('qrPreviewBox').style.display = 'block';
+  }
+  document.getElementById('paymentModal').classList.add('show');
+}
+function closePaymentModal(){ document.getElementById('paymentModal').classList.remove('show'); }
+
+document.getElementById('paymentMethodForm').addEventListener('submit', async function(e){
+  e.preventDefault();
+  const submitBtn = this.querySelector('button[type="submit"]');
+  const originalText = submitBtn.textContent;
+  submitBtn.disabled = true; submitBtn.textContent = '⏳ Saving...';
   
-  // Update text inputs
-  document.getElementById('themeBgColorText').value = bgColor;
-  document.getElementById('themeCardColorText').value = cardColor;
-  document.getElementById('themeAccentColorText').value = accentColor;
-  document.getElementById('logoPillBgColorText').value = logoPillBg;
-  document.getElementById('logoPillTextColorText').value = logoPillText;
-  
-  // Apply live preview
-  document.documentElement.style.setProperty('--bg', bgColor);
-  document.documentElement.style.setProperty('--card', cardColor);
-  document.documentElement.style.setProperty('--card2', cardColor);
-  document.documentElement.style.setProperty('--orange', accentColor);
-  document.documentElement.style.setProperty('--orange-dk', accentColor);
-  document.documentElement.style.setProperty('--orange-lt', accentColor);
-  document.documentElement.style.setProperty('--logo-pill-bg', logoPillBg);
-  document.documentElement.style.setProperty('--logo-pill-text', logoPillText);
+  try {
+    const res = await fetch('settings.php', { method: 'POST', body: new FormData(this) });
+    const data = await res.json();
+    closePaymentModal();
+    if(data.success){
+      showCustomAlert('Success', data.message, 'success');
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      showCustomAlert('Error', data.message, 'error');
+    }
+  } catch (error) {
+    closePaymentModal();
+    showCustomAlert('Error', 'Failed to save: ' + error.message, 'error');
+  } finally {
+    submitBtn.disabled = false; submitBtn.textContent = originalText;
+  }
+});
+
+async function deletePaymentMethod(id){
+  showCustomConfirm('Delete Payment Method?', 'This action cannot be undone.', async () => {
+    const fd = new FormData();
+    fd.append('ajax_action', 'delete_payment_method');
+    fd.append('id', id);
+    try {
+      const res = await fetch('settings.php', { method: 'POST', body: fd });
+      const data = await res.json();
+      if(data.success){
+        showCustomAlert('Deleted', data.message, 'success');
+        setTimeout(() => location.reload(), 1500);
+      } else {
+        showCustomAlert('Error', data.message, 'error');
+      }
+    } catch (error) {
+      showCustomAlert('Error', 'Failed to delete: ' + error.message, 'error');
+    }
+  });
 }
 
+/* ─── Theme Colors ─── */
+function updateThemePreview() {
+  const bg = document.getElementById('themeBgColor').value;
+  const card = document.getElementById('themeCardColor').value;
+  const accent = document.getElementById('themeAccentColor').value;
+  const logoBg = document.getElementById('logoPillBgColor').value;
+  const logoText = document.getElementById('logoPillTextColor').value;
+  
+  document.getElementById('themeBgColorText').value = bg;
+  document.getElementById('themeCardColorText').value = card;
+  document.getElementById('themeAccentColorText').value = accent;
+  document.getElementById('logoPillBgColorText').value = logoBg;
+  document.getElementById('logoPillTextColorText').value = logoText;
+  
+  document.documentElement.style.setProperty('--bg', bg);
+  document.documentElement.style.setProperty('--card', card);
+  document.documentElement.style.setProperty('--card2', card);
+  document.documentElement.style.setProperty('--orange', accent);
+  document.documentElement.style.setProperty('--orange-dk', accent);
+  document.documentElement.style.setProperty('--orange-lt', accent);
+  document.documentElement.style.setProperty('--logo-pill-bg', logoBg);
+  document.documentElement.style.setProperty('--logo-pill-text', logoText);
+}
 function applyThemePreset(bg, card, accent, logoBg, logoText) {
   document.getElementById('themeBgColor').value = bg;
   document.getElementById('themeCardColor').value = card;
@@ -1476,19 +1517,16 @@ function applyThemePreset(bg, card, accent, logoBg, logoText) {
   document.getElementById('logoPillTextColor').value = logoText;
   updateThemePreview();
 }
-
-// Color picker event listeners
 document.getElementById('themeBgColor').addEventListener('input', updateThemePreview);
 document.getElementById('themeCardColor').addEventListener('input', updateThemePreview);
 document.getElementById('themeAccentColor').addEventListener('input', updateThemePreview);
 document.getElementById('logoPillBgColor').addEventListener('input', updateThemePreview);
 document.getElementById('logoPillTextColor').addEventListener('input', updateThemePreview);
-/* ─── Save Theme Colors Separately ─── */
+
 async function saveThemeColors() {
   const submitBtn = event.target;
   const originalText = submitBtn.textContent;
-  submitBtn.disabled = true;
-  submitBtn.textContent = '⏳ Saving...';
+  submitBtn.disabled = true; submitBtn.textContent = '⏳ Saving...';
   
   const settings = {
     theme_bg_color: document.getElementById('themeBgColor').value,
@@ -1497,7 +1535,6 @@ async function saveThemeColors() {
     logo_pill_bg_color: document.getElementById('logoPillBgColor').value,
     logo_pill_text_color: document.getElementById('logoPillTextColor').value
   };
-  
   const requestData = new FormData();
   requestData.append('ajax_action', 'save_settings');
   requestData.append('settings', JSON.stringify(settings));
@@ -1505,291 +1542,62 @@ async function saveThemeColors() {
   try {
     const res = await fetch('settings.php', { method: 'POST', body: requestData });
     const data = await res.json();
-    
-    Swal.fire({ 
-      icon: data.success ? 'success' : 'error',
-      title: data.success ? 'Theme Saved!' : 'Error',
-      text: data.message, 
-      confirmButtonColor: '#ff8800',
-      background: '#1e2330',
-      color: '#e8eaf0'
-    }).then(() => {
-      if (data.success) {
-        // Reload to apply the new theme globally
-        location.reload();
-      }
-    });
+    showCustomAlert(data.success ? 'Theme Saved!' : 'Error', data.message, data.success ? 'success' : 'error');
+    if (data.success) setTimeout(() => location.reload(), 1500);
   } catch (error) {
-    Swal.fire({ 
-      icon: 'error', 
-      title: 'Error', 
-      text: 'Failed to save theme: ' + error.message, 
-      confirmButtonColor: '#ff8800',
-      background: '#1e2330',
-      color: '#e8eaf0'
-    });
+    showCustomAlert('Error', 'Failed to save theme: ' + error.message, 'error');
   } finally {
-    submitBtn.disabled = false;
-    submitBtn.textContent = originalText;
+    submitBtn.disabled = false; submitBtn.textContent = originalText;
   }
 }
-
-/* ─── Reset Theme Colors to Default ─── */
 function resetThemeColors() {
   applyThemePreset('#111318', '#1e2330', '#ff8800', '#ff8800', '#ffffff');
-  
-  Swal.fire({
-    icon: 'info',
-    title: 'Theme Reset',
-    text: 'Colors reset to default. Click "Save Theme Colors" to apply.',
-    confirmButtonColor: '#ff8800',
-    background: '#1e2330',
-    color: '#e8eaf0'
-  });
-}
-/* ─── Payment Modal: Open (Edit) ─── */
-/* ─── Payment Modal: Open (Edit) ─── */
-function editPaymentMethod(id){
-  const row = document.querySelector(`tr[data-id="${id}"]`);
-  if(!row) return;
-  document.getElementById('paymentId').value            = id;
-  document.getElementById('ajaxAction').value           = 'update_payment_method';
-  // Fallback to 'E-wallet' if legacy data has a specific name instead of a category
-  const validCategories = ['E-wallet', 'Bank Transfer', 'Cash', 'Other'];
-  const categoryName = validCategories.includes(row.dataset.name) ? row.dataset.name : 'E-wallet';
-  document.getElementById('paymentName').value          = categoryName;
-  document.getElementById('paymentProvider').value      = row.dataset.provider      || '';
-  document.getElementById('paymentAccountName').value   = row.dataset.accountName   || '';
-  document.getElementById('paymentAccountNumber').value = row.dataset.accountNumber || '';
-  document.getElementById('paymentOrder').value         = row.dataset.order         || '0';
-  document.getElementById('paymentDescription').value   = row.dataset.desc          || '';
-  document.getElementById('paymentActive').checked      = row.dataset.active        === '1';
-  document.getElementById('qrPreviewBox').style.display = 'none';
-  document.getElementById('modalTitle').textContent     = 'Edit Payment Method';
-  // Show existing QR thumbnail if available
-  const qrPath = row.dataset.qr;
-  if(qrPath){
-    const box = document.getElementById('qrPreviewBox');
-    const img = document.getElementById('qrPreviewImg');
-    img.src = '../' + qrPath;
-    box.style.display = 'block';
-  }
-  document.getElementById('paymentModal').classList.add('show');
-}
-
-function closePaymentModal(){
-  document.getElementById('paymentModal').classList.remove('show');
-}
-
-/* ─── Payment Method Form Submit ─── */
-document.getElementById('paymentMethodForm').addEventListener('submit', async function(e){
-  e.preventDefault();
-  
-  const submitBtn = this.querySelector('button[type="submit"]');
-  const originalText = submitBtn.textContent;
-  submitBtn.disabled = true;
-  submitBtn.textContent = '⏳ Saving...';
-  
-  const formData = new FormData(this);
-  
-  try {
-    const res = await fetch('settings.php', { method: 'POST', body: formData });
-    const data = await res.json();
-    
-    if(data.success){
-      closePaymentModal();
-      await Swal.fire({ 
-        icon: 'success', 
-        title: 'Success', 
-        text: data.message, 
-        confirmButtonColor: '#ff8800',
-        timer: 1500,
-        showConfirmButton: true,
-        background: '#1e2330',
-        color: '#e8eaf0'
-      });
-      location.reload();
-    } else {
-      closePaymentModal();
-      await Swal.fire({ 
-        icon: 'error', 
-        title: 'Error', 
-        text: data.message, 
-        confirmButtonColor: '#ff8800',
-        background: '#1e2330',
-        color: '#e8eaf0'
-      });
-    }
-  } catch (error) {
-    closePaymentModal();
-    Swal.fire({ 
-      icon: 'error', 
-      title: 'Error', 
-      text: 'Failed to save payment method: ' + error.message, 
-      confirmButtonColor: '#ff8800',
-      background: '#1e2330',
-      color: '#e8eaf0'
-    });
-  } finally {
-    submitBtn.disabled = false;
-    submitBtn.textContent = originalText;
-  }
-});
-
-/* ─── Delete Payment Method ─── */
-async function deletePaymentMethod(id){
-  const result = await Swal.fire({
-    title:'Delete Payment Method?', 
-    text:'This action cannot be undone.',
-    icon:'warning', 
-    showCancelButton:true,
-    confirmButtonColor:'#ff4444', 
-    cancelButtonColor:'#5a6380', 
-    confirmButtonText:'Yes, delete',
-    background:'#1e2330',
-    color:'#e8eaf0'
-  });
-  if(!result.isConfirmed) return;
-  
-  const fd = new FormData();
-  fd.append('ajax_action', 'delete_payment_method');
-  fd.append('id', id);
-  
-  try {
-    const res = await fetch('settings.php', { method: 'POST', body: fd });
-    const data = await res.json();
-    if(data.success){
-      await Swal.fire({ 
-        icon:'success', 
-        title:'Deleted', 
-        text: data.message, 
-        confirmButtonColor:'#ff8800',
-        timer: 1500,
-        showConfirmButton: true,
-        background:'#1e2330',
-        color:'#e8eaf0'
-      });
-      location.reload();
-    } else {
-      Swal.fire({ 
-        icon:'error', 
-        title:'Error', 
-        text: data.message, 
-        confirmButtonColor:'#ff8800',
-        background:'#1e2330',
-        color:'#e8eaf0'
-      });
-    }
-  } catch (error) {
-    Swal.fire({ 
-      icon:'error', 
-      title:'Error', 
-      text:'Failed to delete: ' + error.message, 
-      confirmButtonColor:'#ff8800',
-      background:'#1e2330',
-      color:'#e8eaf0'
-    });
-  }
+  showCustomAlert('Theme Reset', 'Colors reset to default. Click "Save Theme Colors" to apply.', 'info');
 }
 
 /* ─── Upload Logo ─── */
 async function uploadLogo(){
   const file = document.getElementById('logoUpload').files[0];
-  if(!file){
-    Swal.fire({ icon:'warning', title:'No File', text:'Please select an image file', confirmButtonColor:'#ff8800', background:'#1e2330', color:'#e8eaf0' });
-    return;
-  }
+  if(!file){ showCustomAlert('No File', 'Please select an image file', 'warning'); return; }
   
   const fd = new FormData();
   fd.append('ajax_action', 'upload_logo');
   fd.append('logo', file);
-  
   const uploadBtn = event.target;
   const originalText = uploadBtn.textContent;
-  uploadBtn.disabled = true;
-  uploadBtn.textContent = '⏳ Uploading...';
+  uploadBtn.disabled = true; uploadBtn.textContent = '⏳ Uploading...';
   
   try {
     const res = await fetch('settings.php', { method: 'POST', body: fd });
     const data = await res.json();
     if(data.success){
-      Swal.fire({ icon:'success', title:'Logo Uploaded', text: data.message, confirmButtonColor:'#ff8800', background:'#1e2330', color:'#e8eaf0' })
-          .then(() => location.reload());
+      showCustomAlert('Logo Uploaded', data.message, 'success');
+      setTimeout(() => location.reload(), 1500);
     } else {
-      Swal.fire({ icon:'error', title:'Error', text: data.message, confirmButtonColor:'#ff8800', background:'#1e2330', color:'#e8eaf0' });
+      showCustomAlert('Error', data.message, 'error');
     }
   } catch (error) {
-    Swal.fire({ icon:'error', title:'Error', text:'Failed to upload logo: ' + error.message, confirmButtonColor:'#ff8800', background:'#1e2330', color:'#e8eaf0' });
+    showCustomAlert('Error', 'Failed to upload: ' + error.message, 'error');
   } finally {
-    uploadBtn.disabled = false;
-    uploadBtn.textContent = originalText;
+    uploadBtn.disabled = false; uploadBtn.textContent = originalText;
   }
 }
 
 /* ─── Database Backup ─── */
 function backupWithTimestamp() {
-  Swal.fire({
-    title: 'Create Backup?',
-    text: 'This will download a full database backup with timestamp in the filename.',
-    icon: 'question',
-    showCancelButton: true,
-    confirmButtonColor: '#00c853',
-    cancelButtonColor: '#5a6380',
-    confirmButtonText: 'Yes, Backup Now',
-    background: '#1e2330',
-    color: '#e8eaf0'
-  }).then((result) => {
-    if (result.isConfirmed) {
-      // Show loading
-      Swal.fire({
-        title: 'Creating Backup...',
-        text: 'Please wait while the backup is being generated.',
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        showConfirmButton: false,
-        willOpen: () => {
-          Swal.showLoading();
-        },
-        background: '#1e2330',
-        color: '#e8eaf0'
-      });
-      
-      // Trigger download with timestamp
-      window.location.href = '?action=backup_db';
-      
-      // Close loading after a moment
-      setTimeout(() => {
-        Swal.close();
-      }, 2000);
-    }
+  showCustomConfirm('Create Backup?', 'This will download a full database backup with timestamp in the filename.', () => {
+    window.location.href = '?action=backup_db';
   });
 }
-
-// Add event listener for backup link to show loading feedback
-document.querySelector('a[href="?action=backup_db"]')?.addEventListener('click', function(e) {
-  // Let the download proceed naturally
-  Swal.fire({
-    title: 'Backup Starting...',
-    text: 'Your database backup will download shortly.',
-    icon: 'info',
-    timer: 2000,
-    showConfirmButton: false,
-    background: '#1e2330',
-    color: '#e8eaf0'
-  });
+document.querySelector('a[href="?action=backup_db"]')?.addEventListener('click', function() {
+  showCustomAlert('Backup Starting...', 'Your database backup will download shortly.', 'info');
 });
 
 /* ─── Close modals on backdrop click ─── */
-document.getElementById('paymentModal').addEventListener('click', function(e){
-  if(e.target === this) closePaymentModal();
-});
-document.getElementById('keyModal').addEventListener('click', function(e){
-  if(e.target === this) closeKeyModal();
-});
+document.getElementById('paymentModal').addEventListener('click', function(e){ if(e.target === this) closePaymentModal(); });
+document.getElementById('keyModal').addEventListener('click', function(e){ if(e.target === this) closeKeyModal(); });
 
 /* ─── Handle URL tab parameter ─── */
 const urlTab = new URLSearchParams(window.location.search).get('tab');
-if(urlTab && ['general', 'payment', 'appearance', 'backup'].includes(urlTab)){
-  switchTab(urlTab);
-}
+if(urlTab && ['general', 'payment', 'appearance', 'backup'].includes(urlTab)) switchTab(urlTab);
 </script>

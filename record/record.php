@@ -935,7 +935,6 @@ while ($rowPB = $resPB->fetch_assoc()) {
       </span>
     </div>
   </div>
-
   <!-- TABS -->
   <div class="tab-nav">
     <button class="tab-btn active" onclick="switchTab('active',this)">

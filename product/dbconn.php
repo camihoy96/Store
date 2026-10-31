@@ -1,11 +1,15 @@
 <?php
-mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+$host = "127.0.0.1";
+$username = "store_app";
+$password = "Store2026!";
+$database = "store";
+$port = 3310;
 
-$servername = "127.0.0.1:3306";
-$username = "root";
-$password = "";
-$dbname = "Store";
+$conn = new mysqli($host, $username, $password, $database, $port);
+$conn->query("SET time_zone = '+08:00'");
+if ($conn->connect_error) {
+    die("Database connection failed: " . $conn->connect_error);
+}
 
-$conn = new mysqli($servername, $username, $password, $dbname, 3306);
 $conn->set_charset("utf8mb4");
 ?>

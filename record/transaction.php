@@ -48,12 +48,9 @@ if (!$data || json_last_error() !== JSON_ERROR_NONE) {
     echo json_encode(['status' => 'error', 'message' => 'Invalid JSON payload.']);
     exit;
 }
-
 /* ── DB connection ────────────────────────────────────────────────── */
 require('../dbconn.php');
-
 date_default_timezone_set('Asia/Manila');
-
 /* ── Extract & sanitise fields ────────────────────────────────────── */
 $items        = $data['items']          ?? [];
 $total        = (float)($data['total']  ?? 0);
@@ -62,15 +59,12 @@ $change       = (float)($data['change'] ?? 0);
 $cashier      = trim($data['cashier']   ?? ($_SESSION['fullname'] ?? 'Unknown'));
 $date         = $data['date']           ?? date('Y-m-d');
 $time         = $data['time']           ?? date('H:i:s');
-
 $rawMethod    = trim($data['payment_method'] ?? 'Cash');
 $referenceNo  = trim($data['reference_no']   ?? '');
-
 /* ── Resolve payment_method label & split details ─────────────────── */
 $splitCashAmount    = 0.0;
 $splitWalletAmount  = 0.0;
 $splitWalletProvider= '';
-
 if (strtolower($rawMethod) === 'wallet' || strtolower($rawMethod) === 'ewallet') {
     $provider    = trim($data['wallet_provider'] ?? '');
     $referenceNo = trim($data['wallet_ref']      ?? $referenceNo);
@@ -78,7 +72,6 @@ if (strtolower($rawMethod) === 'wallet' || strtolower($rawMethod) === 'ewallet')
 } elseif (strtolower($rawMethod) === 'split') {
     $paymentMethod = 'Split';
     $referenceNo   = trim($data['wallet_ref'] ?? $referenceNo);
-    
     // Extract structured split data if provided
     if (isset($data['split_cash_amount'])) {
         $splitCashAmount = (float)$data['split_cash_amount'];
@@ -92,7 +85,6 @@ if (strtolower($rawMethod) === 'wallet' || strtolower($rawMethod) === 'ewallet')
 } else {
     $paymentMethod = ($rawMethod !== '') ? $rawMethod : 'Cash';
 }
-
 /* ── Validate ─────────────────────────────────────────────────────── */
 if (empty($items)) {
     http_response_code(400);
@@ -110,24 +102,18 @@ if (strtolower($paymentMethod) !== 'cash' && strtolower($paymentMethod) !== 'spl
     echo json_encode(['status' => 'error', 'message' => 'Reference number is required for this payment type.']);
     exit;
 }
-
 /* ── Encode items to JSON ─────────────────────────────────────────── */
 $itemsJson = json_encode($items, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
 /* ── Check if payment columns exist (graceful upgrade) ────────────── */
 $hasPaymentMethod = false;
 $hasReferenceNo   = false;
 $hasSplitCols     = false;
-
 $chk1 = $conn->query("SHOW COLUMNS FROM transactions LIKE 'payment_method'");
 if ($chk1 && $chk1->num_rows > 0) $hasPaymentMethod = true;
-
 $chk2 = $conn->query("SHOW COLUMNS FROM transactions LIKE 'reference_no'");
 if ($chk2 && $chk2->num_rows > 0) $hasReferenceNo = true;
-
 $chk3 = $conn->query("SHOW COLUMNS FROM transactions LIKE 'split_cash_amount'");
 if ($chk3 && $chk3->num_rows > 0) $hasSplitCols = true;
-
 /* ── Auto-create columns if missing ───────────────────────────────── */
 if (!$hasPaymentMethod) {
     $conn->query("ALTER TABLE transactions ADD COLUMN payment_method VARCHAR(50) DEFAULT 'Cash' AFTER change_due");
@@ -139,10 +125,8 @@ if (!$hasReferenceNo) {
 }
 // Note: We don't auto-create split columns here to avoid accidental schema changes, 
 // but the code gracefully falls back if they are missing.
-
 /* ── Begin transaction so record + stock deduction are atomic ────── */
 $conn->begin_transaction();
-
 try {
 
     /* ── Insert transaction ───────────────────────────────────────── */
@@ -181,14 +165,11 @@ try {
             $itemsJson, $paymentMethod, $referenceNo
         );
     }
-
     if (!$stmt->execute()) {
         throw new Exception('DB execute failed: ' . $stmt->error);
     }
-
     $transactionId = $conn->insert_id;
     $stmt->close();
-
     /* ── Deduct stock from product_batches (FIFO) ─────────────────── */
     foreach ($items as $item) {
         $itemId = $item['id'] ?? null;

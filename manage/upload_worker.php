@@ -65,7 +65,6 @@ $TYPE_TO_TABLES = [
  */
 function buildWhere($conn, $table, $lastSync, $onlyUnsynced) {
     global $RECENCY_COLUMN;
-
     if (!isset($RECENCY_COLUMN[$table])) {
         return '';
     }

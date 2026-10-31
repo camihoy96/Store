@@ -1005,6 +1005,7 @@ body {
   <span>Help <span class="hint-key">F1</span></span>
   <span>Pay: <span class="hint-key">Enter</span></span>
   <span>E-Wallet: <span class="hint-key">F3</span></span>
+  <span>Split: <span class="hint-key">F4</span></span>  
   <span>Cancel: <span class="hint-key">F2</span></span>
   <span>Custom: <span class="hint-key">F8</span> focus · <span class="hint-key">F9</span> add</span>
   <span>Search Input: <span class="hint-key">F5</span></span>
@@ -2319,6 +2320,7 @@ document.addEventListener('keydown',function(e){
     if (document.getElementById('walletModal').classList.contains('show')) { closeWalletModal();  return; }
     if (document.getElementById('payModal').classList.contains('show'))    { closePayModal();     return; }
     if (document.getElementById('dashModal').classList.contains('show'))   { closeDashLogin();    return; }
+    if (document.getElementById('splitModal').classList.contains('show')) { closeSplitModal(); return; }
     return;
   }
     if ((e.key === 'Enter' || e.keyCode === 13) &&

@@ -1,11 +1,9 @@
 <?php
 session_start();
-require('../dbconn.php');
-
+require(__DIR__ . '/../dbconn.php');
 if (!isset($_SESSION['loggedin']) || $_SESSION['user_type'] !== 'admin') {
     header("Location: ../access_denied.php"); exit();
 }
-
 // ═══════════════════════════════════════════════════════
 // HANDLE REGISTRATION (Add New User)
 // ═══════════════════════════════════════════════════════
@@ -14,7 +12,6 @@ $regUsername = '';
 $regFullname = '';
 $regEmail    = '';
 $regType     = 'cashier';
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registration'])) {
     $regUsername     = trim($_POST['username'] ?? '');
     $regFullname     = trim($_POST['fullname'] ?? '');
@@ -64,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registration'])) {
         $regErrorMessages[] = 'Registration key is required';
     } else {
         $validRegistrationKey = null;
-        $keyStmt = $conn->prepare("SELECT reg_key FROM registration_keys ORDER BY updated_at DESC LIMIT 1");
+        $keyStmt = $conn->prepare("SELECT reg_key FROM registration_keys ORDER BY id DESC LIMIT 1");
         if ($keyStmt) {
             $keyStmt->execute();
             $keyRow = $keyStmt->get_result()->fetch_assoc();
@@ -269,7 +266,7 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
 .btn-sm    {padding:3px 9px;font-size:10px;}
 
 /* MODAL */
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(54, 51, 51, 0.8);z-index:9000;align-items:center;justify-content:center;}
+.modal-overlay{display:none;position:fixed;inset:0;z-index:9000;align-items:center;justify-content:center;}
 .modal-overlay.show{display:flex;}
 .modal-box{background:var(--card2);border:1px solid var(--border2);border-radius:12px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.8);animation:mfade .2s ease;}
 @keyframes mfade{from{opacity:0;transform:scale(.95) translateY(-8px);}to{opacity:1;transform:none;}}
@@ -587,16 +584,20 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;back
     </form>
   </div>
 </div>
-
 <script>
 /* Session flash */
 <?php if(isset($_SESSION['swal'])): ?>
-document.addEventListener('DOMContentLoaded',function(){
-  Swal.fire({icon:'<?= $_SESSION['swal']['type'] ?>',title:'<?= addslashes($_SESSION['swal']['title']) ?>',
-    text:'<?= addslashes($_SESSION['swal']['text']) ?>',confirmButtonColor:'#ff8800',
-    background:'#1e2330',color:'#e8eaf0',timer:3000,timerProgressBar:true});
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => {
+        if (typeof showCustomAlert === 'function') {
+            showCustomAlert('<?= addslashes($_SESSION['swal']['title']) ?>', '<?= addslashes($_SESSION['swal']['text']) ?>', '<?= $_SESSION['swal']['type'] ?>');
+        }
+    }, 100);
 });
 <?php unset($_SESSION['swal']); endif; ?>
+
+/* Modal helpers */
+function closeModal(id){document.getElementById(id).classList.remove('show');}
 
 /* Modal helpers */
 function closeModal(id){document.getElementById(id).classList.remove('show');}
@@ -662,20 +663,17 @@ if (regConfField && regPwField && pwMatchMsg) {
 /* Delete confirm */
 function confirmDelete(e,el){
   e.preventDefault();
-  const url=el.getAttribute('href');
-  const row=el.closest('tr');
-  const name=row.querySelector('.td-name')?.textContent||'this user';
-  Swal.fire({
-    title:'Delete User?',
-    html:`Delete <strong style="color:#ffaa44;">${name}</strong>?<br><small style="color:#9aa3bc;">This cannot be undone.</small>`,
-    icon:'warning',showCancelButton:true,
-    confirmButtonColor:'#ff4444',cancelButtonColor:'#555',
-    confirmButtonText:'Yes, delete!',cancelButtonText:'Cancel',
-    background:'#1e2330',color:'#e8eaf0'
-  }).then(r=>{if(r.isConfirmed) window.location.href=url;});
+  const url = el.getAttribute('href');
+  const row = el.closest('tr');
+  const name = row.querySelector('.td-name')?.textContent || 'this user';
+  showCustomConfirm(
+    'Delete User?', 
+    `Delete <strong style="color:#ffaa44;">${name}</strong>? This cannot be undone.`, 
+    () => { window.location.href = url; },
+    true // isHtml = true
+  );
   return false;
 }
-
 /* Search */
 function searchTable(){
   const q=document.getElementById('searchInput').value.toUpperCase();

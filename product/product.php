@@ -85,10 +85,27 @@ cleanSoldoutBatches($conn);
 
 /* ═══════ HANDLE POST ═══════════════════════════════════════════════════ */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    
     // Handle edit product (update product details)
     if (isset($_POST['update_product'])) {
         $id = intval($_POST['product_id']);
+         $name = trim($_POST['name']);
+    $dupStmt = $conn->prepare(
+        "SELECT id, name FROM products WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) AND id <> ? LIMIT 1"
+    );
+    $dupStmt->bind_param("si", $name, $id);
+    $dupStmt->execute();
+    $dupRow = $dupStmt->get_result()->fetch_assoc();
+    $dupStmt->close();
+
+    if ($dupRow) {
+        $_SESSION['swal'] = [
+            'type'  => 'error',
+            'title' => 'Name Already Used',
+            'text'  => "Another product (id #{$dupRow['id']}) is already named \"{$dupRow['name']}\". Please choose a different name."
+        ];
+        header("Location: product.php");
+        exit;
+    }
         $batch_id = intval($_POST['edit_batch_id'] ?? 0);
         $name = $conn->real_escape_string($_POST['name']);
         $category = $conn->real_escape_string($_POST['category']);
@@ -101,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $seller_store = $conn->real_escape_string($_POST['seller_store']);
         $purchase_date = $_POST['purchase_date'];
         $expiry_date = (($_POST['edit_expiry_status'] ?? 'has_date') === 'na' || empty($_POST['expiry_date'])) ? null : $_POST['expiry_date'];
-        
+        $name = $conn->real_escape_string(trim($_POST['name']));
         // Handle image upload
         $product_image = null;
         if (isset($_FILES['edit_image_path']) && $_FILES['edit_image_path']['error'] === UPLOAD_ERR_OK) {
@@ -110,7 +127,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $fn = uniqid('prod_', true) . '.' . strtolower(pathinfo($_FILES['edit_image_path']['name'], PATHINFO_EXTENSION));
             if (move_uploaded_file($_FILES['edit_image_path']['tmp_name'], $dir . $fn)) {
                 $product_image = 'uploads/' . $fn;
-                
                 // Delete old image from products table
                 $old_img = $conn->query("SELECT image_path FROM products WHERE id = $id")->fetch_assoc();
                 if (!empty($old_img['image_path']) && file_exists(__DIR__.'/../'.$old_img['image_path'])) {
@@ -118,7 +134,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
-        
         // Update main product record
         $sql = "UPDATE products SET 
                 name='$name', category='$category', brand='$brand', price=$price, 
@@ -162,34 +177,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header("Location: product.php"); 
         exit;
     }
-    
     // Handle new product addition
-    if (isset($_POST['add_product'])) {
-        $r = $conn->query("SELECT MAX(CAST(SUBSTRING(code,2) AS UNSIGNED)) AS mc FROM products")->fetch_assoc();
-        $code = 'P'.(($r['mc'] ?? 0) + 1);
-        
-        // Check for duplicates
-        $name_check = $conn->real_escape_string(trim($_POST['name']));
-        $category_check = $conn->real_escape_string(trim($_POST['category']));
-        
-        $check_stmt = $conn->prepare("SELECT id, name, category FROM products WHERE name = ? AND category = ?");
-        $check_stmt->bind_param("ss", $name_check, $category_check);
-        $check_stmt->execute();
-        $check_result = $check_stmt->get_result();
-        
-        if ($check_result->num_rows > 0) {
-            $existing = $check_result->fetch_assoc();
-            $_SESSION['swal'] = [
-                'type' => 'warning',
-                'title' => '⚠️ Duplicate Product Found!',
-                'text' => "A product named '{$existing['name']}' already exists in the '{$existing['category']}' category."
-            ];
-            $check_stmt->close();
-            header("Location: product.php");
-            exit;
-        }
-        $check_stmt->close();
-        
+if (isset($_POST['add_product'])) {
+    $r = $conn->query("SELECT MAX(CAST(SUBSTRING(code,2) AS UNSIGNED)) AS mc FROM products")->fetch_assoc();
+    $code = 'P'.(($r['mc'] ?? 0) + 1);
+
+    // ── Name-only, case-insensitive duplicate check ──
+    $name_check = trim($_POST['name']);
+
+    $check_stmt = $conn->prepare(
+        "SELECT id, name, code FROM products WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1"
+    );
+    $check_stmt->bind_param("s", $name_check);
+    $check_stmt->execute();
+    $existing = $check_stmt->get_result()->fetch_assoc();
+    $check_stmt->close();
+
+    if ($existing) {
+        $_SESSION['swal'] = [
+            'type'  => 'warning',
+            'title' => '⚠️ Product Already Exists',
+            'text'  => "A product named \"{$existing['name']}\" ({$existing['code']}) already exists. Please use the Restock button on that product instead of adding a duplicate."
+        ];
+        header("Location: product.php");
+        exit;
+    }
+// Check for duplicates
+$name_check = $conn->real_escape_string(trim($_POST['name']));
+$category_check = $conn->real_escape_string(trim($_POST['category']));
+$name = $conn->real_escape_string($_POST['name']);
+$check_stmt = $conn->prepare("SELECT id, name, category FROM products WHERE name = ? AND category = ?");
+$check_stmt->bind_param("ss", $name_check, $category_check);
+$check_stmt->execute();
+$check_result = $check_stmt->get_result();
+
+if ($check_result->num_rows > 0) {
+    $existing = $check_result->fetch_assoc();
+    $_SESSION['swal'] = [
+        'type' => 'warning',
+        'title' => '⚠️ Duplicate Product Found!',
+        'text' => "A product named '{$existing['name']}' already exists in the '{$existing['category']}' category."
+    ];
+    $check_stmt->close();
+    header("Location: product.php");
+    exit;
+}
+$check_stmt->close(); 
         $name = $conn->real_escape_string($_POST['name']);
         $brand = $conn->real_escape_string($_POST['brand'] ?? '');
         $category = $conn->real_escape_string($_POST['category']);
@@ -391,7 +424,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 }
-
+/* ═══════ EXISTING PRODUCT NAMES (for duplicate detection in JS) ═══════ */
+$existingNames = [];
+$nameQuery = $conn->query("SELECT id, code, name FROM products");
+while ($n = $nameQuery->fetch_assoc()) {
+    $existingNames[] = [
+        'id'   => (int)$n['id'],
+        'code' => $n['code'],
+        'name' => $n['name'],
+    ];
+}
 /* ═══════ ALERT DATA ═════════════════════════════════════════════════════ */
 $today = date('Y-m-d');
 $warn3m = date('Y-m-d', strtotime('+3 months'));
@@ -872,7 +914,64 @@ body.modal-open {
   padding:8px 11px;font-size:12px;transition:all .15s;width:100%;
 }
 .form-input:focus,.form-select:focus{outline:none;border-color:var(--orange);background:rgba(255,136,0,.04);}
-.form-input::placeholder{color:var(--text3);}
+/* ═══════ INPUT TEXT vs PLACEHOLDER CONTRAST ═══════ */
+
+/* Typed text — clearly visible, medium weight */
+.form-input,
+.form-select,
+textarea {
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* Placeholder — thin, lighter grey, distinctly "empty" */
+.form-input::placeholder,
+.form-select::placeholder,
+textarea::placeholder {
+  color: #6f7891;       /* much lighter than --text3 */
+  font-weight: 300;
+  font-style: normal;
+  opacity: 1;           /* override browser default of 0.5 so the color is exact */
+  -webkit-text-fill-color: #6f7891;  /* Safari/Chrome respect this */
+}
+
+/* Same treatment inside the 3 modals (higher specificity, beats any later CSS) */
+#addModal .form-input,
+#editModal .form-input,
+#restockModal .form-input,
+#addModal .form-select,
+#editModal .form-select,
+#restockModal .form-select,
+#addModal textarea,
+#editModal textarea,
+#restockModal textarea {
+  font-weight: 500;
+  color: var(--text);
+}
+
+#addModal .form-input::placeholder,
+#editModal .form-input::placeholder,
+#restockModal .form-input::placeholder,
+#addModal .form-select::placeholder,
+#editModal .form-select::placeholder,
+#restockModal .form-select::placeholder,
+#addModal textarea::placeholder,
+#editModal textarea::placeholder,
+#restockModal textarea::placeholder,
+#addModal input[type="text"]::placeholder,
+#editModal input[type="text"]::placeholder,
+#restockModal input[type="text"]::placeholder,
+#addModal input[type="number"]::placeholder,
+#editModal input[type="number"]::placeholder,
+#restockModal input[type="number"]::placeholder,
+#addModal input[type="date"]::placeholder,
+#editModal input[type="date"]::placeholder,
+#restockModal input[type="date"]::placeholder {
+  color: #6f7891;
+  font-weight: 300;
+  opacity: 1;
+  -webkit-text-fill-color: #6f7891;
+}
 .form-select option{background:var(--card2);}
 .toggle-group{display:flex;gap:6px;}
 .toggle-opt{flex:1;}
@@ -1186,9 +1285,9 @@ body.modal-open {
         <input type="checkbox" class="expired-checkbox" data-id="<?= $expiredId ?>" onchange="updateDeleteButton()" style="width:16px;height:16px;cursor:pointer;">
     </td>
     <?php endif; ?>
-    <td><span class="td-code"><?= htmlspecialchars($batch['code']) ?></span></td>
+        <td><span class="td-code"><?= htmlspecialchars($batch['code'] ?? '') ?></span></td>
     <td>
-        <span class="td-name"><?= htmlspecialchars($batch['name']) ?></span>
+        <span class="td-name"><?= htmlspecialchars($batch['name'] ?? '') ?></span>
         <?php if ($viewMode !== 'expired'): ?>
         <?php if ($isNear && $isLow): ?>
         <span class="bell-wrap both">
@@ -1208,9 +1307,9 @@ body.modal-open {
         <?php endif; ?>
         <?php endif; ?>
     </td>
-    <td><a href="product.php?view=active&cat=<?= urlencode($batch['category']) ?>" class="cat-chip"><?= htmlspecialchars($batch['category'] ?: '—') ?></a></td>
-    <td style="color:var(--text2);"><?= htmlspecialchars($batch['brand']) ?></td>
-    <td style="color:var(--text3);font-size:10px;"><?= htmlspecialchars($batch['seller_store']) ?></td>
+    <td><a href="product.php?view=active&cat=<?= urlencode($batch['category'] ?? '') ?>" class="cat-chip"><?= htmlspecialchars($batch['category'] ?? '—') ?></a></td>
+    <td style="color:var(--text2);"><?= htmlspecialchars($batch['brand'] ?? '') ?></td>
+    <td style="color:var(--text3);font-size:10px;"><?= htmlspecialchars($batch['seller_store'] ?? '') ?></td>
     <td class="td-cap">₱<?= number_format($batch['purchase_price'], 2) ?></td>
     <td class="td-price">₱<?= number_format($batch['price'], 2) ?></td>
    <td>
@@ -1876,7 +1975,7 @@ const expiredItems    = <?= $expiredJson ?>;
 /* Clock */
 function updateClock(){document.getElementById('currentTime').textContent=new Date().toLocaleString('en-US',{timeZone:'Asia/Manila',weekday:'short',year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});}
 setInterval(updateClock,1000); updateClock();
-
+const existingProducts = <?= json_encode($existingNames, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 /* Sidebar */
 function toggleSidebar(){const sb=document.getElementById('sidebar');sb.style.display=sb.style.display==='flex'?'none':'flex';document.getElementById('menuBtn').textContent=sb.style.display==='flex'?'✖':'☰';}
 function toggleSub(btn){const sub=btn.nextElementSibling;const o=sub.classList.toggle('open');btn.classList.toggle('open',o);}
@@ -1896,22 +1995,35 @@ function openModal(id) {
         document.body.classList.add('modal-open');
     }
 }
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' || e.key === 'Esc') {
-        // Close all open modals
-        document.querySelectorAll('.modal-overlay.show').forEach(modal => {
-            modal.classList.remove('show');
-        });
-        document.body.classList.remove('modal-open');
+document.addEventListener('click', function(e) {
+    // If the click landed on a modal overlay background (not the box)
+    if (e.target.classList.contains('modal-overlay')) {
+        e.stopPropagation();
+        // Optional: subtle shake so the user knows the click is ignored
+        const box = e.target.querySelector('.modal-box');
+        if (box) {
+            box.animate(
+                [
+                    { transform: 'translateX(0)' },
+                    { transform: 'translateX(-4px)' },
+                    { transform: 'translateX(4px)' },
+                    { transform: 'translateX(0)' }
+                ],
+                { duration: 200, easing: 'ease-in-out' }
+            );
+        }
     }
-});
+}, true);
 
 /* ── Open Add Modal with optional category pre-fill ── */
 function openAddModal(cat) {
     // Reset steps
-    stepState.add = 1; 
+    stepState.add = 1;
     renderStep('add');
-    
+    //  Clear any leftover duplicate lock + name value from a previous attempt
+    clearDuplicateLock();
+    const nameInput = document.getElementById('addName');
+    if (nameInput) nameInput.value = '';
     // Pre-fill category
     const catInput = document.getElementById('addCategory');
     const pill = document.getElementById('addCatPill');
@@ -1923,14 +2035,9 @@ function openAddModal(cat) {
         catInput.value = '';
         pill.style.display = 'none';
     }
-    
-    // Use openModal function
     openModal('addModal');
-    
-    // Make draggable
     makeDraggable('addModalBox', 'addModalHdr');
 }
-
 /* ── Step logic ── */
 const stepState = {add: 1, edit: 1, restock: 1};
 
@@ -2757,7 +2864,6 @@ function deleteSingleExpired(id) {
         });
         return;
     }
-    
     Swal.fire({
         title: 'Delete Expired Record?',
         text: 'This will permanently remove this expired product record.',
@@ -2857,6 +2963,173 @@ document.addEventListener('DOMContentLoaded', function() {
     makeDraggable('editModalBox', 'editModalHdr');
     makeDraggable('restockModalBox', 'restockModalHdr');
     makeDraggable('viewModalBox', 'viewModalHdr');
+});
+</script>
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   DUPLICATE PRODUCT NAME DETECTION
+   - Fires as the user types the product name in the Add modal
+   - Matches case-insensitively, trimmed
+   - On match: disables Step 2 + Step 3 + hides "Add Product"
+     and shows a red banner with a "Restock instead" button
+   ══════════════════════════════════════════════════════════════════ */
+const DUP_UI_ID = 'dupNameWarning';
+
+function normalizeName(s) {
+  return (s || '').trim().toLowerCase();
+}
+
+function findDuplicate(name) {
+  const key = normalizeName(name);
+  if (!key) return null;
+  return existingProducts.find(p => normalizeName(p.name) === key) || null;
+}
+
+function getDupWarningElement() {
+  let el = document.getElementById(DUP_UI_ID);
+  if (el) return el;
+
+  // Insert the banner at the top of the Add modal body
+  el = document.createElement('div');
+  el.id = DUP_UI_ID;
+  el.style.cssText = `
+    display:none;
+    margin: 0 0 14px;
+    padding: 12px 14px;
+    background: rgba(255,68,68,0.12);
+    border: 1.5px solid #ff4444;
+    border-radius: 8px;
+    color: #ffaaaa;
+    font-size: 12px;
+    line-height: 1.5;
+  `;
+  const body = document.querySelector('#addModal .modal-body');
+  if (body) body.insertBefore(el, body.firstChild);
+  return el;
+}
+
+function applyDuplicateLock(duplicate) {
+  const warning    = getDupWarningElement();
+  const nextBtn    = document.getElementById('addNextBtn');
+  const submitBtn  = document.getElementById('addSubmitBtn');
+  const tab2       = document.getElementById('addTab2');
+  const tab3       = document.getElementById('addTab3');
+
+  // Disable every input/select/textarea inside Step 2 and Step 3
+  const lockedPanels = [
+    document.getElementById('addStep2'),
+    document.getElementById('addStep3'),
+  ];
+  lockedPanels.forEach(panel => {
+    if (!panel) return;
+    panel.querySelectorAll('input, select, textarea, button').forEach(el => {
+      // Don't disable the Restock button we add below
+      if (el.id === 'dupRestockBtn') return;
+      el.disabled = true;
+    });
+  });
+
+  // Visually gray the step tabs for Step 2/3
+  [tab2, tab3].forEach(t => { if (t) { t.style.opacity = '0.35'; t.style.pointerEvents = 'none'; } });
+
+  // Hide the Add button, hide the Next button (nothing left to advance to)
+  if (submitBtn) submitBtn.style.display = 'none';
+  if (nextBtn)   nextBtn.style.display   = 'none';
+
+  // Show the warning with a Restock button
+  if (warning) {
+    warning.style.display = 'block';
+    warning.innerHTML = `
+      <div style="font-weight:800;margin-bottom:4px;">⚠️ Product Already Exists</div>
+      <div style="color:#ffcccc;margin-bottom:10px;">
+        A product named <strong>"${escapeHtml(duplicate.name)}"</strong>
+        (${escapeHtml(duplicate.code)}) is already in your product list.
+        Duplicate names are not allowed.
+        <br><br>
+        If you received new stock, use <strong>Restock</strong> instead — it creates a new batch under the same product.
+      </div>
+      <button type="button" id="dupRestockBtn"
+              style="padding:7px 14px;background:linear-gradient(180deg,#ff9900,#cc6600);
+                     color:white;border:none;border-radius:6px;font-size:12px;
+                     font-weight:700;cursor:pointer;">
+        📦 Restock "${escapeHtml(duplicate.name)}" instead
+      </button>
+    `;
+    document.getElementById('dupRestockBtn').addEventListener('click', () => {
+      closeModal('addModal');
+      openRestockModal(duplicate.id);
+    });
+  }
+}
+
+function clearDuplicateLock() {
+  const warning = document.getElementById(DUP_UI_ID);
+  if (warning) {
+    warning.style.display = 'none';
+    warning.innerHTML = '';
+  }
+
+  const nextBtn   = document.getElementById('addNextBtn');
+  const submitBtn = document.getElementById('addSubmitBtn');
+  const tab2      = document.getElementById('addTab2');
+  const tab3      = document.getElementById('addTab3');
+
+  const lockedPanels = [
+    document.getElementById('addStep2'),
+    document.getElementById('addStep3'),
+  ];
+  lockedPanels.forEach(panel => {
+    if (!panel) return;
+    panel.querySelectorAll('input, select, textarea, button').forEach(el => {
+      el.disabled = false;
+    });
+  });
+
+  [tab2, tab3].forEach(t => { if (t) { t.style.opacity = ''; t.style.pointerEvents = ''; } });
+
+  // Restore the correct buttons based on the current step
+  if (typeof renderStep === 'function' && typeof stepState !== 'undefined') {
+    renderStep('add');
+  } else {
+    if (submitBtn) submitBtn.style.display = 'none';
+    if (nextBtn)   nextBtn.style.display   = '';
+  }
+}
+
+function checkDuplicateOnInput() {
+  const nameInput = document.getElementById('addName');
+  if (!nameInput) return;
+
+  const dup = findDuplicate(nameInput.value);
+  if (dup) {
+    // Don't allow the user to proceed
+    if (stepState.add > 1) {
+      stepState.add = 1;
+      renderStep('add');
+    }
+    applyDuplicateLock(dup);
+  } else {
+    clearDuplicateLock();
+  }
+}
+
+// Simple HTML escaper (avoid breaking the banner HTML)
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// Wire the input when the modal opens
+document.addEventListener('DOMContentLoaded', function () {
+  const nameInput = document.getElementById('addName');
+  if (nameInput) {
+    nameInput.addEventListener('input', checkDuplicateOnInput);
+    nameInput.addEventListener('blur',  checkDuplicateOnInput);
+  }
 });
 </script>
 <?php require_once __DIR__ . '/../include/admin_footer.php'; ?>

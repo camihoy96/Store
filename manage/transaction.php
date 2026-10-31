@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../dbconn.php';
+date_default_timezone_set('Asia/Manila');
 // Check if payment columns exist ────────────────────────────────────
 $hasPaymentMethod = false;
 $hasReferenceNo   = false;
@@ -479,20 +480,23 @@ if (isset($_GET['export']) && in_array($_GET['export'],['pdf','pdf_all'])) {
     $pdf->Output('D','Transaction_Report_' . date('Ymd_His') . ($_GET['export']==='pdf'?'_filtered':'_all') . '.pdf'); 
     exit;
 }
-
 require_once __DIR__ . '/../include/header.php';
-
 /* ─── PAGE QUERY ─────────────────────────────────────────────────────── */
-$query = "SELECT * FROM transactions WHERE date = CURDATE() AND (status IS NULL OR status != 'voided')";
+$today = date('Y-m-d');   // uses Asia/Manila after date_default_timezone_set
 if (!empty($_GET['trans_id'])) {
-    $query .= " AND id = " . intval($_GET['trans_id']);
+    // Filter to a specific transaction ID
+    $stmt = $conn->prepare("SELECT * FROM transactions WHERE id = ? ORDER BY id DESC");
+    $tid  = intval($_GET['trans_id']);
+    $stmt->bind_param('i', $tid);
+} else {
+    // Show today's transactions only
+    $stmt = $conn->prepare("SELECT * FROM transactions WHERE date = ? AND (status IS NULL OR status != 'voided') ORDER BY id DESC");
+    $stmt->bind_param('s', $today);
 }
-$query .= " ORDER BY id DESC";
-$result = $conn->query($query);
-
+$stmt->execute();
+$result = $stmt->get_result();
 $totalSales=0; $totalPaid=0; $totalChange=0; $totalPiecesSold=0; $totalKgSold=0; $productTotals=[];
 $allTransactionsData = [];
-
 // Initialize Payment Breakdown Structure
 $breakdownTotals = [
     'cash' => ['count' => 0, 'amount' => 0.0],

@@ -6,7 +6,7 @@ $database = "store";
 $port = 3310;
 
 $conn = new mysqli($host, $username, $password, $database, $port);
-
+$conn->query("SET time_zone = '+08:00'");
 if ($conn->connect_error) {
     die("Database connection failed: " . $conn->connect_error);
 }

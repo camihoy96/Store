@@ -1,81 +1,149 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 $pageTitle = 'Reserve Items';
-require_once __DIR__ . '/../include/admin_header.php';
+require('../dbconn.php');
 
-/* ═══════ HANDLE POST ═══════════════════════════════════════════════════ */
+/* ═══════ HANDLE POST — must run BEFORE any HTML is output ═══════════ */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+    /* ─── UPDATE EXISTING RESERVE ITEM ─────────────────────────────── */
     if (isset($_POST['update_product'])) {
-        $id           = intval($_POST['product_id']);
-        $cr           = $conn->query("SELECT image_path FROM reserved_items WHERE id=$id")->fetch_assoc();
-        $name         = $conn->real_escape_string($_POST['name']);
-        $category     = $conn->real_escape_string($_POST['category']);
-        $brand        = $conn->real_escape_string($_POST['brand']);
-        $seller_store = $conn->real_escape_string($_POST['seller_store']);
-        $purchase_price = floatval($_POST['purchase_price']);
-        $purchase_date  = $conn->real_escape_string($_POST['purchase_date']);
-        $mtype       = $_POST['edit_measurement'] ?? 'pieces';
-        $unit        = ($mtype === 'kg') ? 'kg' : 'pcs';
-        $quantity    = ($mtype === 'kg') ? floatval($_POST['kg']) : floatval($_POST['pieces']);
-        $expiry_date = (($_POST['edit_expiry_status'] ?? 'has_date') === 'na' || empty($_POST['expiry_date'])) ? null : $_POST['expiry_date'];
-        $product_image = $cr['image_path'];
+        $id             = intval($_POST['product_id']);
+        $cr             = $conn->query("SELECT image_path FROM reserved_items WHERE id=$id")->fetch_assoc() ?: [];
+        $name           = $conn->real_escape_string($_POST['name'] ?? '');
+        $category       = $conn->real_escape_string($_POST['category'] ?? '');
+        $brand          = $conn->real_escape_string($_POST['brand'] ?? '');
+        $seller_store   = $conn->real_escape_string($_POST['seller_store'] ?? '');
+        $purchase_price = floatval($_POST['purchase_price'] ?? 0);
+        $purchase_date  = $conn->real_escape_string($_POST['purchase_date'] ?? '');
+        if (empty($purchase_date)) $purchase_date = date('Y-m-d');
+        $mtype          = $_POST['edit_measurement'] ?? 'pieces';
+        $unit           = ($mtype === 'kg') ? 'kg' : 'pcs';
+        $quantity       = ($mtype === 'kg') ? floatval($_POST['kg'] ?? 0) : floatval($_POST['pieces'] ?? 0);
+        $expiry_date    = (($_POST['edit_expiry_status'] ?? 'has_date') === 'na' || empty($_POST['expiry_date'])) ? null : $_POST['expiry_date'];
+        $product_image  = $cr['image_path'] ?? null;
 
         if (isset($_FILES['edit_image_path']) && $_FILES['edit_image_path']['error'] === UPLOAD_ERR_OK) {
             $dir = __DIR__ . '/../uploads/';
             if (!is_dir($dir)) mkdir($dir, 0755, true);
             $fn = uniqid('res_', true) . '.' . strtolower(pathinfo($_FILES['edit_image_path']['name'], PATHINFO_EXTENSION));
             if (move_uploaded_file($_FILES['edit_image_path']['tmp_name'], $dir . $fn)) {
-                if (!empty($cr['image_path']) && file_exists(__DIR__ . '/' . $cr['image_path'])) unlink(__DIR__ . '/' . $cr['image_path']);
+                if (!empty($cr['image_path']) && file_exists(__DIR__ . '/../' . $cr['image_path'])) {
+                    @unlink(__DIR__ . '/../' . $cr['image_path']);
+                }
                 $product_image = 'uploads/' . $fn;
             }
         }
 
-        $stmt = $conn->prepare("UPDATE reserved_items SET name=?,category=?,brand=?,seller_store=?,
-            purchase_price=?,quantity=?,unit=?,measurement_type=?,purchase_date=?,expiry_date=?,image_path=? WHERE id=?");
-        $stmt->bind_param("ssssdssssssi", $name, $category, $brand, $seller_store,
-            $purchase_price, $quantity, $unit, $mtype, $purchase_date, $expiry_date, $product_image, $id);
-        $_SESSION['swal'] = $stmt->execute()
-            ? ['type'=>'success','title'=>'Updated!','text'=>'Reserve item updated successfully.']
-            : ['type'=>'error','title'=>'Error','text'=>$stmt->error];
+        if ($expiry_date === null) {
+            $stmt = $conn->prepare("UPDATE reserved_items SET
+                name = ?, category = ?, brand = ?, seller_store = ?,
+                purchase_price = ?, quantity = ?, unit = ?, measurement_type = ?,
+                purchase_date = ?, expiry_date = NULL, image_path = ?
+                WHERE id = ?");
+            if (!$stmt) die("Prepare failed: " . $conn->error);
+            $stmt->bind_param("ssssddssssi",
+                $name, $category, $brand, $seller_store,
+                $purchase_price, $quantity, $unit, $mtype,
+                $purchase_date, $product_image, $id);
+        } else {
+            $stmt = $conn->prepare("UPDATE reserved_items SET
+                name = ?, category = ?, brand = ?, seller_store = ?,
+                purchase_price = ?, quantity = ?, unit = ?, measurement_type = ?,
+                purchase_date = ?, expiry_date = ?, image_path = ?
+                WHERE id = ?");
+            if (!$stmt) die("Prepare failed: " . $conn->error);
+            $stmt->bind_param("ssssddsssssi",
+                $name, $category, $brand, $seller_store,
+                $purchase_price, $quantity, $unit, $mtype,
+                $purchase_date, $expiry_date, $product_image, $id);
+        }
+
+        if (!$stmt->execute()) {
+            die("<pre style='background:#222;color:#f88;padding:20px;'>UPDATE failed
+MySQL error : " . htmlspecialchars($stmt->error) . "
+Errno       : " . $stmt->errno . "
+</pre>");
+        }
+        $_SESSION['swal'] = ['type'=>'success','title'=>'Updated!','text'=>'Reserve item updated successfully.'];
         $stmt->close();
         header("Location: item_reserve.php"); exit;
+    }
 
-    } else {
-        $name           = $_POST['name'];
-        $brand          = $_POST['brand'];
-        $category       = $_POST['category'];
-        $seller         = $_POST['seller'];
-        $purchase_price = floatval($_POST['purchase_price']);
-        $purchase_date  = $_POST['purchase_date'];
-        $expiry_date    = (($_POST['expiry_status'] ?? 'has_date') === 'na' || empty($_POST['expiry_date'])) ? null : $_POST['expiry_date'];
-        $mtype        = ($_POST['measurement'] === 'kg') ? 'kg' : 'pieces';
-        $unit         = ($mtype === 'kg') ? 'kg' : 'pcs';
-        $quantity     = ($mtype === 'kg') ? floatval($_POST['kg']) : floatval($_POST['pieces']);
+    /* ─── INSERT NEW RESERVE ITEM ──────────────────────────────────── */
+    else {
+        $name           = $_POST['name']            ?? '';
+        $brand          = $_POST['brand']           ?? '';
+        $category       = $_POST['category']        ?? '';
+        $seller         = $_POST['seller']          ?? '';
+        $purchase_price = floatval($_POST['purchase_price'] ?? 0);
+        $purchase_date  = $_POST['purchase_date']   ?? '';
+        if (empty($purchase_date)) $purchase_date = date('Y-m-d');
+
+        $expiry_status = $_POST['expiry_status'] ?? 'has_date';
+        $expiry_raw    = $_POST['expiry_date']   ?? '';
+        $expiry_date   = ($expiry_status === 'na' || empty($expiry_raw)) ? null : $expiry_raw;
+
+        $mtype = ($_POST['measurement'] ?? 'pieces') === 'kg' ? 'kg' : 'pieces';
+        $unit  = ($mtype === 'kg') ? 'kg' : 'pcs';
+        $quantity = ($mtype === 'kg')
+            ? floatval($_POST['kg']     ?? 0)
+            : floatval($_POST['pieces'] ?? 0);
+
+        $reserve_code = 'R' . date('YmdHis') . str_pad(rand(0, 9999), 4, '0', STR_PAD_LEFT);
+
         $product_image = null;
-
         if (isset($_FILES['image_path']) && $_FILES['image_path']['error'] === UPLOAD_ERR_OK) {
             $dir = __DIR__ . '/../uploads/';
             if (!is_dir($dir)) mkdir($dir, 0755, true);
             $fn = uniqid('res_', true) . '.' . strtolower(pathinfo($_FILES['image_path']['name'], PATHINFO_EXTENSION));
-            if (move_uploaded_file($_FILES['image_path']['tmp_name'], $dir . $fn)) $product_image = 'uploads/' . $fn;
+            if (move_uploaded_file($_FILES['image_path']['tmp_name'], $dir . $fn)) {
+                $product_image = 'uploads/' . $fn;
+            }
         }
 
-        $stmt = $conn->prepare("INSERT INTO reserved_items (name,category,purchase_price,brand,seller_store,
-            expiry_date,purchase_date,image_path,quantity,unit,measurement_type) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
-        $stmt->bind_param("ssdsssssdss", $name, $category, $purchase_price, $brand, $seller,
-            $expiry_date, $purchase_date, $product_image, $quantity, $unit, $mtype);
-        $_SESSION['swal'] = $stmt->execute()
-            ? ['type'=>'success','title'=>'Added!','text'=>'Reserve item added successfully.']
-            : ['type'=>'error','title'=>'Error','text'=>$stmt->error];
+        if ($expiry_date === null) {
+            $stmt = $conn->prepare("INSERT INTO reserved_items
+               (code, name, category, purchase_price, brand, seller_store,
+                purchase_date, image_path, quantity, unit, measurement_type)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            if (!$stmt) die("Prepare failed: " . $conn->error);
+            $stmt->bind_param("sssdssssdss",
+                $reserve_code, $name, $category, $purchase_price, $brand, $seller,
+                $purchase_date, $product_image, $quantity, $unit, $mtype);
+        } else {
+            $stmt = $conn->prepare("INSERT INTO reserved_items
+               (code, name, category, purchase_price, brand, seller_store,
+                expiry_date, purchase_date, image_path, quantity, unit, measurement_type)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            if (!$stmt) die("Prepare failed: " . $conn->error);
+            $stmt->bind_param("sssdsssssdss",
+                $reserve_code, $name, $category, $purchase_price, $brand, $seller,
+                $expiry_date, $purchase_date, $product_image, $quantity, $unit, $mtype);
+        }
+
+        if (!$stmt->execute()) {
+            die("<pre style='background:#222;color:#f88;padding:20px;'>INSERT failed
+MySQL error : " . htmlspecialchars($stmt->error) . "
+Errno       : " . $stmt->errno . "
+Code used   : " . htmlspecialchars($reserve_code) . "
+</pre>");
+        }
+
+        $_SESSION['swal'] = ['type'=>'success','title'=>'Added!','text'=>'Reserve item added successfully.'];
         $stmt->close();
         header("Location: item_reserve.php"); exit;
     }
 }
 
+/* ═══════ NOW SAFE to include HTML header ═══════════════════════════════ */
+require_once __DIR__ . '/../include/admin_header.php';
+
 /* ═══════ ALERT DATA ════════════════════════════════════════════════════ */
 $today  = date('Y-m-d');
 $warn3m = date('Y-m-d', strtotime('+3 months'));
 $lowThrPcs = 20;
-
 $lowStockItems   = $conn->query("SELECT id,name,measurement_type,quantity,unit FROM reserved_items WHERE quantity>0 AND quantity<=$lowThrPcs ORDER BY quantity ASC")->fetch_all(MYSQLI_ASSOC);
 $outOfStockItems = $conn->query("SELECT id,name,measurement_type,unit FROM reserved_items WHERE quantity=0 OR quantity IS NULL")->fetch_all(MYSQLI_ASSOC);
 $expiringItems   = $conn->query("SELECT id,name,expiry_date,DATEDIFF(expiry_date,CURDATE()) as days_remaining FROM reserved_items WHERE expiry_date IS NOT NULL AND expiry_date NOT IN('N/A','0000-00-00') AND expiry_date>=CURDATE() AND expiry_date<='$warn3m' AND DATEDIFF(expiry_date,CURDATE())>0 ORDER BY days_remaining ASC")->fetch_all(MYSQLI_ASSOC);
@@ -106,7 +174,6 @@ $result      = $conn->query("SELECT * FROM reserved_items $whereClause ORDER BY 
 $countForCat = $conn->query("SELECT COUNT(*) as c FROM reserved_items $whereClause")->fetch_assoc()['c'];
 $totalPages  = ceil($countForCat / $limit);
 ?>
-
 <style>
 /* Reserve accent – teal */
 :root{
@@ -248,7 +315,144 @@ $totalPages  = ceil($countForCat / $limit);
 .modal-foot{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:8px;}
 .step-indicator{font-size:10px;color:var(--text3);}
 
-@media(max-width:640px){.form-grid{grid-template-columns:1fr;}.fg-span2{grid-column:span 1;}}
+
+/* ═══════════════════════════════════════════════════════
+   RESPONSIVE — TABLET (≤ 900px)
+═══════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .page-hero { flex-direction: column; align-items: stretch; gap: 8px; }
+  .page-hero > div:last-child { display: flex; gap: 6px; flex-wrap: wrap; }
+  .page-hero .btn { flex: 1; justify-content: center; padding: 6px 10px; font-size: 11px; }
+  .page-hero h2 { font-size: 15px; }
+
+  .cat-bar-top { flex-direction: column; align-items: stretch; gap: 6px; }
+  .cat-search-wrap { width: 100%; }
+  .cat-search-wrap input { width: 100%; }
+  .cat-tabs-scroll { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 6px; }
+
+  .sum-strip { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .sum-tile { min-width: 0; padding: 7px 10px; }
+  .sum-tile .st-val { font-size: 15px; }
+
+  .legend-strip { justify-content: flex-start; }
+  .legend-strip .btn { margin-left: auto !important; }
+
+  /* Modals — fit nicely, not full-screen */
+  .modal-overlay { padding: 8px; }
+  .modal-box { max-width: 96vw; max-height: 94vh; border-radius: 10px; }
+  .modal-hdr { padding: 12px 14px 0; }
+  .modal-body { padding: 12px 14px; }
+  .modal-foot { padding: 10px 14px; }
+
+  .form-grid { grid-template-columns: 1fr; }
+  .fg-span2 { grid-column: span 1; }
+
+  .step-tab { font-size: 10px; padding: 7px 4px; min-width: 80px; }
+  .step-tab .st-num { width: 16px; height: 16px; font-size: 9px; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   RESPONSIVE — MOBILE (≤ 640px)
+═══════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  .page-hero h2 { font-size: 14px; }
+  .page-hero p  { font-size: 10px; }
+
+  .cat-bar { padding: 8px 10px; }
+  .cat-bar-title { font-size: 9px; }
+  .cat-tab-btn { padding: 5px 9px; font-size: 10px; }
+  .cat-tab-btn .ct-icon { font-size: 12px; }
+
+  .sum-strip { grid-template-columns: repeat(2, 1fr); gap: 5px; }
+  .sum-tile { padding: 6px 8px; }
+  .sum-tile .st-label { font-size: 8px; }
+  .sum-tile .st-val { font-size: 14px; }
+
+  .legend-chip { font-size: 9px; padding: 2px 6px; }
+
+  .panel-header { padding: 8px 10px; }
+  .panel-title { font-size: 11px; }
+
+  /* Table — keep as table, smaller cells */
+  .data-tbl { min-width: 950px; }
+  .data-tbl thead th { padding: 6px 7px; font-size: 9px; }
+  .data-tbl tbody td { padding: 6px 7px; font-size: 10px; }
+
+  .td-name { font-size: 11px; }
+  .cat-chip { font-size: 9px; padding: 1px 6px; }
+  .qty-badge { font-size: 9px; padding: 1px 6px; }
+  .exp-badge { font-size: 9px; padding: 1px 5px; }
+
+  .prod-img, .prod-img-ph { width: 32px; height: 32px; font-size: 13px; }
+
+  .refill-form { gap: 2px; }
+  .refill-inp { width: 50px; font-size: 10px; padding: 2px 4px; }
+  .rf-btn { width: 22px; height: 22px; font-size: 12px; }
+
+  .action-btns .btn { width: 24px; height: 24px; font-size: 11px; }
+
+  .pager { gap: 2px; padding: 6px; }
+  .pg-btn { padding: 3px 7px; font-size: 10px; }
+
+  /* Modal on mobile */
+  .modal-overlay { padding: 6px; }
+  .modal-box { max-width: 100%; max-height: 96vh; border-radius: 8px; }
+  .modal-hdr { padding: 10px 12px 0; }
+  .modal-hdr-top h3 { font-size: 13px; }
+  .modal-body { padding: 10px 12px; }
+  .modal-foot {
+    padding: 8px 12px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .modal-foot > div { display: flex; gap: 6px; width: 100%; }
+  .modal-foot .btn { flex: 1; justify-content: center; }
+  .step-indicator { text-align: center; width: 100%; }
+
+  .form-section-title { font-size: 9px; }
+  .form-group label { font-size: 9px; }
+  .form-input, .form-select { padding: 6px 8px; font-size: 11px; }
+  .toggle-opt label { font-size: 10px; padding: 6px; }
+
+  /* Alert modal mobile tweaks */
+  .compact-alert-modal { width: 95vw !important; max-width: 95vw !important; }
+  .compact-alert-modal .swal2-title { font-size: 14px !important; }
+  .compact-alert-modal table { font-size: 9px !important; }
+  .compact-alert-modal td, .compact-alert-modal th { padding: 3px 4px !important; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   RESPONSIVE — SMALL MOBILE (≤ 420px)
+═══════════════════════════════════════════════════════ */
+@media (max-width: 420px) {
+  .page-hero h2 { font-size: 13px; }
+  .sum-tile .st-val { font-size: 13px; }
+  .sum-tile .st-label { font-size: 8px; }
+  .cat-tab-btn { padding: 4px 8px; font-size: 9px; }
+  .data-tbl thead th { font-size: 8px; padding: 5px 6px; }
+  .data-tbl tbody td { font-size: 9px; padding: 5px 6px; }
+  .td-name { font-size: 10px; }
+  .refill-inp { width: 44px; font-size: 9px; }
+  .rf-btn { width: 20px; height: 20px; font-size: 11px; }
+  .action-btns .btn { width: 22px; height: 22px; font-size: 10px; }
+  .modal-hdr-top h3 { font-size: 12px; }
+  .step-tab { font-size: 9px; min-width: 70px; padding: 6px 3px; }
+  
+  .compact-alert-modal { width: 98vw !important; max-width: 98vw !important; }
+  .compact-alert-modal .swal2-html-container { max-height: 45vh !important; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   LANDSCAPE SMALL DEVICES
+═══════════════════════════════════════════════════════ */
+@media (max-height: 500px) and (orientation: landscape) {
+  .modal-box { max-height: 96vh; }
+  .modal-hdr { padding: 8px 12px 0; }
+  .modal-body { padding: 8px 12px; }
+  .modal-foot { padding: 6px 12px; }
+  .form-section { margin-bottom: 10px; }
+}
 </style>
 </head>
 <body>
@@ -425,12 +629,25 @@ $totalPages  = ceil($countForCat / $limit);
             <?php endif; ?>
           </td>
           <td>
-            <?php if (!empty($row['image_path']) && file_exists($row['image_path'])): ?>
-              <img src="<?= htmlspecialchars($row['image_path']) ?>" class="prod-img" alt="">
-            <?php else: ?>
-              <div class="prod-img-ph">🗃</div>
-            <?php endif; ?>
-          </td>
+    <?php
+        $imagePath = !empty($row['image_path'])
+            ? dirname(__DIR__) . '/' . ltrim($row['image_path'], '/\\')
+            : '';
+        $imageUrl = !empty($row['image_path'])
+            ? '../' . ltrim($row['image_path'], '/\\')
+            : '';
+    ?>
+    <?php if (!empty($imagePath) && file_exists($imagePath)): ?>
+        <img
+            src="<?= htmlspecialchars($imageUrl) ?>"
+            class="prod-img"
+            alt="<?= htmlspecialchars($row['name']) ?>"
+            title="<?= htmlspecialchars($row['name']) ?>"
+        >
+    <?php else: ?>
+        <div class="prod-img-ph">🗃</div>
+    <?php endif; ?>
+</td>
           <td>
             <span class="qty-badge <?= $qtyClass ?>">
               <?= ($unit==='kg') ? number_format($curQty,2) : $curQty ?> <?= $unit ?>
@@ -452,10 +669,10 @@ $totalPages  = ceil($countForCat / $limit);
               <button type="submit" name="action" value="increase" class="rf-btn rf-inc" title="Add">+</button>
             </form>
           </td>
-          <td style="white-space:nowrap;">
-            <button class="btn btn-blue btn-sm" onclick="openEditModal(<?= $row['id'] ?>)">✏</button>
-            <button class="btn btn-red btn-sm"  onclick="confirmDelete(<?= $row['id'] ?>)">🗑</button>
-          </td>
+         <td style="white-space:nowrap;">
+    <button class="btn btn-blue btn-sm" onclick="openEditModal(<?= $row['id'] ?>)">✎</button>
+    <button class="btn btn-red btn-sm" onclick="confirmDelete(<?= $row['id'] ?>)">✖</button>
+</td>
         </tr>
         <?php endwhile; ?>
         </tbody>
@@ -476,16 +693,6 @@ $totalPages  = ceil($countForCat / $limit);
   </div>
 
 </div><!-- /main -->
-
-<!-- STATUS BAR -->
-<div class="status-bar">
-  <span>ANGEL'S BAKESHOP POS v1.0</span><span class="s-sep">|</span>
-  <span>Reserve Items</span><span class="s-sep">|</span>
-  <span><?= date('F j, Y') ?></span>
-  <div class="s-conn offline" id="connStatus"><div class="cdot"></div><span>OFFLINE</span></div>
-</div>
-<div class="footer">&copy; <?= date('Y') ?> St4nger Dev. All rights reserved.</div>
-
 <!-- ═══════ ADD MODAL (3 Steps) ════════════════════════════════════════ -->
 <div class="modal-overlay" id="addModal">
   <div class="modal-box" id="addModalBox">
@@ -576,7 +783,7 @@ $totalPages  = ceil($countForCat / $limit);
             <div class="form-grid">
               <div class="form-group">
                 <label>Date of Purchase</label>
-                <input type="date" name="purchase_date" class="form-input">
+               <input type="date" name="purchase_date" class="form-input" value="<?= date('Y-m-d') ?>">
               </div>
               <div class="form-group">
                 <label>Expiry Status</label>
@@ -818,7 +1025,7 @@ function openEditModal(id){
       document.getElementById('editBrand').value=p.brand||'';
       document.getElementById('editSellerStore').value=p.seller_store||'';
       document.getElementById('editPurchasePrice').value=p.purchase_price||'';
-      document.getElementById('editPurchaseDate').value=p.purchase_date||'';
+      document.getElementById('editPurchaseDate').value = p.purchase_date || '<?= date('Y-m-d') ?>';
       // Expiry
       const hasExp=p.expiry_date&&p.expiry_date!=='N/A'&&p.expiry_date!=='0000-00-00';
       document.getElementById('editExpHas').checked=hasExp;
@@ -839,7 +1046,7 @@ function openEditModal(id){
       stepState.edit=1; renderStep('edit');
       document.getElementById('editModal').classList.add('show');
     })
-    .catch(e=>Swal.fire({icon:'error',title:'Error',text:e.message,background:'#1e2330',color:'#e8eaf0'}));
+    .catch(e => showCustomAlert('Error', e.message, 'error'));
 }
 
 /* Edit submit */
@@ -850,18 +1057,20 @@ function submitEditForm(form){
   btn.disabled=true;btn.textContent='⏳ Saving…';
   fetch('item_reserve.php',{method:'POST',body:new FormData(form),redirect:'follow'})
     .then(r=>{if(r.redirected)window.location.href=r.url;else window.location.reload();})
-    .catch(e=>{Swal.fire({icon:'error',title:'Error',text:e.message,background:'#1e2330',color:'#e8eaf0'});btn.disabled=false;btn.textContent='💾 Save Changes';});
+    .catch(e => {       showCustomAlert('Error', e.message, 'error');       btn.disabled = false;       btn.textContent = '💾 Save Changes';     });
   return false;
 }
 
 /* Delete */
-function confirmDelete(id){
-  Swal.fire({title:'Delete Reserve Item?',text:'This cannot be undone.',icon:'warning',showCancelButton:true,
-    confirmButtonColor:'#ff4444',cancelButtonColor:'#555',confirmButtonText:'Yes, delete!',
-    background:'#1e2330',color:'#e8eaf0'
-  }).then(r=>{if(r.isConfirmed)window.location.href='delete_items.php?id='+id;});
+function confirmDelete(id) {
+  showCustomConfirm(
+    'Delete Reserve Item?', 
+    'This cannot be undone.', 
+    () => {
+      window.location.href = 'delete_items.php?id=' + id + '&table=reserved_items';
+    }
+  );
 }
-
 /* Table search */
 function searchTable(){
   const q=document.getElementById('tableSearch').value.toUpperCase();
@@ -899,9 +1108,7 @@ function showAlerts(){
     html+='</table></div>';
   }
   html+='</div>';
-  Swal.fire({title:'🚨 Reserve Inventory Alerts',html,icon:'warning',confirmButtonText:'✓ Acknowledged',
-    confirmButtonColor:'#00bcd4',width:'700px',background:'#1e2330',color:'#e8eaf0',
-    showCloseButton:true,allowOutsideClick:false});
+    showCustomAlert('🚨 Reserve Inventory Alerts', html, 'warning', true);
 }
 
 /* Auto-show alerts on load */
@@ -909,9 +1116,12 @@ document.addEventListener('DOMContentLoaded',function(){
   <?php if(count($lowStockItems)+count($outOfStockItems)+count($expiringItems)+count($expiredItems)>0): ?>
   setTimeout(showAlerts,700);
   <?php endif; ?>
-  <?php if(isset($_SESSION['swal'])): ?>
-  Swal.fire({icon:'<?= $_SESSION['swal']['type'] ?>',title:'<?= addslashes($_SESSION['swal']['title']) ?>',
-    text:'<?= addslashes($_SESSION['swal']['text']) ?>',confirmButtonColor:'#00bcd4',background:'#1e2330',color:'#e8eaf0'});
+   <?php if(isset($_SESSION['swal'])): ?>
+  setTimeout(() => {
+    if (typeof showCustomAlert === 'function') {
+      showCustomAlert('<?= addslashes($_SESSION['swal']['title']) ?>', '<?= addslashes($_SESSION['swal']['text']) ?>', '<?= $_SESSION['swal']['type'] ?>');
+    }
+  }, 100);
   <?php unset($_SESSION['swal']); endif; ?>
 });
 
@@ -958,5 +1168,6 @@ function checkConn(){
 }
 setInterval(checkConn,15000); checkConn();
 </script>
+<?php require_once __DIR__ . '/../include/admin_footer.php'; ?>
 </body>
 </html>
