@@ -239,21 +239,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_action'])) {
         exit();
     }
 
-    switch ($_POST['ajax_action']) {
+        switch ($_POST['ajax_action']) {
 
         // ── Save General Settings ──────────────────────────────────────────────
         case 'save_settings':
             $success = true;
             $message = 'Settings saved successfully';
-            
+
             // Decode the JSON settings
             $settingsArray = json_decode($_POST['settings'], true);
-            
+
             if (!is_array($settingsArray)) {
                 echo json_encode(['success' => false, 'message' => 'Invalid settings data']);
                 exit();
             }
-            
+
             foreach ($settingsArray as $key => $value) {
                 $value = $conn->real_escape_string($value);
                 $key   = $conn->real_escape_string($key);
@@ -898,24 +898,80 @@ body {
     </div>
 </div>
         <div class="settings-card">
-          <h3>🖨️ Receipt Settings</h3>
-          <div class="form-group">
-            <label>Receipt Footer Text</label>
-            <textarea name="receipt_footer"><?= htmlspecialchars($settings['receipt_footer'] ?? 'Thank you for your purchase!') ?></textarea>
-          </div>
-          <div class="form-group">
-            <label>Auto Print Receipt</label>
-            <select name="auto_print_receipt">
-              <option value="1" <?= ($settings['auto_print_receipt'] ?? '1') == '1' ? 'selected' : '' ?>>Yes</option>
-              <option value="0" <?= ($settings['auto_print_receipt'] ?? '1') == '0' ? 'selected' : '' ?>>No</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Receipt Width (mm)</label>
-            <input type="number" name="receipt_width"
-                   value="<?= htmlspecialchars($settings['receipt_width'] ?? '58') ?>">
-          </div>
-        </div>
+  <h3>🖨️ Receipt Settings</h3>
+  <div class="form-group">
+    <label>Receipt Footer Text</label>
+    <textarea name="receipt_footer"><?= htmlspecialchars($settings['receipt_footer'] ?? 'Thank you for your purchase!') ?></textarea>
+  </div>
+  <div class="form-group">
+    <label>Auto Print Receipt</label>
+    <select name="auto_print_receipt">
+      <option value="1" <?= ($settings['auto_print_receipt'] ?? '1') == '1' ? 'selected' : '' ?>>Yes</option>
+      <option value="0" <?= ($settings['auto_print_receipt'] ?? '1') == '0' ? 'selected' : '' ?>>No</option>
+    </select>
+  </div>
+
+  <!-- NEW: Thermal roll settings -->
+  <div style="background:rgba(255,136,0,0.06);border:1px solid rgba(255,136,0,0.2);border-radius:8px;padding:14px;margin-bottom:12px;">
+    <div style="font-size:11px;font-weight:700;color:var(--orange-lt);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">
+      🧾 Thermal Roll Configuration
+    </div>
+    <div class="form-row-2">
+      <div class="form-group" style="margin-bottom:10px;">
+        <label>Paper Width (mm)</label>
+        <select name="receipt_width" id="receiptWidthSelect" onchange="autoCalcPrintable()">
+          <option value="57"  <?= ($settings['receipt_width'] ?? '57') == '57' ? 'selected' : '' ?>>57mm (2.25")</option>
+          <option value="58"  <?= ($settings['receipt_width'] ?? '57') == '58' ? 'selected' : '' ?>>58mm (2.28")</option>
+          <option value="80"  <?= ($settings['receipt_width'] ?? '57') == '80' ? 'selected' : '' ?>>80mm (3.15")</option>
+          <option value="110" <?= ($settings['receipt_width'] ?? '57') == '110' ? 'selected' : '' ?>>110mm (4.33")</option>
+        </select>
+        <small style="color:var(--text3);display:block;margin-top:4px;">
+          Physical paper width. The printer head can't print edge-to-edge, so the printable area below should be smaller.
+        </small>
+      </div>
+      <div class="form-group" style="margin-bottom:10px;">
+        <label>Printable Width (mm)</label>
+        <input type="number" name="receipt_printable" id="receiptPrintableInput" step="0.5" min="30"
+               value="<?= htmlspecialchars($settings['receipt_printable'] ?? '48') ?>">
+        <small style="color:var(--text3);display:block;margin-top:4px;">
+          Actual printable area (usually paper width − 9mm for thermal margins).
+          <a href="#" onclick="autoCalcPrintable();return false;" style="color:var(--orange-lt);">Auto-calculate</a>
+        </small>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label>Receipt Font Size (px)</label>
+      <input type="number" name="receipt_font_size" step="1" min="6" max="20"
+             value="<?= htmlspecialchars($settings['receipt_font_size'] ?? '10') ?>">
+      <small style="color:var(--text3);display:block;margin-top:4px;">
+        Recommended: 9–10px for 57/58mm, 11–12px for 80mm.
+      </small>
+    </div>
+  </div>
+
+  <!-- Optional live preview -->
+  <div id="receiptPreviewWrap" style="margin-top:6px;padding:10px;background:var(--bg3);border-radius:8px;text-align:center;">
+    <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">
+      Preview (actual scale)
+    </div>
+    <div id="receiptPreview"
+         style="margin:0 auto;background:#fff;color:#000;border:1px dashed #999;padding:2mm;font-family:'Courier New',monospace;line-height:1.3;text-align:left;overflow:hidden;">
+      <div style="text-align:center;font-weight:bold;">BUSINESS NAME</div>
+      <div style="text-align:center;font-size:0.85em;color:#444;">POS SYSTEM</div>
+      <hr style="border:none;border-top:1px dashed #000;margin:3px 0;">
+      <div style="display:flex;justify-content:space-between;"><span>1 pcs × Pandesal</span><span>₱5.00</span></div>
+      <div style="display:flex;justify-content:space-between;"><span>2 pcs × Ensaymada</span><span>₱40.00</span></div>
+      <hr style="border:none;border-top:1px dashed #000;margin:3px 0;">
+      <div style="display:flex;justify-content:space-between;font-weight:bold;">
+        <span>TOTAL</span><span>₱45.00</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:0.9em;"><span>Cash</span><span>₱100.00</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:0.9em;"><span>Change</span><span>₱55.00</span></div>
+      <hr style="border:none;border-top:1px dashed #000;margin:3px 0;">
+      <div style="text-align:center;font-size:0.85em;">Thank you!</div>
+    </div>
+  </div>
+</div>
 
       </div>
       <div style="display:flex;justify-content:flex-end;margin-bottom:20px;">
@@ -1582,7 +1638,42 @@ async function uploadLogo(){
     uploadBtn.disabled = false; uploadBtn.textContent = originalText;
   }
 }
+/* ─── Receipt Width Helpers ─── */
+function autoCalcPrintable() {
+  const paper = parseFloat(document.getElementById('receiptWidthSelect').value) || 57;
+  // Standard thermal margin: ~9mm total (4.5mm each side for 57/58mm, similar for 80mm)
+  const printable = Math.max(30, paper - 9);
+  document.getElementById('receiptPrintableInput').value = printable;
+  updateReceiptPreview();
+}
 
+function updateReceiptPreview() {
+  const paperEl = document.getElementById('receiptWidthSelect');
+  const printableEl = document.getElementById('receiptPrintableInput');
+  const fontEl = document.querySelector('input[name="receipt_font_size"]');
+  const preview = document.getElementById('receiptPreview');
+  if (!preview) return;
+
+  const printableMm = parseFloat(printableEl.value) || 48;
+  const fontSize    = parseFloat(fontEl?.value) || 10;
+
+  preview.style.width     = printableMm + 'mm';
+  preview.style.maxWidth  = printableMm + 'mm';
+  preview.style.fontSize  = fontSize + 'px';
+}
+
+// Auto-update preview on any change
+['receiptWidthSelect', 'receiptPrintableInput'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', updateReceiptPreview);
+});
+const fsInput = document.querySelector('input[name="receipt_font_size"]');
+if (fsInput) fsInput.addEventListener('input', updateReceiptPreview);
+
+// Initialize preview on load
+document.addEventListener('DOMContentLoaded', function() {
+  if (document.getElementById('receiptPreview')) updateReceiptPreview();
+});
 /* ─── Database Backup ─── */
 function backupWithTimestamp() {
   showCustomConfirm('Create Backup?', 'This will download a full database backup with timestamp in the filename.', () => {

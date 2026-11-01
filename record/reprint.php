@@ -27,9 +27,7 @@ try {
         $phonePrimary     = $settings['business_phone']    ?? '';
         $siteLogo         = $settings['logo_path']         ?? '';
     }
-} catch (Exception $e) {
-    // Table doesn't exist or error, use defaults
-}
+} catch (Exception $e) {}
 
 // Build full address
 $fullAddress = $addressLine1;
@@ -56,192 +54,266 @@ $items = json_decode($row['items'], true);
 <head>
   <title>Reprint Receipt - <?= htmlspecialchars($businessName) ?></title>
   <style>
-  @page {
-  size: 58mm auto;  
-  margin: 0;
-}
-    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: Arial, sans-serif;
-      font-size: 11px;
-      line-height: 1.35;
-      color: #000;
-      background: #fff;
+    font-family: "Courier New", monospace;
+    font-size: 10px;
+    font-weight: 400;
+    line-height: 1.4;
+    color: #000;
+}
+    .brand,
+.totals .grand {
+    font-weight: 700;
+}
+    .toolbar {
+      background: #333;
+      color: white;
+      padding: 10px 20px;
+      width: 100%;
+      box-sizing: border-box;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
-
-    .receipt {
-      width: 54mm;
-      padding: 3mm 2mm;
-      margin: 0 auto;
-    }
-
-    .center { text-align: center; }
-
-    .logo-img {
-      display: block;
-      margin: 0 auto 4px;
-      max-width: 55%;
-      max-height: 18mm;
-      width: auto;
-      height: auto;
-    }
-    .logo-fallback {
-      font-size: 32px;
-      line-height: 1;
-      margin: 4px 0;
-    }
-
-    .brand {
+    
+    .toolbar button {
+      padding: 8px 16px;
       font-size: 14px;
-      font-weight: 700;
-      letter-spacing: 0.3px;
-      margin: 2px 0 0;
-      line-height: 1.2;
-    }
-    .subtitle {
-      font-size: 8px;
-      letter-spacing: 1.2px;
-      text-transform: uppercase;
-      margin-top: 1px;
-      opacity: 0.75;
-    }
-    .meta {
-      font-size: 9px;
-      line-height: 1.35;
-      margin-top: 4px;
-    }
-
-    hr {
+      font-weight: bold;
+      cursor: pointer;
+      background: #ff8800;
+      color: white;
       border: none;
-      border-top: 1px dashed #000;
-      margin: 5px 0;
+      border-radius: 4px;
     }
 
-    .meta-row {
-      display: flex;
-      justify-content: space-between;
-      font-size: 10px;
-    }
+    .toolbar button:hover { background: #cc6600; }
 
-    .item-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 4px;
-      font-size: 11px;
-      margin: 1px 0;
-    }
-    .item-row .name {
-      flex: 1;
-      word-break: break-word;
-    }
-    .item-row .price {
-      white-space: nowrap;
-      text-align: right;
-    }
-    .item-qty { margin-left: 3px; opacity: 0.8; }
-
-    .totals { font-size: 11px; }
-    .totals div {
-      display: flex;
-      justify-content: space-between;
-      margin: 1px 0;
-    }
-    .totals .grand {
-      font-weight: 700;
-      font-size: 12px;
-      margin-top: 3px;
-      padding-top: 3px;
-      border-top: 1px dashed #000;
-    }
-
-    .footer {
-      text-align: center;
-      font-size: 10px;
-      margin-top: 6px;
+    /* This acts as the small print preview window */
+    #receipt-frame {
+      width: 58mm; /* Slightly wider than printable to show margins */
+      height: 90vh;
+      border: none;
+      background: white;
+      box-shadow: 0 0 15px rgba(0,0,0,0.3);
+      margin-top: 20px;
     }
   </style>
 </head>
 <body>
-  <div class="receipt">
-   <!-- Header -->
-<div class="center">
-  <?php if (!empty($siteLogo) && file_exists(__DIR__ . '/../' . ltrim($siteLogo, '/'))): ?>
-    <img src="/Store/<?= htmlspecialchars(ltrim($siteLogo, '/')) ?>" alt="Logo" class="logo-img">
-  <?php else: ?>
-    <img src="../image/logo.png" alt="Logo" class="logo-img">
-  <?php endif; ?>
 
-  <div class="brand"><?= htmlspecialchars($businessName) ?></div>
-
-  <?php if (!empty($businessSubtitle)): ?>
-    <div class="subtitle"><?= htmlspecialchars($businessSubtitle) ?></div>
-  <?php endif; ?>
-
-  <div class="meta">
-    <?= htmlspecialchars($fullAddress) ?><br>
-    <?= htmlspecialchars($phonePrimary) ?>
+  <div class="toolbar">
+    <span>🖨️ Receipt Preview (58mm)</span>
+    <button onclick="document.getElementById('receipt-frame').contentWindow.print()">Print Now</button>
   </div>
-</div>
-    <hr>
-    <!-- Transaction meta -->
-    <div class="meta-row"><span>Date</span><span><?= $row['date'] ?></span></div>
-    <div class="meta-row"><span>Time</span><span><?= date("g:i A", strtotime($row['time'])) ?></span></div>
-    <div class="meta-row"><span>Cashier</span><span><?= htmlspecialchars($row['cashier_name']) ?></span></div>
-    <hr>
-    <!-- Items -->
-    <?php foreach ($items as $item): ?>
-      <div class="item-row">
-        <span class="name"><?= htmlspecialchars($item['name']) ?> <span class="item-qty">x<?= $item['qty'] ?></span></span>
-        <span class="price">₱<?= number_format($item['price'] * $item['qty'], 2) ?></span>
+
+  <!-- The iframe acts as the popup window -->
+  <iframe id="receipt-frame" srcdoc="
+    <!DOCTYPE html>
+    <html>
+    <head>
+     
+<style>
+    @page {
+        size: 58mm auto;
+        margin: 0;
+    }
+
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-weight: 700 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    body {
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 10px;
+        line-height: 1.35;
+        font-weight: 700;
+        color: #000;
+        background: #fff;
+        width: 48mm;
+        max-width: 48mm;
+        margin: 0;
+    }
+
+    .receipt {
+        width: 48mm;
+        max-width: 48mm;
+        padding: 1mm 0;
+        margin: 0;
+    }
+
+    .center {
+        text-align: center;
+    }
+
+    .logo-img {
+        display: block;
+        margin: 0 auto 4px;
+        max-width: 55%;
+        max-height: 18mm;
+        width: auto;
+        height: auto;
+    }
+
+    .brand {
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 13px;
+        font-weight: 900 !important;
+        letter-spacing: 0.3px;
+        margin: 2px 0 0;
+        line-height: 1.2;
+    }
+
+    .subtitle {
+        font-size: 8px;
+        font-weight: 700;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        margin-top: 1px;
+    }
+
+    .meta {
+        font-size: 9px;
+        line-height: 1.4;
+        margin-top: 4px;
+    }
+
+    hr {
+        border: none;
+        border-top: 1px dashed #000;
+        margin: 3px 0;
+    }
+
+    .meta-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 9px;
+        font-weight: 700;
+    }
+
+    .item-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 4px;
+        font-size: 10px;
+        font-weight: 700;
+        margin: 1px 0;
+    }
+
+    .item-row .name {
+        flex: 1;
+        word-break: break-word;
+    }
+
+    .item-row .price {
+        white-space: nowrap;
+        text-align: right;
+    }
+
+    .item-qty {
+        margin-left: 2px;
+        opacity: 1;
+    }
+
+    .totals {
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    .totals div {
+        display: flex;
+        justify-content: space-between;
+        margin: 1px 0;
+        font-weight: 700;
+    }
+
+    .totals .grand {
+        font-weight: 900 !important;
+        font-size: 12px;
+        margin-top: 2px;
+        padding-top: 2px;
+        border-top: 1px dashed #000;
+    }
+
+    .footer {
+        text-align: center;
+        font-size: 9px;
+        font-weight: 700;
+        margin-top: 4px;
+    }
+</style>
+
+    </head>
+    <body>
+      <div class='receipt'>
+        <div class='center'>
+         
+          <div class='brand'><?= htmlspecialchars($businessName) ?></div>
+          <?php if (!empty($businessSubtitle)): ?>
+            <div class='subtitle'><?= htmlspecialchars($businessSubtitle) ?></div>
+          <?php endif; ?>
+          <div class='meta'>
+            <?= htmlspecialchars($fullAddress) ?><br>
+            <?= htmlspecialchars($phonePrimary) ?>
+          </div>
+        </div>
+        <hr>
+        <div class='meta-row'><span>Date</span><span><?= $row['date'] ?></span></div>
+        <div class='meta-row'><span>Time</span><span><?= date("g:i A", strtotime($row['time'])) ?></span></div>
+        <div class='meta-row'><span>Cashier</span><span><?= htmlspecialchars($row['cashier_name']) ?></span></div>
+        <hr>
+        <?php foreach ($items as $item): ?>
+          <div class='item-row'>
+            <span class='name'><?= htmlspecialchars($item['name']) ?> <span class='item-qty'>x<?= $item['qty'] ?></span></span>
+            <span class='price'>₱<?= number_format($item['price'] * $item['qty'], 2) ?></span>
+          </div>
+        <?php endforeach; ?>
+        <hr>
+        <div class='totals'>
+          <div class='grand'><span>TOTAL</span><span>₱<?= number_format($row['total'], 2) ?></span></div>
+          <?php
+            $pm = strtolower(trim($row['payment_method'] ?? 'cash'));
+            $ref = $row['reference_no'] ?? '';
+            if ($pm === 'wallet' || $pm === 'e-wallet' || $pm === 'ewallet') {
+              $providerLabel = !empty($row['wallet_provider']) ? $row['wallet_provider'] : 'E-Wallet';
+              echo '<div><span>' . htmlspecialchars($providerLabel) . '</span><span>₱' . number_format($row['total'], 2) . '</span></div>';
+              if (!empty($ref)) {
+                echo '<div><span>Ref</span><span>' . htmlspecialchars($ref) . '</span></div>';
+              }
+            } else {
+              echo '<div><span>Cash</span><span>₱' . number_format($row['paid'], 2) . '</span></div>';
+            }
+          ?>
+          <div><span>Change</span><span>₱<?= number_format($row['change_due'], 2) ?></span></div>
+        </div>
+        <hr>
+        <div class='footer'>Thank you for your purchase!</div>
       </div>
-    <?php endforeach; ?>
-    <hr>
-    <!-- Totals -->
-    <div class="totals">
-      <div class="grand"><span>TOTAL</span><span>₱<?= number_format($row['total'], 2) ?></span></div>
-      <?php
-        // Payment line — mirror what home.php writes after payment
-        $pm = strtolower(trim($row['payment_method'] ?? 'cash'));
-        $ref = $row['reference_no'] ?? '';
-        if ($pm === 'wallet' || $pm === 'e-wallet' || $pm === 'ewallet') {
-          // Provider name is stored per-transaction; fall back to generic label
-          $providerLabel = !empty($row['wallet_provider']) ? $row['wallet_provider'] : 'E-Wallet';
-          echo '<div><span>' . htmlspecialchars($providerLabel) . '</span><span>₱' . number_format($row['total'], 2) . '</span></div>';
-          if (!empty($ref)) {
-            echo '<div><span>Ref</span><span>' . htmlspecialchars($ref) . '</span></div>';
-          }
-        } else {
-          echo '<div><span>Cash</span><span>₱' . number_format($row['paid'], 2) . '</span></div>';
-        }
-      ?>
-      <div><span>Change</span><span>₱<?= number_format($row['change_due'], 2) ?></span></div>
-    </div>
-    <hr>
-    <!-- Footer -->
-    <div class="footer">
-      Thank you for your purchase!
-    </div>
-  </div>
+    </body>
+    </html>
+  "></iframe>
+
   <script>
-  // Print after layout + image load, with a small delay so Chrome
-  // receives the final page before --kiosk-printing fires.
-  window.addEventListener('load', function () {
-    // Wait for the logo (if any) to decode
-    var logo = document.querySelector('.logo-img');
-    function go() {
-      // Extra tick so Chrome paints the 54mm page fully before printing
-      setTimeout(function () {
-        window.focus();     // bring the new tab to front
-        window.print();
-      }, 200);
-    }
-    if (logo && !logo.complete) {
-      logo.addEventListener('load',  go, { once: true });
-      logo.addEventListener('error', go, { once: true });
-    } else {
-      go();
-    }
-  });
-</script>
+    // Automatically trigger print inside the iframe after it loads
+    window.addEventListener('load', function() {
+      const iframe = document.getElementById('receipt-frame');
+      
+      // Wait for the iframe to fully render
+      setTimeout(function() {
+        if (iframe.contentWindow) {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+          
+          // Optional: Close the tab after printing (only works if opened via window.open, 
+          // so it might not close automatically here, but the print dialog will show).
+        }
+      }, 500); // 500ms delay ensures the logo is loaded
+    });
+  </script>
 </body>
 </html>
