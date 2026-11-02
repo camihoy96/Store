@@ -53,9 +53,36 @@ require_once __DIR__ . '/../include/header.php';
 
 <style>
 /* ── Unlock POS body layout for this page ───────────────────────── */
-body { display: block !important; height: auto !important; min-height: 100vh !important; overflow-y: auto !important; }
+/* ── Keep the site's flex-column layout (header / main / footer) ── */
+body {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+  overflow: hidden !important;
+}
 body.modal-open { overflow: hidden !important; }
 
+/* ── Make the page content the flex-growing middle section ── */
+.upload-wrap {
+  flex: 1 0 auto;
+  margin-top: 44px;                    /* offset for fixed header (keep your 44px) */
+  padding: 16px 16px 50px;
+  max-width: 960px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;                    /* scroll only the content, not the body */
+}
+
+/* ── Footer must never be squashed, and sits at the bottom ── */
+body > footer,
+footer.site-footer,
+footer {
+  flex-shrink: 0 !important;
+  width: 100%;
+}
 /* ── Page wrapper ──────────────────────────────────────────────── */
 .upload-wrap { margin-top: 44px; padding: 16px 16px 50px; max-width: 960px; margin-left: auto; margin-right: auto; }
 .upload-hero { text-align: center; margin-bottom: 22px; }

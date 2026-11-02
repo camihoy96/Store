@@ -309,9 +309,8 @@ $items = json_decode($row['items'], true);
             }
         }
     } elseif ($pmLower === 'cash') {
-        // ── CASH ──
-        echo '<div><span>Cash</span><span>₱' . number_format($row['paid'], 2) . '</span></div>';
-    } else {
+    echo '<div><span>Cash</span><span>₱' . number_format($row['paid'], 2) . '</span></div>';
+} else {
         // ── E-WALLET / BANK / OTHER ──
         // Try to look up a friendly label, else use the raw string
         $friendly = $ewalletMap[$pmLower] ?? ucwords($pmRaw);
