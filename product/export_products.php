@@ -6,7 +6,15 @@ if (!isset($_SESSION['loggedin'])) {
     header("Location: login.php");
     exit;
 }
-
+// Fetch business settings
+$systemSettings = [];
+$settRes = $conn->query("SELECT setting_key, setting_value FROM system_settings");
+if ($settRes) {
+    while ($sRow = $settRes->fetch_assoc()) {
+        $systemSettings[$sRow['setting_key']] = $sRow['setting_value'];
+    }
+}
+$businessName = $systemSettings['business_name'] ?? 'Angel\'s Bakeshop';
 date_default_timezone_set('Asia/Manila');
 $exportTimestamp = time();
 $exportDate = date('Y-m-d', $exportTimestamp);
@@ -82,7 +90,7 @@ ob_start();
     </style>
 </head>
 <body>
-    <div class="title">FOUR ACC Point of Sale INVENTORY MANAGEMENT SYSTEM</div>
+    <div class="title"><?= htmlspecialchars($businessName) ?></div>
     <div class="subtitle">ITEMS INVENTORY REPORT</div>
     <div class="report-date">
         <h4 class="side">Balance Items:</h4>    
