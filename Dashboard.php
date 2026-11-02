@@ -1,6 +1,37 @@
 <?php
 $pageTitle = 'Dashboard';
 require_once __DIR__ . '/include/admin_header.php';
+/**
+ * Compute per-transaction profit from the items JSON.
+ * Returns:
+ *   ['revenue' => ..., 'capital' => ..., 'profit' => ..., 'has_cogs' => bool]
+ *
+ * If NO item on this transaction carries a cogs value (> 0), then profit
+ * is treated as UNKNOWN (profit = 0, has_cogs = false) — this prevents
+ * "Total Profit" from silently mirroring "Total Sales".
+ */
+function computeProfit($itemsJson) {
+    $items = json_decode($itemsJson ?: '[]', true);
+    if (!is_array($items)) {
+        return ['revenue' => 0, 'capital' => 0, 'profit' => 0, 'has_cogs' => false];
+    }
+    $revenue = 0; $capital = 0; $hasCogs = false;
+    foreach ($items as $it) {
+        if (($it['status'] ?? '') === 'voided') continue;
+        $qty   = (float)($it['qty']   ?? 0);
+        $price = (float)($it['price'] ?? 0);
+        $cogs  = (float)($it['cogs']  ?? 0);
+        $revenue += $qty * $price;
+        $capital += $cogs;
+        if (array_key_exists('cogs', $it) && $cogs > 0) $hasCogs = true;
+    }
+    return [
+        'revenue'  => round($revenue, 2),
+        'capital'  => round($capital, 2),
+        'profit'   => $hasCogs ? round($revenue - $capital, 2) : 0,
+        'has_cogs' => $hasCogs,
+    ];
+}
 
 // ─── QUERIES ──────────────────────────────────────────────────────────────────
 $inventorySummary = $conn->query("
@@ -33,12 +64,15 @@ $recentTransactions = $conn->query("
 
 $todaySales = $conn->query("
     SELECT COALESCE(SUM(total),0) as today_total, COUNT(*) as today_count
-    FROM transactions WHERE date = CURDATE()
+    FROM transactions
+    WHERE date = CURDATE() AND (status IS NULL OR status != 'voided')
 ")->fetch_assoc();
 
 $yesterdaySales = $conn->query("
     SELECT COALESCE(SUM(total),0) as yesterday_total
-    FROM transactions WHERE date = DATE_SUB(CURDATE(),INTERVAL 1 DAY)
+    FROM transactions
+    WHERE date = DATE_SUB(CURDATE(),INTERVAL 1 DAY)
+      AND (status IS NULL OR status != 'voided')
 ")->fetch_assoc();
 
 $dailySales = $conn->query("
@@ -48,10 +82,47 @@ $dailySales = $conn->query("
 ");
 $monthlySales = $conn->query("
     SELECT DATE_FORMAT(date,'%Y-%m') as month, SUM(total) as total
-    FROM transactions WHERE date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+    FROM transactions
+    WHERE date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+      AND (status IS NULL OR status != 'voided')
     GROUP BY DATE_FORMAT(date,'%Y-%m') ORDER BY DATE_FORMAT(date,'%Y-%m')
 ");
+// ── Monthly profit map (independent of labels — this is fine where it is) ──
+$monthlyProfitMap = [];
+$mpRes = $conn->query("
+    SELECT DATE_FORMAT(date,'%Y-%m') as month, items
+    FROM transactions
+    WHERE date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+      AND (status IS NULL OR status != 'voided')
+");
+while ($m = $mpRes->fetch_assoc()) {
+    $k = $m['month'];
+    if (!isset($monthlyProfitMap[$k])) $monthlyProfitMap[$k] = 0;
+    $p = computeProfit($m['items'] ?? '[]');
+    if ($p['has_cogs']) $monthlyProfitMap[$k] += $p['profit'];
+}
 
+// ── Daily sales chart data ──
+$dailyLabels = []; $dailyData = [];
+while ($r = $dailySales->fetch_assoc()) {
+    $dailyLabels[] = date('D M j', strtotime($r['day']));
+    $dailyData[]   = (float)$r['total'];
+}
+
+// ── Monthly sales chart data (defines $monthlyLabels) ──
+$monthlyLabels = []; $monthlyData = [];
+while ($r = $monthlySales->fetch_assoc()) {
+    $monthlyLabels[] = date('M Y', strtotime($r['month'].'-01'));
+    $monthlyData[]   = (float)$r['total'];
+}
+
+// ── NOW build profit array aligned to $monthlyLabels ──
+$monthlyProfitData = [];
+foreach ($monthlyLabels as $label) {
+    $ts  = strtotime($label);
+    $key = date('Y-m', $ts);
+    $monthlyProfitData[] = (float)($monthlyProfitMap[$key] ?? 0);
+}
 $dailyLabels=[];$dailyData=[];
 while($r=$dailySales->fetch_assoc()){ $dailyLabels[]=date('D M j',strtotime($r['day'])); $dailyData[]=(float)$r['total']; }
 $monthlyLabels=[];$monthlyData=[];
@@ -76,6 +147,44 @@ $todayTotal     = (float)$todaySales['today_total'];
 $yesterdayTotal = (float)$yesterdaySales['yesterday_total'];
 $trendPct       = $yesterdayTotal > 0 ? round((($todayTotal - $yesterdayTotal) / $yesterdayTotal) * 100, 1) : 0;
 $trendUp        = $trendPct >= 0;
+
+// ─── TODAY'S CAPITAL / PROFIT ─────────────────────────────────────────────
+$todayCapital = 0; $todayProfit = 0; $todayProfitRevenue = 0;
+$todayProfitTxns = 0; $todayNoCogsTxns = 0;
+$todayItemsRes = $conn->query("
+    SELECT items FROM transactions
+    WHERE date = CURDATE() AND (status IS NULL OR status != 'voided')
+");
+while ($t = $todayItemsRes->fetch_assoc()) {
+    $p = computeProfit($t['items'] ?? '[]');
+    if ($p['has_cogs']) {
+        $todayCapital       += $p['capital'];
+        $todayProfit        += $p['profit'];
+        $todayProfitRevenue += $p['revenue'];
+        $todayProfitTxns++;
+    } else {
+        $todayNoCogsTxns++;
+    }
+}
+
+// ─── LAST 12 MONTHS: CAPITAL / PROFIT ─────────────────────────────────────
+$annualCapital = 0; $annualProfit = 0;
+$annualProfitTxns = 0; $annualNoCogsTxns = 0;
+$annualItemsRes = $conn->query("
+    SELECT items FROM transactions
+    WHERE date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+      AND (status IS NULL OR status != 'voided')
+");
+while ($t = $annualItemsRes->fetch_assoc()) {
+    $p = computeProfit($t['items'] ?? '[]');
+    if ($p['has_cogs']) {
+        $annualCapital += $p['capital'];
+        $annualProfit  += $p['profit'];
+        $annualProfitTxns++;
+    } else {
+        $annualNoCogsTxns++;
+    }
+}
 
 function formatTimeRemaining($days, $months) {
     if ($months >= 1) { $rd = $days % 30; return $months.' month'.($months>1?'s':'').($rd>0?' '.$rd.'d':''); }
@@ -398,8 +507,47 @@ $healthyProducts = max(0, $totalProducts - $lowStockCount);
       <div class="kpi-label">Today's Sales</div>
       <div class="kpi-sub">Total stock value ₱<?= number_format((float)($inventorySummary['total_inventory_value'] ?? 0), 2) ?></div>
     </div>
-
+    <!-- TODAY: CAPITAL / PROFIT -->
     <div class="kpi-card accent-blue">
+      <div class="kpi-top">
+        <div class="kpi-icon blue">🧾</div>
+        <div class="kpi-trend flat">
+          <?= $todayProfitTxns ?> of <?= $todayProfitTxns + $todayNoCogsTxns ?> txns costed
+        </div>
+      </div>
+      <div class="kpi-val blue">₱<?= number_format($todayCapital, 2) ?></div>
+      <div class="kpi-label">Today's Capital</div>
+      <div class="kpi-sub">
+        <?php if ($todayNoCogsTxns > 0): ?>
+          <?= $todayNoCogsTxns ?> txn(s) missing COGS — excluded
+        <?php else: ?>
+          All today's transactions have cost data
+        <?php endif; ?>
+      </div>
+    </div>
+
+    <div class="kpi-card accent-green" style="border-color: var(--green);">
+      <div class="kpi-top">
+        <div class="kpi-icon green">📈</div>
+        <?php if ($todayCapital > 0): ?>
+          <div class="kpi-trend up">
+            <?= round(($todayProfit / $todayCapital) * 100, 1) ?>% margin
+          </div>
+        <?php else: ?>
+          <div class="kpi-trend flat">no cost basis</div>
+        <?php endif; ?>
+      </div>
+      <div class="kpi-val green" style="font-size: 28px;">₱<?= number_format($todayProfit, 2) ?></div>
+      <div class="kpi-label">Today's Profit</div>
+            <div class="kpi-sub">
+        <?php if ($todayCapital > 0): ?>
+          Revenue ₱<?= number_format($todayProfitRevenue, 2) ?> − Capital ₱<?= number_format($todayCapital, 2) ?>
+        <?php else: ?>
+          Add COGS to today's items to see profit
+        <?php endif; ?>
+      </div>
+    </div>
+       <div class="kpi-card accent-blue">
       <div class="kpi-top">
         <div class="kpi-icon blue">📈</div>
         <div class="kpi-trend flat">Last 12 months</div>
@@ -409,6 +557,47 @@ $healthyProducts = max(0, $totalProducts - $lowStockCount);
       <div class="kpi-sub"><?= count($monthlyData) ?> months of data</div>
     </div>
 
+    <!-- ANNUAL: CAPITAL -->
+    <div class="kpi-card accent-blue">
+      <div class="kpi-top">
+        <div class="kpi-icon blue">🧾</div>
+        <div class="kpi-trend flat">
+          <?= $annualProfitTxns ?> of <?= $annualProfitTxns + $annualNoCogsTxns ?> txns costed
+        </div>
+      </div>
+      <div class="kpi-val blue">₱<?= number_format($annualCapital, 2) ?></div>
+      <div class="kpi-label">Annual Capital</div>
+      <div class="kpi-sub">
+        <?php if ($annualNoCogsTxns > 0): ?>
+          <?= $annualNoCogsTxns ?> txn(s) missing COGS — excluded
+        <?php else: ?>
+          All costed transactions included
+        <?php endif; ?>
+      </div>
+    </div>
+
+    <!-- ANNUAL: PROFIT -->
+    <div class="kpi-card accent-green" style="border-color: var(--green);">
+      <div class="kpi-top">
+        <div class="kpi-icon green">💎</div>
+        <?php if ($annualCapital > 0): ?>
+          <div class="kpi-trend up">
+            <?= round(($annualProfit / $annualCapital) * 100, 1) ?>% margin
+          </div>
+        <?php else: ?>
+          <div class="kpi-trend flat">no cost basis</div>
+        <?php endif; ?>
+      </div>
+      <div class="kpi-val green" style="font-size: 28px;">₱<?= number_format($annualProfit, 2) ?></div>
+      <div class="kpi-label">Annual Profit</div>
+      <div class="kpi-sub">
+        <?php if ($annualCapital > 0): ?>
+          Revenue − Capital over 12 months
+        <?php else: ?>
+          Add COGS to items to see profit
+        <?php endif; ?>
+      </div>
+    </div>
     <?php if($lowStockCount>0): ?>
     <div class="kpi-card accent-red clickable" onclick="openAlertModal()">
       <div class="kpi-top">
@@ -819,10 +1008,16 @@ new Chart(document.getElementById('dailySalesChart'),{
   },
   options:{
     maintainAspectRatio:false,
-    plugins:{ legend:{display:false}, tooltip:tooltipDefaults },
+        plugins:{
+      legend:{
+        display:true,
+        labels:{ color:'#ffffff', font:{size:11}, usePointStyle:true, boxWidth:10 }
+      },
+      tooltip:tooltipDefaults
+    },
     scales:{
       x:{ grid:{display:false}, ticks:{color:'#ffffff',font:{size:10}} },
-      y:{ beginAtZero:true, grid:{color:'rgba(255, 255, 255, 0.09)'}, ticks:{color:'#ffffff',font:{size:10},callback:v=>v>=1000?'₱'+(v/1000).toFixed(0)+'k':'₱'+v} }
+      y:{ beginAtZero:true, grid:{color:'rgba(255, 255, 255, 0.29)'}, ticks:{color:'#ffffff',font:{size:10},callback:v=>v>=1000?'₱'+(v/1000).toFixed(0)+'k':'₱'+v} }
     }
   }
 });
@@ -835,7 +1030,7 @@ new Chart(document.getElementById('monthlySalesChart'),{
     datasets:[{
       label:'Monthly Sales',
       data:<?= json_encode($monthlyData) ?>,
-      fill:true,
+            fill:true,
       backgroundColor:ctx=>{
         const g=ctx.chart.ctx.createLinearGradient(0,0,0,220);
         g.addColorStop(0,'rgba(0,200,83,0.25)');
@@ -849,11 +1044,30 @@ new Chart(document.getElementById('monthlySalesChart'),{
       pointRadius:4,
       pointHoverRadius:6,
       tension:0.4
+    },
+    {
+      label:'Monthly Profit',
+      data:<?= json_encode($monthlyProfitData ?? []) ?>,
+      fill:false,
+      borderColor:'rgba(255,204,0,1)',
+      pointBackgroundColor:'rgba(255,204,0,1)',
+      pointBorderColor:'#f5f7fc',
+      pointBorderWidth:2,
+      pointRadius:3,
+      pointHoverRadius:5,
+      borderDash:[4,4],
+      tension:0.4
     }]
   },
   options:{
     maintainAspectRatio:false,
-    plugins:{ legend:{display:false}, tooltip:tooltipDefaults },
+        plugins:{
+      legend:{
+        display:true,
+        labels:{ color:'#ffffff', font:{size:11}, usePointStyle:true, boxWidth:10 }
+      },
+      tooltip:tooltipDefaults
+    },
     scales:{
       x:{ grid:{display:false}, ticks:{color:'#ffffff',font:{size:10}} },
       y:{ beginAtZero:true, grid:{color:'rgba(255, 255, 255, 0.29)'}, ticks:{color:'#ffffff',font:{size:10},callback:v=>v>=1000?'₱'+(v/1000).toFixed(0)+'k':'₱'+v} }
