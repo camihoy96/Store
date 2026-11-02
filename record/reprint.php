@@ -274,23 +274,57 @@ $items = json_decode($row['items'], true);
           </div>
         <?php endforeach; ?>
         <hr>
-        <div class='totals'>
-          <div class='grand'><span>TOTAL</span><span>₱<?= number_format($row['total'], 2) ?></span></div>
-          <?php
-            $pm = strtolower(trim($row['payment_method'] ?? 'cash'));
-            $ref = $row['reference_no'] ?? '';
-            if ($pm === 'wallet' || $pm === 'e-wallet' || $pm === 'ewallet') {
-              $providerLabel = !empty($row['wallet_provider']) ? $row['wallet_provider'] : 'E-Wallet';
-              echo '<div><span>' . htmlspecialchars($providerLabel) . '</span><span>₱' . number_format($row['total'], 2) . '</span></div>';
-              if (!empty($ref)) {
-                echo '<div><span>Ref</span><span>' . htmlspecialchars($ref) . '</span></div>';
-              }
-            } else {
-              echo '<div><span>Cash</span><span>₱' . number_format($row['paid'], 2) . '</span></div>';
+       <div class='totals'>
+  <div class='grand'><span>TOTAL</span><span>₱<?= number_format($row['total'], 2) ?></span></div>
+  <?php
+    // ── Detect payment method (matches record.php / transaction.php logic) ──
+    $pmRaw  = trim($row['payment_method'] ?? 'Cash');
+    if ($pmRaw === '') $pmRaw = 'Cash';
+
+    $pmLower   = strtolower($pmRaw);
+    $refNo     = $row['reference_no']          ?? '';
+    $splitCash = (float)($row['split_cash_amount']       ?? 0);
+    $splitWal  = (float)($row['split_wallet_amount']     ?? 0);
+    $splitProv = trim($row['split_wallet_provider']      ?? '');
+
+    // Look up friendly label + icon
+    $ewalletMap = [
+        'gcash'    => 'GCash',
+        'maya'     => 'Maya',
+        'paymaya'  => 'Maya',
+        'grabpay'  => 'GrabPay',
+        'shopeepay'=> 'ShopeePay',
+        'seabank'  => 'SeaBank',
+        'coins'    => 'Coins.ph',
+    ];
+
+    if ($pmLower === 'split') {
+        // ── SPLIT PAYMENT ──
+        echo '<div><span>Cash</span><span>₱' . number_format($splitCash, 2) . '</span></div>';
+        if ($splitWal > 0) {
+            $label = $splitProv !== '' ? $splitProv : 'E-Wallet';
+            echo '<div><span>' . htmlspecialchars($label) . '</span><span>₱' . number_format($splitWal, 2) . '</span></div>';
+            if ($refNo !== '') {
+                echo '<div><span>Ref</span><span>' . htmlspecialchars($refNo) . '</span></div>';
             }
-          ?>
-          <div><span>Change</span><span>₱<?= number_format($row['change_due'], 2) ?></span></div>
-        </div>
+        }
+    } elseif ($pmLower === 'cash') {
+        // ── CASH ──
+        echo '<div><span>Cash</span><span>₱' . number_format($row['paid'], 2) . '</span></div>';
+    } else {
+        // ── E-WALLET / BANK / OTHER ──
+        // Try to look up a friendly label, else use the raw string
+        $friendly = $ewalletMap[$pmLower] ?? ucwords($pmRaw);
+
+        // For banks / other providers, still show the raw name
+        echo '<div><span>' . htmlspecialchars($friendly) . '</span><span>₱' . number_format($row['total'], 2) . '</span></div>';
+        if ($refNo !== '') {
+            echo '<div><span>Ref</span><span>' . htmlspecialchars($refNo) . '</span></div>';
+        }
+    }
+  ?>
+  <div><span>Change</span><span>₱<?= number_format($row['change_due'], 2) ?></span></div>
+</div>
         <hr>
         <div class='footer'>Thank you for your purchase!</div>
       </div>
