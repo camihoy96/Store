@@ -164,9 +164,9 @@ while ($row = $result->fetch_assoc()):
         <td><?= htmlspecialchars($row['seller_store']) ?></td>
         <td><?= htmlentities('₱', ENT_COMPAT, 'UTF-8') . number_format($row['purchase_price'], 2) ?></td>
         <td><?= htmlentities('₱', ENT_COMPAT, 'UTF-8') . number_format($row['price'], 2) ?></td>
-        <td><?= date("j-M-y", strtotime($row['date_added'])) ?></td>
-        <td><?= date("j-M-y", strtotime($row['purchase_date'])) ?></td>
-        <td><?= date("j-M-y", strtotime($row['expiry_date'])) ?></td>
+        <td><?= !empty($row['date_added']) ? date("j-M-y", strtotime($row['date_added'])) : 'N/A' ?></td>
+        <td><?= !empty($row['purchase_date']) ? date("j-M-y", strtotime($row['purchase_date'])) : 'N/A' ?></td>
+        <td><?= !empty($row['expiry_date']) ? date("j-M-y", strtotime($row['expiry_date'])) : 'N/A' ?></td>
         <td><?= $row['measurement_type'] == 'kg' ? number_format($row['kg'], 2) : number_format($row['pieces'], 0) ?></td>
         <td><?= $row['measurement_type'] == 'kg' ? 'kg' : 'pcs' ?></td>
     </tr>
