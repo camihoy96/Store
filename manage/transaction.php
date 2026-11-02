@@ -17,7 +17,48 @@ $colCheck4 = $conn->query("SHOW COLUMNS FROM transactions LIKE 'split_wallet_amo
 if ($colCheck4 && $colCheck4->num_rows > 0) $hasSplitWallet = true;
 $colCheck5 = $conn->query("SHOW COLUMNS FROM transactions LIKE 'split_wallet_provider'");
 if ($colCheck5 && $colCheck5->num_rows > 0) $hasSplitProvider = true;
+/**
+ * Compute per-transaction profit from the items JSON.
+ * Returns:
+ *   ['revenue' => ..., 'capital' => ..., 'profit' => ..., 'has_cogs' => bool]
+ *
+ * IMPORTANT: if NO item on this transaction has a cogs value (> 0),
+ * then profit is UNKNOWN — we return profit = 0 and has_cogs = false.
+ * This prevents "Total Profit" from silently mirroring "Total Sales"
+ * for old / cogs-less transactions.
+ */
+function computeProfit($itemsJson) {
+    $items = json_decode($itemsJson ?: '[]', true);
+    if (!is_array($items)) {
+        return ['revenue' => 0, 'capital' => 0, 'profit' => 0, 'has_cogs' => false];
+    }
 
+    $revenue = 0;
+    $capital = 0;
+    $hasCogs = false;
+
+    foreach ($items as $it) {
+        if (($it['status'] ?? '') === 'voided') continue;
+
+        $qty   = (float)($it['qty']   ?? 0);
+        $price = (float)($it['price'] ?? 0);
+        $cogs  = (float)($it['cogs']  ?? 0);
+
+        $revenue += $qty * $price;
+        $capital += $cogs;
+
+        if (array_key_exists('cogs', $it) && $cogs > 0) {
+            $hasCogs = true;
+        }
+    }
+
+    return [
+        'revenue'  => round($revenue, 2),
+        'capital'  => round($capital, 2),
+        'profit'   => $hasCogs ? round($revenue - $capital, 2) : 0,
+        'has_cogs' => $hasCogs,
+    ];
+}
 // Get business settings for exports and UI
 $systemSettings = [];
 $settRes = $conn->query("SELECT setting_key, setting_value FROM system_settings");
@@ -246,7 +287,7 @@ if (isset($_POST['export'])) {
     echo '<div style="text-align:right;font-style:italic;">Generated: ' . date("F j, Y") . ' at ' . date("g:i A") . '</div>';
     $pmCol = $hasPaymentMethod ? ', payment_method' : '';
     $rfCol = $hasReferenceNo   ? ', reference_no'   : '';
-    echo '<table cellspacing="0">
+        echo '<table cellspacing="0">
         <thead>
             <tr>
                 <th>Trans #</th>
@@ -254,6 +295,8 @@ if (isset($_POST['export'])) {
                 <th>Date</th>
                 <th>Time</th>
                 <th>Payment</th>
+                <th>Capital</th>
+                <th>Profit</th>
                 <th>Total</th>
                 <th>Paid</th>
                 <th>Change</th>
@@ -296,8 +339,8 @@ if (isset($_POST['export'])) {
     if(!empty($params)) $stmt->bind_param($types, ...$params);
     $stmt->execute(); 
     $res = $stmt->get_result();
-    $tS=0; $tP=0; $tC=0; $tPcs=0; $tKg=0; $pTotals=[];
-    
+       $tS=0; $tP=0; $tC=0; $tPcs=0; $tKg=0; $pTotals=[];
+    $tCapital=0; $tProfit=0;
     while($row = $res->fetch_assoc()){
         $items = json_decode($row['items'], true);
         $fi = '';
@@ -344,12 +387,22 @@ if (isset($_POST['export'])) {
             $pmDisplay .= " [Ref: " . $rf . "]";
         }
         
+                $rowProfit = computeProfit($row['items'] ?? '[]');
+        if ($rowProfit['has_cogs']) {
+            $tCapital += $rowProfit['capital'];
+            $tProfit  += $rowProfit['profit'];
+        }
+        $capCell  = $rowProfit['has_cogs'] ? '&#8369;' . number_format($rowProfit['capital'], 2) : '—';
+        $profCell = $rowProfit['has_cogs'] ? '&#8369;' . number_format($rowProfit['profit'],  2) : '—';
+
         echo '<tr>
                 <td style="text-align:center;">' . $row['id'] . '</td>
                 <td>' . htmlspecialchars($row['cashier_name']) . '</td>
                 <td>' . date("F j, Y", strtotime($row['date'])) . '</td>
                 <td>' . date("g:i A", strtotime($row['time'])) . '</td>
                 <td>' . $pmDisplay . '</td>
+                <td style="text-align:right;color:#2b6cb0;">' . $capCell . '</td>
+                <td style="text-align:right;color:#2f855a;font-weight:bold;">' . $profCell . '</td>
                 <td style="text-align:right;">&#8369;' . number_format($row['total'], 2) . '</td>
                 <td style="text-align:right;">&#8369;' . number_format($row['paid'], 2) . '</td>
                 <td style="text-align:right;">&#8369;' . number_format($row['change_due'], 2) . '</td>
@@ -357,9 +410,11 @@ if (isset($_POST['export'])) {
               </tr>';
     }
     
-    $kgDisplay = $tKg == floor($tKg) ? (int)$tKg : rtrim(rtrim(number_format($tKg, 3), '0'), '.');
+        $kgDisplay = $tKg == floor($tKg) ? (int)$tKg : rtrim(rtrim(number_format($tKg, 3), '0'), '.');
     echo '<tr style="font-weight:bold;background:#f5f5f5;">
             <td colspan="5" style="text-align:right;">TOTALS:</td>
+            <td style="text-align:right;color:#2b6cb0;">&#8369;' . number_format($tCapital, 2) . '</td>
+            <td style="text-align:right;color:#2f855a;">&#8369;' . number_format($tProfit,  2) . '</td>
             <td style="text-align:right;">&#8369;' . number_format($tS, 2) . '</td>
             <td style="text-align:right;">&#8369;' . number_format($tP, 2) . '</td>
             <td style="text-align:right;">&#8369;' . number_format($tC, 2) . '</td>
@@ -393,14 +448,21 @@ if (isset($_GET['export']) && in_array($_GET['export'],['pdf','pdf_all'])) {
         if(!empty($_GET['month']))    $q.=" AND MONTH(date)=".intval($_GET['month']);
         if(!empty($_GET['year']))     $q.=" AND YEAR(date)=".intval($_GET['year']);
     }
-    $q.=" ORDER BY id DESC";
+        $q.=" ORDER BY id DESC";
     $res=$conn->query($q);
     $tS=0;$tP=0;$tC=0;$tPcs=0;$tKg=0.0;
+    $tCapital=0;$tProfit=0;
     $tmp=$conn->query($q);
     while($r=$tmp->fetch_assoc()){
         $tS+=$r['total'];$tP+=$r['paid'];$tC+=$r['change_due'];
+        $rowProfit = computeProfit($r['items'] ?? '[]');
+        if ($rowProfit['has_cogs']) {
+            $tCapital += $rowProfit['capital'];
+            $tProfit  += $rowProfit['profit'];
+        }
         $its=json_decode($r['items'],true);
         if(is_array($its)) foreach($its as $it){
+            if(($it['status'] ?? '') === 'voided') continue;
             $qty=$it['qty']??0;
             if(isset($it['measurement_type'])&&$it['measurement_type']==='kg') $tKg+=(float)$qty; else $tPcs+=(int)$qty;
         }
@@ -415,15 +477,17 @@ if (isset($_GET['export']) && in_array($_GET['export'],['pdf','pdf_all'])) {
     $pdf->Cell(0,6,'Date: ' . date('F j, Y'), 0,1,'C');
     $pdf->Cell(0,6,'Generated: ' . date("F j, Y") . ' at ' . date("g:i A"), 0,1,'R');
     $pdf->Ln(5);
-    $pdf->SetFont('Arial','B',10);
-    $pdf->Cell(15,8,'Trans #',1);
-    $pdf->Cell(35,8,'Cashier',1);
-    $pdf->Cell(22,8,'Date',1);
-    $pdf->Cell(18,8,'Time',1);
+    $pdf->SetFont('Arial','B',9);
+    $pdf->Cell(12,8,'Trans #',1);
+    $pdf->Cell(28,8,'Cashier',1);
+    $pdf->Cell(20,8,'Date',1);
+    $pdf->Cell(16,8,'Time',1);
     $pdf->Cell(22,8,'Payment',1);
-    $pdf->Cell(22,8,'Total',1);
-    $pdf->Cell(22,8,'Paid',1);
-    $pdf->Cell(24,8,'Change',1);
+    $pdf->Cell(18,8,'Capital',1);
+    $pdf->Cell(18,8,'Profit',1);
+    $pdf->Cell(20,8,'Total',1);
+    $pdf->Cell(20,8,'Paid',1);
+    $pdf->Cell(18,8,'Change',1);
     $pdf->Ln();
     $pdf->SetFont('Arial','',9);
     $res->data_seek(0);
@@ -442,14 +506,19 @@ if (isset($_GET['export']) && in_array($_GET['export'],['pdf','pdf_all'])) {
         if ($rf) {
             $pmStr .= " #" . substr($rf,0,8);
         }
-        $pdf->Cell(15,8,$row['id'],1);
-        $pdf->Cell(35,8,substr($row['cashier_name'],0,20),1);
-        $pdf->Cell(22,8,date("M j, Y",strtotime($row['date'])),1);
-        $pdf->Cell(18,8,date("g:i A",strtotime($row['time'])),1);
-        $pdf->Cell(22,8,substr($pmStr,0,20),1);
-        $pdf->Cell(22,8,'PHP ' . number_format($row['total'],2),1,0,'R');
-        $pdf->Cell(22,8,'PHP ' . number_format($row['paid'],2),1,0,'R');
-        $pdf->Cell(24,8,'PHP ' . number_format($row['change_due'],2),1,0,'R');
+                $rowProfit = computeProfit($row['items'] ?? '[]');
+        $capStr  = $rowProfit['has_cogs'] ? number_format($rowProfit['capital'], 2) : '—';
+        $profStr = $rowProfit['has_cogs'] ? number_format($rowProfit['profit'],  2) : '—';
+        $pdf->Cell(12,8,$row['id'],1);
+        $pdf->Cell(28,8,substr($row['cashier_name'],0,16),1);
+        $pdf->Cell(20,8,date("M j, Y",strtotime($row['date'])),1);
+        $pdf->Cell(16,8,date("g:i A",strtotime($row['time'])),1);
+        $pdf->Cell(22,8,substr($pmStr,0,15),1);
+        $pdf->Cell(18,8,$capStr,1,0,'R');
+        $pdf->Cell(18,8,$profStr,1,0,'R');
+        $pdf->Cell(20,8,'PHP ' . number_format($row['total'],2),1,0,'R');
+        $pdf->Cell(20,8,'PHP ' . number_format($row['paid'],2),1,0,'R');
+        $pdf->Cell(18,8,'PHP ' . number_format($row['change_due'],2),1,0,'R');
         $pdf->Ln();
         $its=json_decode($row['items'],true);
         if(is_array($its)){ 
@@ -466,16 +535,18 @@ if (isset($_GET['export']) && in_array($_GET['export'],['pdf','pdf_all'])) {
             $pdf->Ln(2);
         }
     }
-    
     $kgD = $tKg == floor($tKg) ? (int)$tKg : rtrim(rtrim(number_format($tKg,3),'0'),'.');
-    $pdf->SetFont('Arial','B',10);
-    $pdf->Cell(97,8,'TOTALS:',1,0,'R');
-    $pdf->Cell(22,8,'PHP ' . number_format($tS,2),1,0,'R');
-    $pdf->Cell(22,8,'PHP ' . number_format($tP,2),1,0,'R');
-    $pdf->Cell(24,8,'PHP ' . number_format($tC,2),1,0,'R');
+    $pdf->SetFont('Arial','B',9);
+    // 12+28+20+16+22 = 98  (spans Trans#..Payment)
+    $pdf->Cell(98,8,'TOTALS:',1,0,'R');
+    $pdf->Cell(18,8,number_format($tCapital,2),1,0,'R');
+    $pdf->Cell(18,8,number_format($tProfit,  2),1,0,'R');
+    $pdf->Cell(20,8,'PHP ' . number_format($tS,2),1,0,'R');
+    $pdf->Cell(20,8,'PHP ' . number_format($tP,2),1,0,'R');
+    $pdf->Cell(18,8,'PHP ' . number_format($tC,2),1,0,'R');
     $pdf->Ln();
-    $pdf->Cell(97,8,'',0);
-    $pdf->Cell(66,8,'Total Items: ' . $tPcs . ' pcs / ' . $kgD . ' kg',1,1,'C');
+    $pdf->Cell(98,8,'',0);
+    $pdf->Cell(94,8,'Total Items: ' . $tPcs . ' pcs / ' . $kgD . ' kg',1,1,'C');
     
     $pdf->Output('D','Transaction_Report_' . date('Ymd_His') . ($_GET['export']==='pdf'?'_filtered':'_all') . '.pdf'); 
     exit;
@@ -496,6 +567,7 @@ if (!empty($_GET['trans_id'])) {
 $stmt->execute();
 $result = $stmt->get_result();
 $totalSales=0; $totalPaid=0; $totalChange=0; $totalPiecesSold=0; $totalKgSold=0; $productTotals=[];
+$totalCapital=0; $totalProfit=0;
 $allTransactionsData = [];
 // Initialize Payment Breakdown Structure
 $breakdownTotals = [
@@ -510,9 +582,21 @@ $breakdownTransactions = [];
 // Build breakdown query with filters
 $bq = "SELECT * FROM transactions WHERE (status IS NULL OR status != 'voided')";
 $bp = []; $bt = '';
-if (!empty($_GET['date'])) { $bq .= " AND date = ?"; $bp[] = $_GET['date']; $bt .= 's'; }
-if (!empty($_GET['month'])) { $bq .= " AND MONTH(date) = ?"; $bp[] = (int)$_GET['month']; $bt .= 'i'; }
-if (!empty($_GET['year'])) { $bq .= " AND YEAR(date) = ?"; $bp[] = (int)$_GET['year']; $bt .= 'i'; }
+$hasExplicitFilter = (
+    !empty($_GET['date'])  ||
+    !empty($_GET['month']) ||
+    !empty($_GET['year'])
+);
+if ($hasExplicitFilter) {
+    if (!empty($_GET['date']))  { $bq .= " AND date = ?";         $bp[] = $_GET['date'];      $bt .= 's'; }
+    if (!empty($_GET['month'])) { $bq .= " AND MONTH(date) = ?";  $bp[] = (int)$_GET['month']; $bt .= 'i'; }
+    if (!empty($_GET['year']))  { $bq .= " AND YEAR(date) = ?";   $bp[] = (int)$_GET['year'];  $bt .= 'i'; }
+} else {
+    // No filter → today only
+    $bq .= " AND date = ?";
+    $bp[] = $today;
+    $bt .= 's';
+}
 $bq .= " ORDER BY id DESC";
 
 $stmtBreakdown = $conn->prepare($bq);
@@ -614,8 +698,12 @@ while($row=$result->fetch_assoc()){
             else $totalPiecesSold+=(int)$qty;
         }
     }
-    $totalSales+=$txTotal; $totalPaid+=$row['paid']; $totalChange+=$row['change_due'];
-    
+       $totalSales+=$txTotal; $totalPaid+=$row['paid']; $totalChange+=$row['change_due'];
+    $rowProfit = computeProfit($row['items'] ?? '[]');
+    if ($rowProfit['has_cogs']) {
+        $totalCapital += $rowProfit['capital'];
+        $totalProfit  += $rowProfit['profit'];
+    }
     $allTransactionsData[$row['id']] = [
         'id'             => $row['id'],
         'items'          => $row['items'],
@@ -1056,10 +1144,8 @@ tbody td .money-change { color: #88ccff; font-weight: 600; }
   border-color: rgba(255, 204, 0, 0.45);
 }
 </style>
-
 <!-- MAIN -->
 <div class="main-content" id="mainContent">
-
   <div class="page-header">
     <h2>
       <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
@@ -1072,7 +1158,29 @@ tbody td .money-change { color: #88ccff; font-weight: 600; }
       <span id="cacheLabel">Cache ready</span>
     </span>
   </div>
-
+  <!-- ─── Daily Summary Tiles ─── -->
+  <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; margin-bottom:12px;">
+    <div style="background:#2e2e2e; border:1px solid #3a3a3a; border-radius:6px; padding:10px 12px;">
+      <div style="font-size:10px; color:#888; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">Total Capital</div>
+      <div style="font-size:17px; font-weight:900; color:#88bbff;"><?= $currencySymbol ?><?= number_format($totalCapital, 2) ?></div>
+    </div>
+    <div style="background:#2e2e2e; border:1px solid #4dff88; border-radius:6px; padding:10px 12px;">
+      <div style="font-size:10px; color:#888; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">Total Profit</div>
+      <div style="font-size:20px; font-weight:900; color:#4dff88;"><?= $currencySymbol ?><?= number_format($totalProfit, 2) ?></div>
+    </div>
+    <div style="background:#2e2e2e; border:1px solid #3a3a3a; border-radius:6px; padding:10px 12px;">
+      <div style="font-size:10px; color:#888; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">Total Sales</div>
+      <div style="font-size:17px; font-weight:900; color:#66dd88;"><?= $currencySymbol ?><?= number_format($totalSales, 2) ?></div>
+    </div>
+    <div style="background:#2e2e2e; border:1px solid #3a3a3a; border-radius:6px; padding:10px 12px;">
+      <div style="font-size:10px; color:#888; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">Total Paid</div>
+      <div style="font-size:17px; font-weight:900; color:#ffcc66;"><?= $currencySymbol ?><?= number_format($totalPaid, 2) ?></div>
+    </div>
+    <div style="background:#2e2e2e; border:1px solid #3a3a3a; border-radius:6px; padding:10px 12px;">
+      <div style="font-size:10px; color:#888; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">Total Change</div>
+      <div style="font-size:17px; font-weight:900; color:#88ccff;"><?= $currencySymbol ?><?= number_format($totalChange, 2) ?></div>
+    </div>
+  </div>
   <!-- Filter -->
   <form method="get">
     <div class="filter-card">
@@ -1137,13 +1245,15 @@ tbody td .money-change { color: #88ccff; font-weight: 600; }
   <div class="table-wrap">
     <div class="tbl-scroll">
       <table>
-        <thead>
+         <thead>
           <tr>
             <th>Trans #</th>
             <th>Cashier</th>
             <th>Date</th>
             <th>Time</th>
             <th>Payment</th>
+            <th>Capital</th>
+            <th>Profit</th>
             <th>Total</th>
             <th>Paid</th>
             <th>Change</th>
@@ -1209,6 +1319,23 @@ tbody td .money-change { color: #88ccff; font-weight: 600; }
                      title="Click to view / copy reference number">
                   <?= htmlspecialchars($refNo) ?>
                 </div>
+              <?php endif; ?>
+            </td>
+                       <?php
+              $rowProfit = computeProfit($row['items'] ?? '[]');
+            ?>
+            <td>
+              <?php if ($rowProfit['has_cogs']): ?>
+                <span style="color:#88bbff; font-weight:700;"><?= $currencySymbol ?><?= number_format($rowProfit['capital'], 2) ?></span>
+              <?php else: ?>
+                <span style="color:#555;" title="No cost (COGS) data recorded for this transaction">—</span>
+              <?php endif; ?>
+            </td>
+            <td>
+              <?php if ($rowProfit['has_cogs']): ?>
+                <span style="color:#4dff88; font-weight:700;"><?= $currencySymbol ?><?= number_format($rowProfit['profit'], 2) ?></span>
+              <?php else: ?>
+                <span style="color:#555;" title="Profit unavailable — no COGS data on this transaction">—</span>
               <?php endif; ?>
             </td>
             <td><span class="money"><?= $currencySymbol ?><?= number_format($row['total'],2) ?></span></td>
@@ -1293,9 +1420,8 @@ tbody td .money-change { color: #88ccff; font-weight: 600; }
             </td>
            </tr>
         <?php endwhile; ?>
-
-          <tr class="breakdown-row">
-            <td colspan="10">
+              <tr class="breakdown-row">
+            <td colspan="12">
               <div class="breakdown-title">
                 <svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>
                 Product Breakdown
@@ -1316,9 +1442,10 @@ tbody td .money-change { color: #88ccff; font-weight: 600; }
               </div>
             </td>
           </tr>
-
           <tr class="totals-row">
             <td colspan="5" style="text-align:right; color:#aaa; font-size:12px;">TOTALS (excl. voided):</td>
+            <td><span style="color:#88bbff; font-weight:700;"><?= $currencySymbol ?><?= number_format($totalCapital,2) ?></span></td>
+            <td><span style="color:#4dff88; font-weight:700;"><?= $currencySymbol ?><?= number_format($totalProfit,2) ?></span></td>
             <td><span class="money"><?= $currencySymbol ?><?= number_format($totalSales,2) ?></span></td>
             <td><span class="money-paid"><?= $currencySymbol ?><?= number_format($totalPaid,2) ?></span></td>
             <td><span class="money-change"><?= $currencySymbol ?><?= number_format($totalChange,2) ?></span></td>
@@ -1341,8 +1468,15 @@ tbody td .money-change { color: #88ccff; font-weight: 600; }
 <!-- ══ PAYMENT BREAKDOWN MODAL ════════════════════════════════════════════ -->
 <div class="modal-overlay" id="breakdownModal">
   <div class="modal-box" style="max-width: 800px;" id="breakdownModalBox">
-    <div class="modal-title-bar" id="breakdownModalHandle">
-      <span>💰 Payment Breakdown</span>
+        <div class="modal-title-bar" id="breakdownModalHandle">
+      <span>
+        💰 Payment Breakdown
+        <?php if (!$hasExplicitFilter): ?>
+          <span style="font-size:10px; background:rgba(0,0,0,0.25); border-radius:4px; padding:2px 8px; margin-left:8px; font-weight:600;">
+            Today only — <?= date('M j, Y') ?>
+          </span>
+        <?php endif; ?>
+      </span>
       <button class="modal-x" onclick="closeBreakdownModal()">✕</button>
     </div>
     <div class="modal-body">
@@ -1368,8 +1502,8 @@ tbody td .money-change { color: #88ccff; font-weight: 600; }
             <?php for($y=date('Y');$y>=2020;$y--){ $sel=($_GET['year']??'')==$y?'selected':''; echo "<option value='$y' $sel>$y</option>"; } ?>
           </select>
         </div>
-        <button type="submit" class="btn btn-orange btn-sm" style="margin-bottom:0;">Filter</button>
-        <a href="?" class="btn btn-dark btn-sm" style="margin-bottom:0;">Clear</a>
+                <button type="submit" class="btn btn-orange btn-sm" style="margin-bottom:0;">Filter</button>
+        <a href="?show_breakdown=1" class="btn btn-dark btn-sm" style="margin-bottom:0;">↺ Reset to Today</a>
       </form>
 
       <!-- Summary Cards -->
