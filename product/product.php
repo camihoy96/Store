@@ -265,15 +265,19 @@ $check_stmt->close();
             $product_id = $conn->insert_id;
             
             // Also create a batch record for tracking
-            $batch_sql = "INSERT INTO product_batches 
-                    (product_id, code, name, category, brand, seller_store, 
-                     purchase_price, price, quantity, kg, measurement_type, 
-                     purchase_date, expiry_date, image_path, status)
-                    VALUES ($product_id, '$code', '$name', '$category', '$brand', '$seller',
-                            $purchase_price, $price, $quantity, $kg_val, '$mtype',
-                            ".($purchase_date ? "'$purchase_date'" : "NULL").", 
-                            ".($expiry_date ? "'$expiry_date'" : "NULL").", 
-                            ".($product_image ? "'$product_image'" : "NULL").", 'active')";
+           $batch_sql = "INSERT INTO product_batches 
+        (product_id, code, name, category, brand, seller_store, 
+         purchase_price, price, quantity, kg, 
+         initial_quantity, initial_kg,
+         measurement_type, 
+         purchase_date, expiry_date, image_path, status)
+        VALUES ($product_id, '$code', '$name', '$category', '$brand', '$seller',
+                $purchase_price, $price, $quantity, $kg_val,
+                $quantity, $kg_val,
+                '$mtype',
+                ".($purchase_date ? "'$purchase_date'" : "NULL").", 
+                ".($expiry_date ? "'$expiry_date'" : "NULL").", 
+                ".($product_image ? "'$product_image'" : "NULL").", 'active')";
             
             $conn->query($batch_sql);
             $batch_id = $conn->insert_id;
@@ -316,15 +320,19 @@ $check_stmt->close();
         
         // Create new batch
         $batch_sql = "INSERT INTO product_batches 
-                (product_id, code, name, category, brand, seller_store, 
-                 purchase_price, price, quantity, kg, measurement_type, 
-                 purchase_date, expiry_date, image_path, status)
-                VALUES ($product_id, '{$product['code']}', '{$product['name']}', 
-                        '{$product['category']}', '{$product['brand']}', '$seller',
-                        $purchase_price, $price, $quantity, $kg_val, '$mtype',
-                        ".($purchase_date ? "'$purchase_date'" : "NULL").", 
-                        ".($expiry_date ? "'$expiry_date'" : "NULL").", 
-                        ".($product['image_path'] ? "'{$product['image_path']}'" : "NULL").", 'active')";
+        (product_id, code, name, category, brand, seller_store, 
+         purchase_price, price, quantity, kg, 
+         initial_quantity, initial_kg,
+         measurement_type, 
+         purchase_date, expiry_date, image_path, status)
+        VALUES ($product_id, '{$product['code']}', '{$product['name']}', 
+                '{$product['category']}', '{$product['brand']}', '$seller',
+                $purchase_price, $price, $quantity, $kg_val,
+                $quantity, $kg_val,
+                '$mtype',
+                ".($purchase_date ? "'$purchase_date'" : "NULL").", 
+                ".($expiry_date ? "'$expiry_date'" : "NULL").", 
+                ".($product['image_path'] ? "'{$product['image_path']}'" : "NULL").", 'active')";
         
         if ($conn->query($batch_sql)) {
             $batch_id = $conn->insert_id;
@@ -1486,8 +1494,9 @@ if (!empty($image_path)):
             <div class="form-section-title">💰 Pricing</div>
             <div class="form-grid">
               <div class="form-group">
-                <label>Capital Price (₱) *</label>
-                <input type="number" name="purchase_price" class="form-input" placeholder="0.00" step="0.01" min="0" required>
+               <label>Total Batch Capital (₱) *</label>
+<input type="number" name="purchase_price" class="form-input" placeholder="e.g. 186000" step="0.01" min="0" required>
+<small style="font-size:9px;color:var(--text3);margin-top:2px;">Total cost paid for the whole batch — per-piece cost is calculated automatically</small>
               </div>
               <div class="form-group">
                 <label>Selling Price (₱) *</label>

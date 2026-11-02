@@ -310,9 +310,10 @@ if (isset($_POST['export'])) {
     <div style="text-align:right;font-style:italic;margin-bottom:15px;">Generated: ' . date("F j, Y") . ' at ' . date("g:i A") . '</div>';
 
     echo '<table cellspacing="0"><thead><tr>
-        <th>Trans #</th><th>Cashier</th><th>Date</th><th>Time</th>
-        <th>Payment</th><th>Total</th><th>Paid</th><th>Change</th><th>Items</th>
-    </tr></thead><tbody>';
+    <th>Trans #</th><th>Cashier</th><th>Date</th><th>Time</th>
+    <th>Payment</th><th>Capital</th><th>Profit</th>
+    <th>Total</th><th>Paid</th><th>Change</th><th>Items</th>
+</tr></thead><tbody>';
 
     $q = "SELECT * FROM transactions WHERE (status IS NULL OR status != 'voided')";
     $params=[]; $types='';
@@ -328,7 +329,7 @@ if (isset($_POST['export'])) {
     $stmt->execute();
     $res = $stmt->get_result();
     $tS=0; $tP=0; $tC=0; $tPcs=0; $tKg=0;
-    
+$tCapital=0; $tProfit=0;   // ← ADD
     while($row = $res->fetch_assoc()){
         $its = json_decode($row['items'], true); $fi = '';
         if(is_array($its)){
@@ -343,7 +344,6 @@ if (isset($_POST['export'])) {
             $fi .= '</tbody></table>';
         }
         $tS += $row['total']; $tP += $row['paid']; $tC += $row['change_due'];
-        
         $pm  = $hasPaymentMethod ? ($row['payment_method'] ?? 'Cash') : 'Cash';
         $ref = $hasReferenceNo   ? ($row['reference_no']   ?? '')      : '';
         if(!$pm) $pm = 'Cash';
@@ -363,27 +363,41 @@ if (isset($_POST['export'])) {
         if ($ref) {
             $pmDisplay .= " [Ref: " . htmlspecialchars($ref) . "]";
         }
-        
-        echo '<tr>
-                <td style="text-align:center;">' . $row['id'] . '</td>
-                <td>' . htmlspecialchars($row['cashier_name']) . '</td>
-                <td>' . date("F j, Y", strtotime($row['date'])) . '</td>
-                <td>' . date("g:i A", strtotime($row['time'])) . '</td>
-                <td>' . $pmDisplay . '</td>
-                <td style="text-align:right;">&#8369;' . number_format($row['total'],2) . '</td>
-                <td style="text-align:right;">&#8369;' . number_format($row['paid'],2) . '</td>
-                <td style="text-align:right;">&#8369;' . number_format($row['change_due'],2) . '</td>
-                <td>' . $fi . '</td>
-              </tr>';
+        $rowProfit = computeProfit($row['items'] ?? '[]');
+if ($rowProfit['has_cogs']) {
+    $tCapital += $rowProfit['capital'];
+    $tProfit  += $rowProfit['profit'];
+}
+$capCell = $rowProfit['has_cogs']
+    ? '&#8369;' . number_format($rowProfit['capital'], 2)
+    : '—';
+$profCell = $rowProfit['has_cogs']
+    ? '&#8369;' . number_format($rowProfit['profit'], 2)
+    : '—';
+echo '<tr>
+        <td style="text-align:center;">' . $row['id'] . '</td>
+        <td>' . htmlspecialchars($row['cashier_name']) . '</td>
+        <td>' . date("F j, Y", strtotime($row['date'])) . '</td>
+        <td>' . date("g:i A", strtotime($row['time'])) . '</td>
+        <td>' . $pmDisplay . '</td>
+        <td style="text-align:right;color:#2b6cb0;">' . $capCell . '</td>
+        <td style="text-align:right;color:#2f855a;font-weight:bold;">' . $profCell . '</td>
+        <td style="text-align:right;">&#8369;' . number_format($row['total'],2) . '</td>
+        <td style="text-align:right;">&#8369;' . number_format($row['paid'],2) . '</td>
+        <td style="text-align:right;">&#8369;' . number_format($row['change_due'],2) . '</td>
+        <td>' . $fi . '</td>
+      </tr>';
     }
     $kgDisplay = $tKg == floor($tKg) ? (int)$tKg : rtrim(rtrim(number_format($tKg,3),'0'),'.');
     echo '<tr class="totals">
-            <td colspan="5" style="text-align:right;"><strong>TOTALS:</strong></td>
-            <td style="text-align:right;"><strong>&#8369;' . number_format($tS,2) . '</strong></td>
-            <td style="text-align:right;"><strong>&#8369;' . number_format($tP,2) . '</strong></td>
-            <td style="text-align:right;"><strong>&#8369;' . number_format($tC,2) . '</strong></td>
-            <td><strong>' . $tPcs . ' pc / ' . $kgDisplay . ' kg</strong></td>
-          </tr></tbody></table>';
+        <td colspan="5" style="text-align:right;"><strong>TOTALS:</strong></td>
+        <td style="text-align:right;color:#2b6cb0;"><strong>&#8369;' . number_format($tCapital, 2) . '</strong></td>
+        <td style="text-align:right;color:#2f855a;"><strong>&#8369;' . number_format($tProfit,  2) . '</strong></td>
+        <td style="text-align:right;"><strong>&#8369;' . number_format($tS,2) . '</strong></td>
+        <td style="text-align:right;"><strong>&#8369;' . number_format($tP,2) . '</strong></td>
+        <td style="text-align:right;"><strong>&#8369;' . number_format($tC,2) . '</strong></td>
+        <td><strong>' . $tPcs . ' pc / ' . $kgDisplay . ' kg</strong></td>
+      </tr></tbody></table>';
     echo '<div class="footer">End of Report - Generated on ' . date("F j, Y g:i A") . '</div></body></html>';
     exit;
 }
@@ -415,35 +429,52 @@ if (isset($_GET['export']) && in_array($_GET['export'],['pdf','pdf_all'])) {
         $filterInfo = 'All Transactions';
     }
     
-    $q = "SELECT * FROM transactions WHERE (status IS NULL OR status != 'voided')";
+        $q = "SELECT * FROM transactions WHERE (status IS NULL OR status != 'voided')";
+    $pdfParams = []; $pdfTypes = '';
     if($_GET['export']==='pdf'){
-        if(!empty($_GET['date']))     $q.=" AND date='".$conn->real_escape_string($_GET['date'])."'";
-        if(!empty($_GET['trans_id'])) $q.=" AND id = ".intval($_GET['trans_id']);
-        if(!empty($_GET['month']))    $q.=" AND MONTH(date)=".intval($_GET['month']);
-        if(!empty($_GET['year']))     $q.=" AND YEAR(date)=".intval($_GET['year']);
+        if(!empty($_GET['date']))     { $q.=" AND date=?";           $pdfParams[]=$_GET['date'];           $pdfTypes.='s'; }
+        if(!empty($_GET['trans_id'])) { $q.=" AND id=?";             $pdfParams[]=intval($_GET['trans_id']); $pdfTypes.='i'; }
+        if(!empty($_GET['month']))    { $q.=" AND MONTH(date)=?";    $pdfParams[]=intval($_GET['month']);    $pdfTypes.='i'; }
+        if(!empty($_GET['year']))     { $q.=" AND YEAR(date)=?";     $pdfParams[]=intval($_GET['year']);     $pdfTypes.='i'; }
     }
     $q.=" ORDER BY id DESC";
-    $res=$conn->query($q);
+    $stmtPdf = $conn->prepare($q);
+    if(!empty($pdfParams)) $stmtPdf->bind_param($pdfTypes, ...$pdfParams);
+    $stmtPdf->execute();
+    $res = $stmtPdf->get_result();
+    // Also build a totals query using same prepared statement
+    $stmtTot = $conn->prepare($q);
+    if(!empty($pdfParams)) $stmtTot->bind_param($pdfTypes, ...$pdfParams);
+    $stmtTot->execute();
+    $tmp = $stmtTot->get_result();
     $tS=0;$tP=0;$tC=0;$tPcs=0;$tKg=0.0;
+$tCapital=0;$tProfit=0;
     $tmp=$conn->query($q);
-    while($r=$tmp->fetch_assoc()){
-        $tS+=$r['total'];$tP+=$r['paid'];$tC+=$r['change_due'];
-        $its=json_decode($r['items'],true);
-        if(is_array($its)) foreach($its as $it){
-            $qty=$it['qty']??0;
-            if(($it['measurement_type']??'')==='kg') $tKg+=(float)$qty; else $tPcs+=(int)$qty;
-        }
+      while($r=$tmp->fetch_assoc()){
+    $tS+=$r['total'];$tP+=$r['paid'];$tC+=$r['change_due'];
+    $rowProfit = computeProfit($r['items'] ?? '[]');
+    if ($rowProfit['has_cogs']) {
+        $tCapital += $rowProfit['capital'];
+        $tProfit  += $rowProfit['profit'];
     }
+    $its=json_decode($r['items'],true);
+    if(is_array($its)) foreach($its as $it){
+        $qty=$it['qty']??0;
+        if(($it['measurement_type']??'')==='kg') $tKg+=(float)$qty; else $tPcs+=(int)$qty;
+    }
+}
     $pdf = new FPDF(); $pdf->AddPage();
     $pdf->SetFont('Arial','B',16); $pdf->Cell(0,10, htmlspecialchars($businessName), 0,1,'C');
     $pdf->SetFont('Arial','B',12); $pdf->Cell(0,8,'TRANSACTION RECORDS REPORT', 0,1,'C');
     $pdf->SetFont('Arial','I',10); $pdf->Cell(0,6, $filterInfo, 0,1,'C');
     $pdf->SetFont('Arial','',9);   $pdf->Cell(0,6,'Generated: ' . date("F j, Y") . ' at ' . date("g:i A"), 0,1,'R');
     $pdf->Ln(5);
-    $pdf->SetFont('Arial','B',9);
-    $pdf->Cell(15,8,'Trans #',1); $pdf->Cell(35,8,'Cashier',1); $pdf->Cell(25,8,'Date',1);
-    $pdf->Cell(20,8,'Time',1);    $pdf->Cell(25,8,'Payment',1); $pdf->Cell(22,8,'Total',1);
-    $pdf->Cell(22,8,'Paid',1);    $pdf->Cell(20,8,'Change',1);  $pdf->Ln();
+    $pdf->SetFont('Arial','B',8);
+$pdf->Cell(12,8,'Trans #',1); $pdf->Cell(28,8,'Cashier',1); $pdf->Cell(20,8,'Date',1);
+$pdf->Cell(16,8,'Time',1);    $pdf->Cell(22,8,'Payment',1);
+$pdf->Cell(18,8,'Capital',1); $pdf->Cell(18,8,'Profit',1);
+$pdf->Cell(20,8,'Total',1);   $pdf->Cell(20,8,'Paid',1);    $pdf->Cell(18,8,'Change',1);
+$pdf->Ln();
     $pdf->SetFont('Arial','',8);
     $res->data_seek(0);
     while($row=$res->fetch_assoc()){
@@ -464,12 +495,17 @@ if (isset($_GET['export']) && in_array($_GET['export'],['pdf','pdf_all'])) {
         if ($ref) {
             $pmStr .= " #" . substr($ref, 0, 10);
         }
-        $pdf->Cell(15,8,$row['id'],1); $pdf->Cell(35,8,substr($row['cashier_name'],0,20),1);
-        $pdf->Cell(25,8,date("M j, Y",strtotime($row['date'])),1); $pdf->Cell(20,8,date("g:i A",strtotime($row['time'])),1);
-        $pdf->Cell(25,8,$pmStr,1);
-        $pdf->Cell(22,8,'PHP ' . number_format($row['total'],2),1,0,'R');
-        $pdf->Cell(22,8,'PHP ' . number_format($row['paid'],2),1,0,'R');
-        $pdf->Cell(20,8,'PHP ' . number_format($row['change_due'],2),1,0,'R'); $pdf->Ln();
+              $rowProfit = computeProfit($row['items'] ?? '[]');
+        $capStr  = $rowProfit['has_cogs'] ? number_format($rowProfit['capital'], 2) : '—';
+        $profStr = $rowProfit['has_cogs'] ? number_format($rowProfit['profit'],  2) : '—';
+$pdf->Cell(12,8,$row['id'],1); $pdf->Cell(28,8,substr($row['cashier_name'],0,16),1);
+$pdf->Cell(20,8,date("M j",strtotime($row['date'])),1); $pdf->Cell(16,8,date("g:i A",strtotime($row['time'])),1);
+$pdf->Cell(22,8,substr($pmStr,0,15),1);
+$pdf->Cell(18,8,$capStr,1,0,'R');
+$pdf->Cell(18,8,$profStr,1,0,'R');
+$pdf->Cell(20,8,'PHP ' . number_format($row['total'],2),1,0,'R');
+$pdf->Cell(20,8,'PHP ' . number_format($row['paid'],2),1,0,'R');
+$pdf->Cell(18,8,'PHP ' . number_format($row['change_due'],2),1,0,'R'); $pdf->Ln();
         $its=json_decode($row['items'],true);
         if(is_array($its) && count($its)>0){
             $pdf->SetFont('Arial','',7);
@@ -481,14 +517,18 @@ if (isset($_GET['export']) && in_array($_GET['export'],['pdf','pdf_all'])) {
             $pdf->SetFont('Arial','',8); $pdf->Ln(2);
         }
     }
-    $kgDisplay = $tKg == floor($tKg) ? (int)$tKg : rtrim(rtrim(number_format($tKg,3),'0'),'.');
-    $pdf->SetFont('Arial','B',9);
-    $pdf->Cell(95,8,'TOTALS:',1,0,'R');
-    $pdf->Cell(22,8,'PHP ' . number_format($tS,2),1,0,'R');
-    $pdf->Cell(22,8,'PHP ' . number_format($tP,2),1,0,'R');
-    $pdf->Cell(20,8,'PHP ' . number_format($tC,2),1,0,'R'); $pdf->Ln();
-    $pdf->Cell(95,8,'',0);
-    $pdf->Cell(66,8,'Total Items: ' . $tPcs . ' pcs / ' . $kgDisplay . ' kg',1,1,'C');
+        $kgDisplay = $tKg == floor($tKg) ? (int)$tKg : rtrim(rtrim(number_format($tKg,3),'0'),'.');
+    $pdf->SetFont('Arial','B',8);
+// Column widths: Trans(12)+Cashier(28)+Date(20)+Time(16)+Payment(22) = 98
+$pdf->Cell(98,8,'TOTALS:',1,0,'R');
+$pdf->Cell(18,8,number_format($tCapital,2),1,0,'R');
+$pdf->Cell(18,8,number_format($tProfit,  2),1,0,'R');
+$pdf->Cell(20,8,'PHP ' . number_format($tS,2),1,0,'R');
+$pdf->Cell(20,8,'PHP ' . number_format($tP,2),1,0,'R');
+$pdf->Cell(18,8,'PHP ' . number_format($tC,2),1,0,'R'); $pdf->Ln();
+// Same 98mm offset for items summary line
+$pdf->Cell(98,8,'',0);
+$pdf->Cell(94,8,'Total Items: ' . $tPcs . ' pcs / ' . $kgDisplay . ' kg',1,1,'C');
     $pdf->Output('D','Transaction_Report_' . date('Ymd_His') . ($_GET['export']==='pdf'?'_filtered':'_all') . '.pdf'); 
     exit;
 }
@@ -515,6 +555,8 @@ $result     = $conn->query($fq." LIMIT $ipp OFFSET $off");
 
 // Totals + CACHE BUILD for active transactions
 $totalSales=0; $totalPaid=0; $totalChange=0; $totalPiecesSold=0; $totalKgSold=0;
+$totalCapital = 0;                     
+$totalProfit  = 0; 
 $productTotals=[];
 $cashCount=0; $ewalletCount=0; $ewalletBreakdown=[];
 $activeTxnCache = [];
@@ -523,17 +565,40 @@ $all = $conn->query($fq);
 while($row=$all->fetch_assoc()){
     if($row['status']==='voided') continue;
     $totalSales+=$row['total']; $totalPaid+=$row['paid']; $totalChange+=$row['change_due'];
+    $rowProfit = computeProfit($row['items'] ?? '[]');
+    $totalCapital += $rowProfit['capital'];
+    $totalProfit  += $rowProfit['profit'];
     $pm = $hasPaymentMethod ? strtolower(trim($row['payment_method']??'cash')) : 'cash';
     if(!$pm) $pm='cash';
     if($pm==='cash'){ $cashCount++; } else { $ewalletCount++; $ewalletBreakdown[$pm] = ($ewalletBreakdown[$pm]??0)+1; }
-    $its=json_decode($row['items'],true);
-    if(is_array($its)) foreach($its as $it){
-        if(($it['status']??'')==='voided') continue;
-        $nm=$it['name']??'Unnamed'; $qty=$it['qty']??0; $pr=$it['price']??0;
-        if(!isset($productTotals[$nm])) $productTotals[$nm]=['quantity'=>0,'revenue'=>0,'unit'=>$it['measurement_type']??'pc'];
-        $productTotals[$nm]['quantity']+=$qty; $productTotals[$nm]['revenue']+=($qty*$pr);
-        if(($it['measurement_type']??'')==='kg') $totalKgSold+=(float)$qty; else $totalPiecesSold+=(int)$qty;
-    }
+  $its=json_decode($row['items'],true);
+if(is_array($its)) foreach($its as $it){
+    if(($it['status']??'')==='voided') continue;
+    $nm   = $it['name']  ?? 'Unnamed';
+    $qty  = (float)($it['qty']   ?? 0);
+    $pr   = (float)($it['price'] ?? 0);
+    $hasCost = array_key_exists('cogs', $it) && (float)($it['cogs'] ?? 0) > 0;
+$cost = $hasCost ? (float)$it['cogs'] : 0;
+// track how many rows in this product actually had cost data
+if (!isset($productTotals[$nm])) {
+    $productTotals[$nm] = [
+        'quantity'  => 0,
+        'revenue'   => 0,
+        'capital'   => 0,
+        'profit'    => 0,
+        'unit'      => $it['measurement_type'] ?? 'pc',
+        'cost_rows' => 0,     // how many sold lines carried a real cogs
+    ];
+}
+$productTotals[$nm]['quantity'] += $qty;
+$productTotals[$nm]['revenue']  += $qty * $pr;
+$productTotals[$nm]['capital']  += $cost;
+$productTotals[$nm]['profit']   += $hasCost ? (($qty * $pr) - $cost) : 0;
+if ($hasCost) $productTotals[$nm]['cost_rows']++;
+
+    if(($it['measurement_type']??'')==='kg') $totalKgSold += (float)$qty;
+    else                                     $totalPiecesSold += (int)$qty;
+}
     $pmRaw  = $hasPaymentMethod ? ($row['payment_method'] ?? 'Cash') : 'Cash';
     $refRaw = $hasReferenceNo   ? ($row['reference_no']   ?? '')      : '';
     if(!$pmRaw) $pmRaw = 'Cash';
@@ -649,6 +714,50 @@ while($ed = $eAll->fetch_assoc()){
     ];
 }
 
+/**
+ * Compute per-transaction profit from the items JSON.
+ * Returns:
+ *   ['revenue' => ..., 'capital' => ..., 'profit' => ..., 'has_cogs' => bool]
+ *
+ * IMPORTANT: if NO item on this transaction has a cogs value (> 0),
+ * then profit is UNKNOWN — we return profit = 0 and has_cogs = false.
+ * This prevents "Total Profit" from silently mirroring "Total Sales"
+ * for old / cogs-less transactions.
+ */
+function computeProfit($itemsJson) {
+    $items = json_decode($itemsJson ?: '[]', true);
+    if (!is_array($items)) {
+        return ['revenue' => 0, 'capital' => 0, 'profit' => 0, 'has_cogs' => false];
+    }
+
+    $revenue = 0;
+    $capital = 0;
+    $hasCogs = false;
+
+    foreach ($items as $it) {
+        // Skip voided items
+        if (($it['status'] ?? '') === 'voided') continue;
+
+        $qty   = (float)($it['qty']   ?? 0);
+        $price = (float)($it['price'] ?? 0);
+        $cogs  = (float)($it['cogs']  ?? 0);
+
+        $revenue += $qty * $price;
+        $capital += $cogs;
+
+        // Only treat a row as "costed" if a real cogs value exists
+        if (array_key_exists('cogs', $it) && $cogs > 0) {
+            $hasCogs = true;
+        }
+    }
+
+    return [
+        'revenue'  => round($revenue, 2),
+        'capital'  => round($capital, 2),
+        'profit'   => $hasCogs ? round($revenue - $capital, 2) : 0,
+        'has_cogs' => $hasCogs,
+    ];
+}
 // ─── PAYMENT BREAKDOWN LOGIC ─────────────────────────────────────────────────────────
 $pbDate = $_GET['pb_date'] ?? '';
 $pbMonth = $_GET['pb_month'] ?? '';
@@ -696,7 +805,7 @@ while ($rowPB = $resPB->fetch_assoc()) {
     
     $pbOverallTotal += $total;
     
-    $txn = [
+       $txn = [
         'id' => $rowPB['id'],
         'payment_method' => $pm,
         'provider' => '',
@@ -704,7 +813,8 @@ while ($rowPB = $resPB->fetch_assoc()) {
         'amount' => $total,
         'is_split' => false,
         'split_cash' => 0,
-        'split_wallet' => 0
+        'split_wallet' => 0,
+        'items' => json_decode($rowPB['items'] ?? '[]', true) ?: []
     ];
 
     if (strtolower($pm) === 'cash') {
@@ -1022,6 +1132,14 @@ while ($rowPB = $resPB->fetch_assoc()) {
     </div>
 
     <div class="sum-grid">
+      <div class="sum-tile">
+  <div class="st-label">Total Capital</div>
+  <div class="st-val blue">₱<?= number_format($totalCapital, 2) ?></div>
+</div>
+<div class="sum-tile" style="border-color: var(--green);">
+  <div class="st-label">Total Profit</div>
+  <div class="st-val green" style="font-size:22px;">₱<?= number_format($totalProfit, 2) ?></div>
+</div>
       <div class="sum-tile"><div class="st-label">Total Sales</div><div class="st-val green">₱<?= number_format($totalSales,2) ?></div></div>
       <div class="sum-tile"><div class="st-label">Total Paid</div><div class="st-val yellow">₱<?= number_format($totalPaid,2) ?></div></div>
       <div class="sum-tile"><div class="st-label">Total Change</div><div class="st-val blue">₱<?= number_format($totalChange,2) ?></div></div>
@@ -1043,13 +1161,13 @@ while ($rowPB = $resPB->fetch_assoc()) {
       <div class="panel-body no-pad">
         <div class="tbl-wrap">
           <table class="data-tbl">
-            <thead><tr><th>Trans #</th><th>Cashier</th><th>Date</th><th>Time</th><th>Payment</th><th>Total</th><th>Paid</th><th>Change</th><th>Items</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Trans #</th><th>Cashier</th><th>Date</th><th>Time</th><th>Capital</th><th>Profit</th><th>Payment</th><th>Total</th><th>Paid</th><th>Change</th><th>Items</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               <?php $result->data_seek(0); while($row=$result->fetch_assoc()):
                 $pm    = $hasPaymentMethod ? ($row['payment_method'] ?? 'Cash') : 'Cash';
                 $refNo = $hasReferenceNo   ? ($row['reference_no']   ?? '')      : '';
                 if(!$pm) $pm='Cash';          
-                
+                $profit = computeProfit($row['items'] ?? '[]');
                 $splitCash = $hasSplitCash ? (float)($row['split_cash_amount'] ?? 0) : 0;
                 $splitWallet = $hasSplitWallet ? (float)($row['split_wallet_amount'] ?? 0) : 0;
                 $splitProvider = $hasSplitProvider ? ($row['split_wallet_provider'] ?? '') : '';              
@@ -1067,6 +1185,20 @@ while ($rowPB = $resPB->fetch_assoc()) {
                 <td><span class="td-name"><?= htmlspecialchars($row['cashier_name']) ?></span></td>
                 <td><span class="td-date"><?= date('M j, Y',strtotime($row['date'])) ?></span></td>
                 <td><span class="td-date"><?= date('g:i A',strtotime($row['time'])) ?></span></td>
+               <td>
+    <?php if ($profit['has_cogs']): ?>
+        <span style="color:#88bbff;font-weight:700;">₱<?= number_format($profit['capital'], 2) ?></span>
+    <?php else: ?>
+        <span style="color:var(--text3);" title="No cost (COGS) data recorded for this transaction">—</span>
+    <?php endif; ?>
+</td>
+<td>
+    <?php if ($profit['has_cogs']): ?>
+        <span style="color:#4dff88;font-weight:700;">₱<?= number_format($profit['profit'], 2) ?></span>
+    <?php else: ?>
+        <span style="color:var(--text3);" title="Profit unavailable — no COGS data on this transaction">—</span>
+    <?php endif; ?>
+</td>
               <td>
   <span class="pay-badge <?= $hasRef?'clickable':'' ?>"
         style="background:<?= $pmMeta['color'] ?>;color:white;"
@@ -1125,7 +1257,7 @@ while ($rowPB = $resPB->fetch_assoc()) {
                 </td>
               </tr>
               <?php endwhile; ?>
-              <?php if($totalRows===0): ?><tr><td colspan="11" class="td-empty">No transactions found.</td></tr><?php endif; ?>
+              <?php if($totalRows===0): ?><tr><td colspan="13" class="td-empty">No transactions found.</td></tr><?php endif; ?>
             </tbody>
           </table>
         </div>
@@ -1315,32 +1447,74 @@ while ($rowPB = $resPB->fetch_assoc()) {
       <div class="panel-body no-pad">
         <div class="tbl-wrap">
           <table class="data-tbl">
-            <thead><tr><th>Product</th><th>Unit</th><th>Qty Sold</th><th>Total Revenue</th><th>Share %</th></tr></thead>
-            <tbody>
-              <?php $grandRev=array_sum(array_column($productTotals,'revenue'));
-              foreach($productTotals as $pn=>$pt):
-                $ud=($pt['unit']==='kg')?'kg':'pc';
-                $qd=($pt['unit']==='kg')?(($pt['quantity']==floor($pt['quantity']))?(int)$pt['quantity']:rtrim(rtrim(number_format($pt['quantity'],3),'0'),'.')):((int)$pt['quantity']);
-                $share=$grandRev>0?round(($pt['revenue']/$grandRev)*100,1):0;
-              ?>
-              <tr>
-                <td class="td-name"><?= htmlspecialchars($pn) ?></td>
-                <td><span class="badge b-orange"><?= $ud ?></span></td>
-                <td><span style="color:var(--orange-lt);font-weight:700;"><?= $qd ?></span></td>
-                <td><span class="td-money">₱<?= number_format($pt['revenue'],2) ?></span></td>
-                <td>
-                  <div style="display:flex;align-items:center;gap:8px;">
-                    <div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden;">
-                      <div style="height:100%;width:<?= max(2,$share) ?>%;background:linear-gradient(90deg,var(--orange),var(--orange-lt));border-radius:3px;"></div>
-                    </div>
-                    <span style="font-size:10px;color:var(--text3);min-width:32px;"><?= $share ?>%</span>
-                  </div>
-                </td>
-              </tr>
-              <?php endforeach; ?>
-              <?php if(empty($productTotals)): ?><tr><td colspan="5" class="td-empty">No product data.</td></tr><?php endif; ?>
-            </tbody>
-          </table>
+           <thead>
+  <tr>
+    <th>Product</th><th>Unit</th><th>Qty Sold</th>
+    <th>Revenue</th><th>Capital</th><th>Profit</th><th>Share %</th>
+  </tr>
+</thead>
+<tbody>
+<?php $grandRev = array_sum(array_column($productTotals, 'revenue'));
+      $grandProfit = array_sum(array_column($productTotals, 'profit'));
+      foreach($productTotals as $pn => $pt):
+        $ud = ($pt['unit']==='kg') ? 'kg' : 'pc';
+        $qd = ($pt['unit']==='kg')
+            ? (($pt['quantity']==floor($pt['quantity']))?(int)$pt['quantity']:rtrim(rtrim(number_format($pt['quantity'],3),'0'),'.'))
+            : (int)$pt['quantity'];
+        $share = $grandRev > 0 ? round(($pt['revenue'] / $grandRev) * 100, 1) : 0;
+?>
+<tr>
+  <td class="td-name"><?= htmlspecialchars($pn) ?></td>
+  <td><span class="badge b-orange"><?= $ud ?></span></td>
+  <td><span style="color:var(--orange-lt);font-weight:700;"><?= $qd ?></span></td>
+  <td><span class="td-money">₱<?= number_format($pt['revenue'], 2) ?></span></td>
+  <td>
+  <?php if (!empty($pt['cost_rows'])): ?>
+    <span style="color:#88bbff;font-weight:700;">₱<?= number_format($pt['capital'], 2) ?></span>
+  <?php else: ?>
+    <span style="color:var(--text3);" title="No COGS data">—</span>
+  <?php endif; ?>
+</td>
+<td>
+  <?php if (!empty($pt['cost_rows'])): ?>
+    <span style="color:#4dff88;font-weight:700;">₱<?= number_format($pt['profit'], 2) ?></span>
+  <?php else: ?>
+    <span style="color:var(--text3);" title="Profit unavailable — no COGS data">—</span>
+  <?php endif; ?>
+</td>
+  <td>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden;">
+        <div style="height:100%;width:<?= max(2,$share) ?>%;background:linear-gradient(90deg,var(--orange),var(--orange-lt));border-radius:3px;"></div>
+      </div>
+      <span style="font-size:10px;color:var(--text3);min-width:32px;"><?= $share ?>%</span>
+    </div>
+  </td>
+</tr>
+<?php endforeach; ?>
+<?php if(empty($productTotals)): ?><tr><td colspan="7" class="td-empty">No product data.</td></tr><?php endif; ?>
+</tbody>
+<?php
+  // Only sum capital/profit over products that actually have cost data
+  $grandCapital = 0;
+  $grandProfit  = 0;
+  foreach ($productTotals as $pt) {
+      if (!empty($pt['cost_rows'])) {
+          $grandCapital += $pt['capital'];
+          $grandProfit  += $pt['profit'];
+      }
+  }
+?>
+<tfoot>
+<tr style="background:var(--bg3);font-weight:700;">
+  <td colspan="3" style="text-align:right;padding:8px 12px;">TOTALS:</td>
+  <td style="text-align:right;color:#4dff88;padding:8px 12px;">₱<?= number_format($grandRev, 2) ?></td>
+  <td style="text-align:right;color:#88bbff;padding:8px 12px;">₱<?= number_format($grandCapital, 2) ?></td>
+  <td style="text-align:right;color:#4dff88;padding:8px 12px;">₱<?= number_format($grandProfit, 2) ?></td>
+  <td></td>
+</tr>
+</tfoot>
+</table>
         </div>
         <?php if(!empty($productTotals)): ?>
         <div style="padding:14px;border-top:1px solid var(--border);">
@@ -1351,10 +1525,24 @@ while ($rowPB = $resPB->fetch_assoc()) {
               $qd=($pt['unit']==='kg')?(($pt['quantity']==floor($pt['quantity']))?(int)$pt['quantity']:rtrim(rtrim(number_format($pt['quantity'],3),'0'),'.')):((int)$pt['quantity']);
             ?>
             <div class="bk-card">
-              <div class="bk-name" title="<?= htmlspecialchars($pn) ?>"><?= htmlspecialchars($pn) ?></div>
-              <div class="bk-row"><span class="bk-label">Qty:</span><span class="bk-val"><?= $qd ?> <?= $ud ?></span></div>
-              <div class="bk-row"><span class="bk-label">Sales:</span><span class="bk-rev">₱<?= number_format($pt['revenue'],2) ?></span></div>
-            </div>
+  <div class="bk-name" title="<?= htmlspecialchars($pn) ?>"><?= htmlspecialchars($pn) ?></div>
+  <div class="bk-row"><span class="bk-label">Qty:</span><span class="bk-val"><?= $qd ?> <?= $ud ?></span></div>
+  <div class="bk-row"><span class="bk-label">Sales:</span><span class="bk-rev">₱<?= number_format($pt['revenue'], 2) ?></span></div>
+ <div class="bk-row"><span class="bk-label">Capital:</span>
+  <?php if (!empty($pt['cost_rows'])): ?>
+    <span style="color:#88bbff;">₱<?= number_format($pt['capital'], 2) ?></span>
+  <?php else: ?>
+    <span style="color:var(--text3);">—</span>
+  <?php endif; ?>
+</div>
+<div class="bk-row"><span class="bk-label">Profit:</span>
+  <?php if (!empty($pt['cost_rows'])): ?>
+    <span style="color:#4dff88;font-weight:700;">₱<?= number_format($pt['profit'], 2) ?></span>
+  <?php else: ?>
+    <span style="color:var(--text3);">—</span>
+  <?php endif; ?>
+</div>
+</div>
             <?php endforeach; ?>
           </div>
         </div>
@@ -1421,7 +1609,7 @@ while ($rowPB = $resPB->fetch_assoc()) {
           <table class="data-tbl">
             <thead>
               <tr>
-                <th>Trans #</th>
+                <th>Trans # and Item</th>
                 <th>Payment Type</th>
                 <th>Provider</th>
                 <th>Ref. No.</th>
@@ -1444,7 +1632,42 @@ while ($rowPB = $resPB->fetch_assoc()) {
                   }
                 ?>
                 <tr>
-                  <td><span class="td-id">#<?= $pbTxn['id'] ?></span></td>
+                  <td style="min-width:180px;">
+  <span class="td-id">#<?= $pbTxn['id'] ?></span>
+  <?php if (!empty($pbTxn['items'])): ?>
+    <div style="margin-top:4px; font-size:9.5px; line-height:1.35; color:var(--text3);">
+      <?php
+        // Show up to 3 items, then "+N more"
+        $shown = 0;
+        $maxShown = 3;
+        $itemCount = count($pbTxn['items']);
+        foreach ($pbTxn['items'] as $it):
+          if ($shown >= $maxShown) break;
+          $iname = htmlspecialchars($it['name'] ?? 'Item');
+          $iqty  = (float)($it['qty'] ?? 0);
+          $iunit = htmlspecialchars($it['unit'] ?? ($it['measurement_type'] === 'kg' ? 'kg' : 'pc'));
+          $ist   = $it['status'] ?? '';
+          $style = $ist === 'voided' ? 'text-decoration:line-through;opacity:.5;' : '';
+          $qdisp = $iqty == floor($iqty) ? (int)$iqty : rtrim(rtrim(number_format($iqty, 3), '0'), '.');
+      ?>
+        <div style="<?= $style ?>">
+          <span style="color:var(--orange-lt);font-weight:600;"><?= $qdisp ?><?= $iunit ?></span>
+          <span style="color:var(--text2);"> × <?= $iname ?></span>
+        </div>
+      <?php
+          $shown++;
+        endforeach;
+        if ($itemCount > $maxShown):
+      ?>
+        <div style="color:var(--yellow);font-weight:600;cursor:pointer;"
+             onclick="showPBItems(<?= $pbTxn['id'] ?>);event.stopPropagation();"
+             title="Click to view all items">
+          +<?= $itemCount - $maxShown ?> more…
+        </div>
+      <?php endif; ?>
+    </div>
+  <?php endif; ?>
+</td>
                   <td>
                     <span class="pay-badge" style="background:<?= $meta['color'] ?>;color:white;">
                       <?= $meta['icon'] ?> <?= htmlspecialchars($displayType) ?>

@@ -5,6 +5,7 @@
  * Handles POST from home.php POS terminal.
  * Accepts JSON body with cash, e-wallet, OR split payment data.
  * Saves payment_method, reference_no, and split breakdown into the transactions table.
+ * Also records per-item COGS (cost of goods sold) so record.php can compute profit.
  *
  * Expected JSON fields:
  *   items[]                 array of cart items
@@ -48,9 +49,11 @@ if (!$data || json_last_error() !== JSON_ERROR_NONE) {
     echo json_encode(['status' => 'error', 'message' => 'Invalid JSON payload.']);
     exit;
 }
+
 /* ── DB connection ────────────────────────────────────────────────── */
 require('../dbconn.php');
 date_default_timezone_set('Asia/Manila');
+
 /* ── Extract & sanitise fields ────────────────────────────────────── */
 $items        = $data['items']          ?? [];
 $total        = (float)($data['total']  ?? 0);
@@ -61,10 +64,12 @@ $date         = $data['date']           ?? date('Y-m-d');
 $time         = $data['time']           ?? date('H:i:s');
 $rawMethod    = trim($data['payment_method'] ?? 'Cash');
 $referenceNo  = trim($data['reference_no']   ?? '');
+
 /* ── Resolve payment_method label & split details ─────────────────── */
 $splitCashAmount    = 0.0;
 $splitWalletAmount  = 0.0;
 $splitWalletProvider= '';
+
 if (strtolower($rawMethod) === 'wallet' || strtolower($rawMethod) === 'ewallet') {
     $provider    = trim($data['wallet_provider'] ?? '');
     $referenceNo = trim($data['wallet_ref']      ?? $referenceNo);
@@ -72,7 +77,7 @@ if (strtolower($rawMethod) === 'wallet' || strtolower($rawMethod) === 'ewallet')
 } elseif (strtolower($rawMethod) === 'split') {
     $paymentMethod = 'Split';
     $referenceNo   = trim($data['wallet_ref'] ?? $referenceNo);
-    // Extract structured split data if provided
+
     if (isset($data['split_cash_amount'])) {
         $splitCashAmount = (float)$data['split_cash_amount'];
     }
@@ -85,6 +90,7 @@ if (strtolower($rawMethod) === 'wallet' || strtolower($rawMethod) === 'ewallet')
 } else {
     $paymentMethod = ($rawMethod !== '') ? $rawMethod : 'Cash';
 }
+
 /* ── Validate ─────────────────────────────────────────────────────── */
 if (empty($items)) {
     http_response_code(400);
@@ -97,23 +103,25 @@ if ($total <= 0) {
     exit;
 }
 if (strtolower($paymentMethod) !== 'cash' && strtolower($paymentMethod) !== 'split' && empty($referenceNo)) {
-    /* E-wallet payments require a reference number */
     http_response_code(400);
     echo json_encode(['status' => 'error', 'message' => 'Reference number is required for this payment type.']);
     exit;
 }
-/* ── Encode items to JSON ─────────────────────────────────────────── */
-$itemsJson = json_encode($items, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
 /* ── Check if payment columns exist (graceful upgrade) ────────────── */
 $hasPaymentMethod = false;
 $hasReferenceNo   = false;
 $hasSplitCols     = false;
+
 $chk1 = $conn->query("SHOW COLUMNS FROM transactions LIKE 'payment_method'");
 if ($chk1 && $chk1->num_rows > 0) $hasPaymentMethod = true;
+
 $chk2 = $conn->query("SHOW COLUMNS FROM transactions LIKE 'reference_no'");
 if ($chk2 && $chk2->num_rows > 0) $hasReferenceNo = true;
+
 $chk3 = $conn->query("SHOW COLUMNS FROM transactions LIKE 'split_cash_amount'");
 if ($chk3 && $chk3->num_rows > 0) $hasSplitCols = true;
+
 /* ── Auto-create columns if missing ───────────────────────────────── */
 if (!$hasPaymentMethod) {
     $conn->query("ALTER TABLE transactions ADD COLUMN payment_method VARCHAR(50) DEFAULT 'Cash' AFTER change_due");
@@ -123,11 +131,118 @@ if (!$hasReferenceNo) {
     $conn->query("ALTER TABLE transactions ADD COLUMN reference_no VARCHAR(100) DEFAULT NULL AFTER payment_method");
     $hasReferenceNo = true;
 }
-// Note: We don't auto-create split columns here to avoid accidental schema changes, 
-// but the code gracefully falls back if they are missing.
+
 /* ── Begin transaction so record + stock deduction are atomic ────── */
 $conn->begin_transaction();
+
 try {
+
+    /* ── Deduct stock from product_batches (FIFO) AND record COGS ─────
+       IMPORTANT: This loop mutates $items by reference so that each
+       item gains a `cogs` (total cost) and `unit_cost` (per-unit) key.
+       Those keys are then serialized into the `items` JSON column.
+    ────────────────────────────────────────────────────────────────── */
+    foreach ($items as &$item) {
+
+        $itemId = $item['id'] ?? null;
+
+        /* Skip custom products — no cost data available */
+        if (!$itemId || str_starts_with((string)$itemId, 'custom-')) {
+            $item['cogs']      = 0.00;
+            $item['unit_cost'] = 0.00;
+            continue;
+        }
+
+        $qty = (float)($item['qty'] ?? 0);
+        if ($qty <= 0) {
+            $item['cogs']      = 0.00;
+            $item['unit_cost'] = 0.00;
+            continue;
+        }
+
+        $itemIdInt = (int)$itemId;
+        $unitType  = $item['measurement_type'] ?? 'pieces';
+
+        // Determine which column to use based on the unit type
+        $stockColumn = ($unitType === 'kg') ? 'kg' : 'quantity';
+
+        /* Fetch active batches oldest-first, lock rows. Include purchase_price + initial qty. */
+$batchQ = $conn->prepare(
+    "SELECT id, $stockColumn AS current_stock, purchase_price,
+            initial_quantity, initial_kg
+     FROM product_batches
+     WHERE product_id = ? AND status = 'active' AND $stockColumn > 0
+     ORDER BY id ASC
+     FOR UPDATE"
+);
+        if (!$batchQ) {
+            throw new Exception('Prepare batch select failed: ' . $conn->error);
+        }
+        $batchQ->bind_param('i', $itemIdInt);
+        $batchQ->execute();
+        $batchRes = $batchQ->get_result();
+
+        $updQ = $conn->prepare(
+            "UPDATE product_batches SET $stockColumn = $stockColumn - ? WHERE id = ?"
+        );
+        if (!$updQ) {
+            throw new Exception('Prepare batch update failed: ' . $conn->error);
+        }
+
+        $remaining = $qty;
+        $itemCost  = 0.0;    // accumulate COGS across all batches this item consumes
+
+        while ($b = $batchRes->fetch_assoc()) {
+            if ($remaining <= 0.000001) break;
+
+            $available = (float)$b['current_stock'];
+            $take = min($remaining, $available);
+            if ($take <= 0) continue;
+
+            // ── COGS: purchase_price is the BATCH TOTAL, so divide by initial quantity ──
+$batchTotalCapital = (float)($b['purchase_price'] ?? 0);
+$initialQty        = ($unitType === 'kg')
+    ? (float)($b['initial_kg']        ?? 0)
+    : (float)($b['initial_quantity']  ?? 0);
+$perPieceCost      = $initialQty > 0 ? ($batchTotalCapital / $initialQty) : 0;
+$itemCost         += $take * $perPieceCost;
+
+            $updQ->bind_param('di', $take, $b['id']);
+            if (!$updQ->execute()) {
+                throw new Exception('Batch update failed: ' . $updQ->error);
+            }
+            if ($updQ->affected_rows === 0) {
+                throw new Exception("Batch {$b['id']} update affected 0 rows.");
+            }
+            $remaining -= $take;
+        }
+
+        $batchQ->close();
+        $updQ->close();
+
+        if ($remaining > 0.000001) {
+            throw new Exception(
+                "Insufficient stock for '{$item['name']}' (short {$remaining})."
+            );
+        }
+
+        /* Attach COGS to the item before it gets json_encoded */
+        $item['cogs']      = round($itemCost, 2);
+        $item['unit_cost'] = $qty > 0 ? round($itemCost / $qty, 4) : 0.00;
+
+        /* Mark emptied batches as depleted so they no longer count */
+        $conn->query(
+            "UPDATE product_batches
+             SET status = 'depleted'
+             WHERE product_id = {$itemIdInt}
+               AND status = 'active'
+               AND $stockColumn <= 0"
+        );
+    }
+    unset($item); // break reference — important after foreach by-reference
+
+    /* ── Encode items to JSON — NOW includes cogs and unit_cost ─────── */
+    $itemsJson = json_encode($items, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
     /* ── Insert transaction ───────────────────────────────────────── */
     if ($hasSplitCols && $paymentMethod === 'Split') {
@@ -140,7 +255,6 @@ try {
             throw new Exception('DB prepare failed: ' . $conn->error);
         }
 
-        // s=string, d=double (float)
         $stmt->bind_param(
             'sssdddsssdds',
             $cashier, $date, $time,
@@ -170,80 +284,6 @@ try {
     }
     $transactionId = $conn->insert_id;
     $stmt->close();
-    /* ── Deduct stock from product_batches (FIFO) ─────────────────── */
-    foreach ($items as $item) {
-        $itemId = $item['id'] ?? null;
-
-        /* Skip custom products */
-        if (!$itemId || str_starts_with((string)$itemId, 'custom-')) continue;
-
-        $qty = (float)($item['qty'] ?? 0);
-        if ($qty <= 0) continue;
-
-        $itemIdInt = (int)$itemId;
-        $unitType  = $item['measurement_type'] ?? 'pieces';
-        
-        // Determine which column to use based on the unit type
-        $stockColumn = ($unitType === 'kg') ? 'kg' : 'quantity';
-
-        /* Fetch active batches oldest-first, lock rows */
-        $batchQ = $conn->prepare(
-            "SELECT id, $stockColumn AS current_stock
-             FROM product_batches
-             WHERE product_id = ? AND status = 'active' AND $stockColumn > 0
-             ORDER BY id ASC
-             FOR UPDATE"
-        );
-        if (!$batchQ) {
-            throw new Exception('Prepare batch select failed: ' . $conn->error);
-        }
-        $batchQ->bind_param('i', $itemIdInt);
-        $batchQ->execute();
-        $batchRes = $batchQ->get_result();
-
-        $updQ = $conn->prepare(
-            "UPDATE product_batches SET $stockColumn = $stockColumn - ? WHERE id = ?"
-        );
-        if (!$updQ) {
-            throw new Exception('Prepare batch update failed: ' . $conn->error);
-        }
-
-        $remaining = $qty;
-        while ($b = $batchRes->fetch_assoc()) {
-            if ($remaining <= 0.000001) break;
-
-            $available = (float)$b['current_stock'];
-            $take = min($remaining, $available);
-            if ($take <= 0) continue;
-
-            $updQ->bind_param('di', $take, $b['id']);
-            if (!$updQ->execute()) {
-                throw new Exception('Batch update failed: ' . $updQ->error);
-            }
-            if ($updQ->affected_rows === 0) {
-                throw new Exception("Batch {$b['id']} update affected 0 rows.");
-            }
-            $remaining -= $take;
-        }
-
-        $batchQ->close();
-        $updQ->close();
-
-        if ($remaining > 0.000001) {
-            throw new Exception(
-                "Insufficient stock for '{$item['name']}' (short {$remaining})."
-            );
-        }
-
-        /* Mark emptied batches as depleted so they no longer count */
-        $conn->query(
-            "UPDATE product_batches
-             SET status = 'depleted'
-             WHERE product_id = {$itemIdInt}
-               AND status = 'active'
-               AND $stockColumn <= 0"
-        );
-    }
 
     /* ── Commit — record + all deductions persist together ────────── */
     $conn->commit();
