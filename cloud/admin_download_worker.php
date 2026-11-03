@@ -124,8 +124,8 @@ if ($action === 'download') {
                     $pp = v($p,'purchase_price'); $img = v($p,'image_path');
                     $added = v($p,'date_added');
 
-                    // ✅ VERIFIED 15-CHARACTER TYPE STRING
-                    $stmt->bind_param('isssdssssidsdss',
+                    //  VERIFIED 15-CHARACTER TYPE STRING
+                     $stmt->bind_param('isssdssssidsdss',
                         $pid, $code, $name, $cat, $price, $brand, $store,
                         $exp, $pur, $pieces, $kg, $mt, $pp, $img, $added
                     );
@@ -139,7 +139,7 @@ if ($action === 'download') {
                         $res = $checkBatchStmt->get_result();
                         
                         if ($res->num_rows === 0) {
-                            // ✅ VERIFIED 14-CHARACTER TYPE STRING
+                            //  VERIFIED 14-CHARACTER TYPE STRING
                             $insertBatchStmt->bind_param('isssssddidssss', 
                                 $pid, $code, $name, $cat, $brand, $store,
                                 $pp, $price, $pieces, $kg, $mt, $pur, $exp, $img
