@@ -1954,9 +1954,17 @@ async function processPayment() {
   }
 
   const change = paid - total;
-  const now = new Date();
-  const date = now.toISOString().split('T')[0];
-  const time = now.toTimeString().split(' ')[0];
+ const now = new Date();
+// ── Manila-local date & time (NOT UTC) ──────────────────────────────
+const _manilaDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+const _yy = _manilaDate.getFullYear();
+const _mm = String(_manilaDate.getMonth() + 1).padStart(2, '0');
+const _dd = String(_manilaDate.getDate()).padStart(2, '0');
+const _hh = String(_manilaDate.getHours()).padStart(2, '0');
+const _mi = String(_manilaDate.getMinutes()).padStart(2, '0');
+const _ss = String(_manilaDate.getSeconds()).padStart(2, '0');
+const date = `${_yy}-${_mm}-${_dd}`;   // "YYYY-MM-DD" Manila
+const time = `${_hh}:${_mi}:${_ss}`;   // "HH:MM:SS"   Manila
 
   const itemsData = checkout.map(item => ({
     id: item.id,
@@ -1978,8 +1986,6 @@ async function processPayment() {
         paid: paid.toFixed(2),
         change: change.toFixed(2),
         cashier,
-        date,
-        time,
         payment_method: 'Cash',
         reference_no: ''
       })
@@ -2089,11 +2095,17 @@ async function processWalletPayment() {
     isProcessingPayment = false; // Reset flag
     return showErr('Reference number seems too short. Please verify.');
   }
-
-  const now = new Date();
-  const date = now.toISOString().split('T')[0];
-  const time = now.toTimeString().split(' ')[0];
-
+const now = new Date();
+// ── Manila-local date & time (NOT UTC) ──────────────────────────────
+const _manilaDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+const _yy = _manilaDate.getFullYear();
+const _mm = String(_manilaDate.getMonth() + 1).padStart(2, '0');
+const _dd = String(_manilaDate.getDate()).padStart(2, '0');
+const _hh = String(_manilaDate.getHours()).padStart(2, '0');
+const _mi = String(_manilaDate.getMinutes()).padStart(2, '0');
+const _ss = String(_manilaDate.getSeconds()).padStart(2, '0');
+const date = `${_yy}-${_mm}-${_dd}`;   // "YYYY-MM-DD" Manila
+const time = `${_hh}:${_mi}:${_ss}`;   // "HH:MM:SS"   Manila
   const itemsData = checkout.map(item => ({
     id: item.id,
     name: item.name,
@@ -2114,8 +2126,6 @@ async function processWalletPayment() {
         paid: total.toFixed(2),
         change: '0.00',
         cashier,
-        date,
-        time,
         payment_method: 'wallet', // Kept as 'wallet' for backend compatibility
         wallet_provider: providerName,
         wallet_ref: refNo
@@ -3160,9 +3170,17 @@ async function processSplitPayment() {
   if (!provider) return showErr('Please select an E-wallet/Bank provider.');
   if (refNo.length < 5) return showErr('Reference number seems too short. Please verify.');
 
-  const now = new Date();
-  const date = now.toISOString().split('T')[0];
-  const time = now.toTimeString().split(' ')[0];
+ const now = new Date();
+// ── Manila-local date & time (NOT UTC) ──────────────────────────────
+const _manilaDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+const _yy = _manilaDate.getFullYear();
+const _mm = String(_manilaDate.getMonth() + 1).padStart(2, '0');
+const _dd = String(_manilaDate.getDate()).padStart(2, '0');
+const _hh = String(_manilaDate.getHours()).padStart(2, '0');
+const _mi = String(_manilaDate.getMinutes()).padStart(2, '0');
+const _ss = String(_manilaDate.getSeconds()).padStart(2, '0');
+const date = `${_yy}-${_mm}-${_dd}`;   // "YYYY-MM-DD" Manila
+const time = `${_hh}:${_mi}:${_ss}`;   // "HH:MM:SS"   Manila
 
   const itemsData = checkout.map(item => ({
     id: item.id, name: item.name, qty: item.qty, price: item.price,
@@ -3179,7 +3197,7 @@ async function processSplitPayment() {
         total: splitTotal.toFixed(2),
         paid: splitTotal.toFixed(2),
         change: '0.00',
-        cashier, date, time,
+        cashier,
         payment_method: 'Split',
         
         // Standard fields

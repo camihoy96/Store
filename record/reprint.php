@@ -1,5 +1,36 @@
 <?php
 require('dbconn.php');
+// ─── Payment meta helpers — MUST match transaction.php ───
+$ewalletMeta = [
+    'gcash'    => ['label'=>'GCash',    'color'=>'#0a6dff', 'icon'=>'💳'],
+    'maya'     => ['label'=>'Maya',     'color'=>'#00b050', 'icon'=>'🎫'],
+    'paymaya'  => ['label'=>'Maya',     'color'=>'#00b050', 'icon'=>'🎫'],
+    'grabpay'  => ['label'=>'GrabPay',  'color'=>'#00b14f', 'icon'=>'💳'],
+    'shopeepay'=> ['label'=>'ShopeePay','color'=>'#ee4d2d', 'icon'=>'💳'],
+    'seabank'  => ['label'=>'SeaBank',  'color'=>'#2b4fff', 'icon'=>'🪪'],
+    'coins'    => ['label'=>'Coins.ph', 'color'=>'#f5a623', 'icon'=>'💳'],
+    // Common banks (optional but useful)
+    'bpi'      => ['label'=>'BPI',      'color'=>'#b22222', 'icon'=>'🏦'],
+    'bdo'      => ['label'=>'BDO',      'color'=>'#0033a0', 'icon'=>'🏦'],
+    'metrobank'=> ['label'=>'MetroBank','color'=>'#00277a', 'icon'=>'🏦'],
+    'unionbank'=> ['label'=>'UnionBank','color'=>'#ff6600', 'icon'=>'🏦'],
+    'securitybank'=> ['label'=>'Security Bank','color'=>'#0066b3', 'icon'=>'🏦'],
+    'rcbc'     => ['label'=>'RCBC',     'color'=>'#0055a5', 'icon'=>'🏦'],
+];
+
+function getPaymentMeta($pm, $ewalletMeta) {
+    if (!$pm || strtolower(trim($pm)) === 'cash') {
+        return ['label'=>'Cash', 'color'=>'#2a6e1a', 'icon'=>'cash', 'type'=>'cash'];
+    }
+    if (strtolower(trim($pm)) === 'split') {
+        return ['label'=>'Split Payment', 'color'=>'#6a0dad', 'icon'=>'wallet', 'type'=>'split'];
+    }
+    $key = strtolower(str_replace([' ','-','_'],'',$raw));
+    foreach ($ewalletMeta as $k => $meta) {
+        if (strpos($key, $k) !== false) return array_merge($meta, ['type'=>'ewallet']);
+    }
+    return ['label'=>ucwords($raw), 'color'=>'#7a5c00', 'icon'=>'📱', 'type'=>'ewallet'];
+}
 $id = $_GET['id'] ?? 0;
 
 // Get business settings from system_settings table
@@ -34,7 +65,29 @@ $fullAddress = $addressLine1;
 if (!empty($addressLine2)) {
     $fullAddress .= ', ' . $addressLine2;
 }
+$stmt = $conn->prepare("
+    INSERT INTO transactions
+        (cashier_name, date, time, total, paid, change_due, items,
+         payment_method, reference_no,
+         split_cash_amount, split_wallet_amount, split_wallet_provider)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+");
 
+$stmt->bind_param(
+    'sssdddsssdds',          // adjust types to match your columns
+    $cashier_name,
+    $date,
+    $time,
+    $total,
+    $paid,
+    $change_due,
+    $items_json,
+    $payment_method,         // 'cash' | 'gcash' | 'maya' | 'bpi' | 'split'
+    $reference_no,           // '' for cash, ref for e-wallet
+    $split_cash_amount,      // 0 unless split
+    $split_wallet_amount,    // 0 unless split
+    $split_wallet_provider   // '' unless split
+);
 // Get transaction
 $stmt = $conn->prepare("SELECT * FROM transactions WHERE id = ?");
 $stmt->bind_param("i", $id);
@@ -53,52 +106,60 @@ $items = json_decode($row['items'], true);
 <html>
 <head>
   <title>Reprint Receipt - <?= htmlspecialchars($businessName) ?></title>
-  <style>
+<style>
     body {
-    font-family: "Courier New", monospace;
-    font-size: 10px;
-    font-weight: 400;
-    line-height: 1.4;
-    color: #000;
-}
-    .brand,
-.totals .grand {
-    font-weight: 700;
-}
-    .toolbar {
-      background: #333;
-      color: white;
-      padding: 10px 20px;
-      width: 100%;
-      box-sizing: border-box;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+        font-family: "Courier New", monospace;
+        font-size: 10px;
+        font-weight: 400;
+        line-height: 1.4;
+        color: #000;
+        margin: 0;
+        background: #e8e8e8;              /* subtle backdrop so the white iframe pops */
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;              /* center horizontally */
+        justify-content: flex-start;      /* keep toolbar at top */
     }
-    
-    .toolbar button {
-      padding: 8px 16px;
-      font-size: 14px;
-      font-weight: bold;
-      cursor: pointer;
-      background: #ff8800;
-      color: white;
-      border: none;
-      border-radius: 4px;
+    .brand,
+    .totals .grand {
+        font-weight: 700;
+    }
+    .toolbar {
+        background: #333;
+        color: white;
+        padding: 10px 20px;
+        width: 100%;
+        box-sizing: border-box;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
 
+    .toolbar button {
+        padding: 8px 16px;
+        font-size: 14px;
+        font-weight: bold;
+        cursor: pointer;
+        background: #ff8800;
+        color: white;
+        border: none;
+        border-radius: 4px;
+    }
     .toolbar button:hover { background: #cc6600; }
 
-    /* This acts as the small print preview window */
+    /* Receipt preview — centered with proper spacing */
     #receipt-frame {
-      width: 58mm; /* Slightly wider than printable to show margins */
-      height: 90vh;
-      border: none;
-      background: white;
-      box-shadow: 0 0 15px rgba(0,0,0,0.3);
-      margin-top: 20px;
+        width: 58mm;
+        height: calc(100vh - 100px);      /* fill remaining height nicely */
+        max-height: 90vh;
+        border: none;
+        background: white;
+        box-shadow: 0 0 15px rgba(0,0,0,0.3);
+        margin: 20px auto;                /* horizontal auto → centers in flex; also vertical margin */
+        display: block;
     }
-  </style>
+</style>
 </head>
 <body>
 
@@ -123,28 +184,29 @@ $items = json_decode($row['items'], true);
         box-sizing: border-box;
         margin: 0;
         padding: 0;
-        font-weight: 700 !important;
+        font-weight: 600 !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
 
-    body {
+       body {
         font-family: Arial, Helvetica, sans-serif;
-        font-size: 10px;
+        font-size: 9px;
         line-height: 1.35;
-        font-weight: 700;
+        font-weight: 600;
         color: #000;
         background: #fff;
-        width: 48mm;
-        max-width: 48mm;
-        margin: 0;
+        width: 100%;
+        margin: 0 auto;              /* ← center the body inside the page */
+        display: flex;
+        justify-content: center;     /* ← and center its child horizontally */
     }
 
     .receipt {
         width: 48mm;
         max-width: 48mm;
         padding: 1mm 0;
-        margin: 0;
+        margin: 0 auto;              /* ← belt & suspenders: center the receipt block */
     }
 
     .center {
@@ -200,8 +262,8 @@ $items = json_decode($row['items'], true);
         display: flex;
         justify-content: space-between;
         gap: 4px;
-        font-size: 10px;
-        font-weight: 700;
+        font-size: 9px;
+        font-weight: 500;
         margin: 1px 0;
     }
 
@@ -252,7 +314,8 @@ $items = json_decode($row['items'], true);
     <body>
       <div class='receipt'>
         <div class='center'>
-         
+         <img src="image/logo.png" alt="Logo"
+         style="display: block; margin: 0 auto 4px; max-width: 55%; max-height: 18mm; width: auto; height: auto;">
           <div class='brand'><?= htmlspecialchars($businessName) ?></div>
           <?php if (!empty($businessSubtitle)): ?>
             <div class='subtitle'><?= htmlspecialchars($businessSubtitle) ?></div>
@@ -274,55 +337,53 @@ $items = json_decode($row['items'], true);
           </div>
         <?php endforeach; ?>
         <hr>
-       <div class='totals'>
+     <div class='totals'>
   <div class='grand'><span>TOTAL</span><span>₱<?= number_format($row['total'], 2) ?></span></div>
   <?php
-    // ── Detect payment method (matches record.php / transaction.php logic) ──
-    $pmRaw  = trim($row['payment_method'] ?? 'Cash');
-    if ($pmRaw === '') $pmRaw = 'Cash';
+    // ─── Read raw payment fields ───
+    $pmRaw         = trim($row['payment_method'] ?? '');
+    $refNo         = trim($row['reference_no']       ?? '');
+    $splitCash     = (float)($row['split_cash_amount']       ?? 0);
+    $splitWallet   = (float)($row['split_wallet_amount']     ?? 0);
+    $splitProvider = trim($row['split_wallet_provider']      ?? '');
 
-    $pmLower   = strtolower($pmRaw);
-    $refNo     = $row['reference_no']          ?? '';
-    $splitCash = (float)($row['split_cash_amount']       ?? 0);
-    $splitWal  = (float)($row['split_wallet_amount']     ?? 0);
-    $splitProv = trim($row['split_wallet_provider']      ?? '');
-
-    // Look up friendly label + icon
-    $ewalletMap = [
-        'gcash'    => 'GCash',
-        'maya'     => 'Maya',
-        'paymaya'  => 'Maya',
-        'grabpay'  => 'GrabPay',
-        'shopeepay'=> 'ShopeePay',
-        'seabank'  => 'SeaBank',
-        'coins'    => 'Coins.ph',
-    ];
-
-    if ($pmLower === 'split') {
-        // ── SPLIT PAYMENT ──
-        echo '<div><span>Cash</span><span>₱' . number_format($splitCash, 2) . '</span></div>';
-        if ($splitWal > 0) {
-            $label = $splitProv !== '' ? $splitProv : 'E-Wallet';
-            echo '<div><span>' . htmlspecialchars($label) . '</span><span>₱' . number_format($splitWal, 2) . '</span></div>';
-            if ($refNo !== '') {
-                echo '<div><span>Ref</span><span>' . htmlspecialchars($refNo) . '</span></div>';
-            }
-        }
-    } elseif ($pmLower === 'cash') {
-    echo '<div><span>Cash</span><span>₱' . number_format($row['paid'], 2) . '</span></div>';
-} else {
-        // ── E-WALLET / BANK / OTHER ──
-        // Try to look up a friendly label, else use the raw string
-        $friendly = $ewalletMap[$pmLower] ?? ucwords($pmRaw);
-
-        // For banks / other providers, still show the raw name
-        echo '<div><span>' . htmlspecialchars($friendly) . '</span><span>₱' . number_format($row['total'], 2) . '</span></div>';
-        if ($refNo !== '') {
-            echo '<div><span>Ref</span><span>' . htmlspecialchars($refNo) . '</span></div>';
-        }
+    // ─── Infer e-wallet when payment_method is empty but ref exists ───
+    if ($pmRaw === '') {
+        $pmRaw = ($refNo !== '') ? 'E-Wallet' : 'Cash';
     }
+
+    $pmMeta    = getPaymentMeta($pmRaw, $ewalletMeta);
+    $isCash    = $pmMeta['type'] === 'cash';
+    $isSplit   = $pmMeta['type'] === 'split';
+    $isEwallet = $pmMeta['type'] === 'ewallet';
+    $hasRef    = ($isEwallet || $isSplit) && $refNo !== '';
+$label = $pmMeta['label'];
   ?>
-  <div><span>Change</span><span>₱<?= number_format($row['change_due'], 2) ?></span></div>
+
+  <?php if ($isSplit): ?>
+    <?php if ($splitCash > 0): ?>
+      <div><span>Cash</span><span>₱<?= number_format($splitCash, 2) ?></span></div>
+    <?php endif; ?>
+    <?php if ($splitWallet > 0): ?>
+      <div><span><?= htmlspecialchars($splitProvider !== '' ? $splitProvider : 'E-Wallet') ?></span><span>₱<?= number_format($splitWallet, 2) ?></span></div>
+    <?php endif; ?>
+    <?php if ($hasRef): ?>
+      <div><span>Ref</span><span><?= htmlspecialchars($refNo) ?></span></div>
+    <?php endif; ?>
+
+  <?php elseif ($isCash): ?>
+    <div><span>Tendered</span><span>₱<?= number_format($row['paid'], 2) ?></span></div>
+
+  <?php else: /* e-wallet or bank */ ?>
+    <div><span><?= htmlspecialchars($label) ?></span><span>₱<?= number_format($row['total'], 2) ?></span></div>
+    <?php if ($hasRef): ?>
+      <div><span>Ref</span><span><?= htmlspecialchars($refNo) ?></span></div>
+    <?php endif; ?>
+  <?php endif; ?>
+
+    <?php if ($isCash || ($isSplit && $splitCash > 0)): ?>
+    <div><span>Change</span><span>₱<?= number_format($row['change_due'], 2) ?></span></div>
+  <?php endif; ?>
 </div>
         <hr>
         <div class='footer'>Thank you for your purchase!</div>

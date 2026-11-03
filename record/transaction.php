@@ -52,7 +52,6 @@ if (!$data || json_last_error() !== JSON_ERROR_NONE) {
 
 /* ── DB connection ────────────────────────────────────────────────── */
 require('../dbconn.php');
-date_default_timezone_set('Asia/Manila');
 
 /* ── Extract & sanitise fields ────────────────────────────────────── */
 $items        = $data['items']          ?? [];
@@ -60,8 +59,9 @@ $total        = (float)($data['total']  ?? 0);
 $paid         = (float)($data['paid']   ?? 0);
 $change       = (float)($data['change'] ?? 0);
 $cashier      = trim($data['cashier']   ?? ($_SESSION['fullname'] ?? 'Unknown'));
-$date         = $data['date']           ?? date('Y-m-d');
-$time         = $data['time']           ?? date('H:i:s');
+date_default_timezone_set('Asia/Manila');
+$date = date('Y-m-d');
+$time = date('H:i:s');
 $rawMethod    = trim($data['payment_method'] ?? 'Cash');
 $referenceNo  = trim($data['reference_no']   ?? '');
 
@@ -230,10 +230,10 @@ $itemCost         += $take * $perPieceCost;
         $item['cogs']      = round($itemCost, 2);
         $item['unit_cost'] = $qty > 0 ? round($itemCost / $qty, 4) : 0.00;
 
-        /* Mark emptied batches as depleted so they no longer count */
+        /* Mark emptied batches as deleted so they no longer count */
         $conn->query(
             "UPDATE product_batches
-             SET status = 'depleted'
+             SET status = 'deleted'
              WHERE product_id = {$itemIdInt}
                AND status = 'active'
                AND $stockColumn <= 0"
