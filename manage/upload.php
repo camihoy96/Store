@@ -52,39 +52,73 @@ require_once __DIR__ . '/../include/header.php';
 ?>
 
 <style>
-/* ── Unlock POS body layout for this page ───────────────────────── */
-/* ── Keep the site's flex-column layout (header / main / footer) ── */
-body {
+  /* ── FORCE STATUS BAR (Footer) STYLING ───────────────────────────── */
+.status-bar {
+  background: #111 !important;
+  border-top: 1px solid #222 !important;
+  padding: 3px 12px !important;
+  font-size: 10px !important;
+  color: #fdf7f7 !important;
   display: flex !important;
-  flex-direction: column !important;
-  height: 100vh !important;
-  min-height: 100vh !important;
-  overflow: hidden !important;
+  gap: 14px !important;
+  height: 26px !important;
+  align-items: center !important;
+  flex-shrink: 0 !important;
+  width: 100% !important;
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 1000 !important;
 }
+.status-bar span {
+  border-right: 1px solid #2a2a2a !important;
+  padding-right: 14px !important;
+}
+.status-bar span:last-child {
+  border-right: none !important;
+  margin-left: auto !important;
+}
+.status-offline { color: #ff4444 !important; font-weight: 700 !important; }
+.stat-online   { color: #44ff88 !important; font-weight: 700 !important; }
+.hint-key {
+  background: #444 !important;
+  border: 1px solid #666 !important;
+  border-radius: 3px !important;
+  padding: 2px 6px !important;
+  font-family: monospace !important;
+  color: #1ffa02 !important;
+  font-size: 10px !important;
+}
+/* ══════════════════════════════════════════════════════════════════
+   Layout — matches transaction.php exactly
+   Header (fixed) · Content (scrolls) · Status-bar (fixed)
+   ══════════════════════════════════════════════════════════════════ */
 body.modal-open { overflow: hidden !important; }
-
-/* ── Make the page content the flex-growing middle section ── */
+/* ── Page content wrapper ─────────────────────────────────────── */
 .upload-wrap {
-  flex: 1 0 auto;
-  margin-top: 44px;                    /* offset for fixed header (keep your 44px) */
-  padding: 16px 16px 50px;
+  flex: 1;
+  margin-top: 44px; 
+  padding: 16px 16px 24px;
+  /* Fill the width entirely with the dark background, exactly like transaction.php */
+  width: 100%;
+  background: var(--bg); 
+  overflow-y: auto; 
+  /* Constrains height so it doesn't hide behind the fixed status bar */
+  max-height: calc(100vh - 44px - 26px);
+}
+
+/* Inner container to keep the cards centered and narrow */
+.upload-wrap > div {
   max-width: 960px;
   margin-left: auto;
   margin-right: auto;
-  width: 100%;
-  box-sizing: border-box;
-  overflow-y: auto;                    /* scroll only the content, not the body */
 }
-
-/* ── Footer must never be squashed, and sits at the bottom ── */
-body > footer,
-footer.site-footer,
-footer {
-  flex-shrink: 0 !important;
-  width: 100%;
-}
-/* ── Page wrapper ──────────────────────────────────────────────── */
-.upload-wrap { margin-top: 44px; padding: 16px 16px 50px; max-width: 960px; margin-left: auto; margin-right: auto; }
+/* Scrollbar skin */
+.upload-wrap::-webkit-scrollbar { width: 8px; }
+.upload-wrap::-webkit-scrollbar-track { background: var(--bg3, #1a1a1a); }
+.upload-wrap::-webkit-scrollbar-thumb { background: var(--border2, #444); border-radius: 4px; }
+.upload-wrap::-webkit-scrollbar-thumb:hover { background: var(--orange, #ff8800); }
 .upload-hero { text-align: center; margin-bottom: 22px; }
 .upload-hero h2 { font-size: 20px; font-weight: 800; color: var(--orange-lt); }
 .upload-hero p  { font-size: 12px; color: var(--text2); margin-top: 4px; }
@@ -142,17 +176,13 @@ footer {
 .upload-option-info { flex: 1; }
 .upload-option-title { font-weight: 700; color: var(--text, #f0f0f0); font-size: 13px; }
 .upload-option-desc { font-size: 11px; color: var(--text3, #888); margin-top: 2px; }
-
-/* ── Force Header to Stay Fixed ──────────────────────────────── */
-header, .top-bar, .header, #main-header { position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; height: 42px; z-index: 9999 !important; background-color: var(--card, #1a1a1a) !important; }
 </style>
-
 <div class="upload-wrap">
-  <div class="upload-hero">
+  <div style="padding-top: 10px;">
+    <div class="upload-hero">
     <h2>☁️ Upload Data to Cloud</h2>
     <p>Push sales, products, and users from this offline POS to your online dashboard.</p>
   </div>
-  
   <!-- Stats -->
   <div class="u-stat-grid">
     <div class="u-stat">
@@ -216,14 +246,14 @@ header, .top-bar, .header, #main-header { position: fixed !important; top: 0 !im
     </div>
   </div>
 
-  <!-- Log -->
   <div class="u-card">
     <h3>📜 Upload Log</h3>
     <div class="u-log" id="uploadLog">
       <div class="line info">Ready. Click "Test Connection" to verify, then choose an action.</div>
     </div>
   </div>
-</div>
+  </div> <!-- Close the inner wrapper -->
+</div> <!-- Close the upload-wrap -->
 
 <!-- ═══ UPLOAD SELECTION MODAL ═══ -->
 <div class="modal-overlay" id="uploadSelectModal">

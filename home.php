@@ -765,36 +765,157 @@ body {
   #qrAccountName { font-size: 13px !important; }
   #qrAccountNumber { font-size: 12px !important; }
 }
-/* ══ PRINT RECEIPT ═══════════════════════════════════════════════════ */
+/* ══ PRINT RECEIPT — matches reprint.php exactly ═══════════════════ */
 @media print {
   body * { visibility: hidden !important; }
   #receipt, #receipt * { visibility: visible !important; }
+
+  /* Force Arial (matches reprint.php receipt body font) */
+  #receipt, #receipt * {
+    font-family: Arial, Helvetica, sans-serif !important;
+    box-sizing: border-box;
+  }
+
   #receipt {
     position: fixed !important;
-    left: 150% !important;
+    left: 50% !important;
     top: 0 !important;
     transform: translateX(-50%) !important;
-    width: <?= $receiptPrintable ?>mm !important;
-    max-width: <?= $receiptPrintable ?>mm !important;
-    font-family: 'Courier New', monospace;
-    font-size: <?= $receiptFontSize ?>px;
-    padding: 2mm;
-    line-height: 1.3;
-    z-index: 99999 !important;
+    width: 58mm !important;
+    max-width: 58mm !important;
+    background: #fff !important;
+    color: #000 !important;
     margin: 0 !important;
-    background: white !important;
+    padding: 0 !important;
+    z-index: 99999 !important;
+    display: flex !important;
+    justify-content: center !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* The inner .receipt block: 48mm inside 58mm, centered */
+  #receipt > .receipt,
+  #receipt .receipt {
+    width: 48mm !important;
+    max-width: 48mm !important;
+    padding: 1mm 0 !important;
+    margin: 0 auto !important;
+    font-size: 9px !important;
+    font-weight: 600 !important;
+    line-height: 1.35 !important;
     color: #000 !important;
   }
-  #receipt .center { text-align: center; }
-  #receipt .brand     { font-size: <?= $receiptFontSize + 3 ?>px; font-weight: bold; }
-  #receipt .subtitle  { font-size: <?= max(8, $receiptFontSize - 1) ?>px; }
-  #receipt .meta      { font-size: <?= max(8, $receiptFontSize - 1) ?>px; }
-  #receipt .meta-row  { display: flex; justify-content: space-between; font-size: <?= $receiptFontSize ?>px; }
-  #receipt .grand     { display: flex; justify-content: space-between; font-size: <?= $receiptFontSize + 2 ?>px; font-weight: bold; }
-  #receipt .footer    { font-size: <?= max(8, $receiptFontSize - 1) ?>px; text-align: center; margin-top: 4px; }
-  #receipt hr { border: none; border-top: 1px dashed #000; margin: 3px 0; }
-  #receipt img { max-width: 55%; height: auto; max-height: 18mm; }
 
+  /* Center block */
+  #receipt .center {
+    text-align: center !important;
+  }
+
+  /* Logo */
+  #receipt img {
+    display: block !important;
+    margin: 0 auto 4px !important;
+    max-width: 55% !important;
+    max-height: 18mm !important;
+    width: auto !important;
+    height: auto !important;
+  }
+
+  /* Brand name */
+  #receipt .brand {
+    font-size: 13px !important;
+    font-weight: 900 !important;
+    letter-spacing: 0.3px !important;
+    margin: 2px 0 0 !important;
+    line-height: 1.2 !important;
+    text-align: center !important;
+  }
+
+  /* Subtitle */
+  #receipt .subtitle {
+    font-size: 8px !important;
+    font-weight: 700 !important;
+    letter-spacing: 1.2px !important;
+    text-transform: uppercase !important;
+    margin-top: 1px !important;
+    text-align: center !important;
+  }
+
+  /* Address / phone block */
+  #receipt .meta {
+    font-size: 9px !important;
+    line-height: 1.4 !important;
+    margin-top: 4px !important;
+    text-align: center !important;
+  }
+
+  /* Dashed separator */
+  #receipt hr {
+    border: none !important;
+    border-top: 1px dashed #000 !important;
+    margin: 3px 0 !important;
+    width: 100% !important;
+  }
+
+  /* Meta rows (Date / Time / Cashier) */
+  #receipt .meta-row {
+    display: flex !important;
+    justify-content: space-between !important;
+    font-size: 9px !important;
+    font-weight: 700 !important;
+    margin: 0 !important;
+  }
+
+  /* Item rows (product name + amount) */
+  #receipt .item-row,
+  #receipt #r-items > div {
+    display: flex !important;
+    justify-content: space-between !important;
+    gap: 4px !important;
+    font-size: 9px !important;
+    font-weight: 500 !important;
+    margin: 1px 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Totals block */
+  #receipt .totals {
+    font-size: 10px !important;
+    font-weight: 700 !important;
+  }
+
+  #receipt .totals > div,
+  #receipt .totals div {
+    display: flex !important;
+    justify-content: space-between !important;
+    margin: 1px 0 !important;
+    font-weight: 700 !important;
+    font-size: 10px !important;
+    text-align: left !important;
+  }
+
+  /* Grand total row */
+  #receipt .totals .grand,
+  #receipt .grand {
+    font-weight: 900 !important;
+    font-size: 12px !important;
+    margin-top: 2px !important;
+    padding-top: 2px !important;
+    border-top: 1px dashed #000 !important;
+    display: flex !important;
+    justify-content: space-between !important;
+  }
+
+  /* Footer text */
+  #receipt .footer {
+    text-align: center !important;
+    font-size: 9px !important;
+    font-weight: 700 !important;
+    margin-top: 4px !important;
+  }
+
+  /* Hide all other UI on print */
   .modal-overlay,
   .success-modal-overlay,
   .logout-modal-overlay,
