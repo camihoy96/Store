@@ -204,8 +204,15 @@ $batchTotalCapital = (float)($b['purchase_price'] ?? 0);
 $initialQty        = ($unitType === 'kg')
     ? (float)($b['initial_kg']        ?? 0)
     : (float)($b['initial_quantity']  ?? 0);
-$perPieceCost      = $initialQty > 0 ? ($batchTotalCapital / $initialQty) : 0;
-$itemCost         += $take * $perPieceCost;
+if ($batchTotalCapital <= 0 || $initialQty <= 0) {
+    throw new Exception(
+        "Cannot compute cost for '{$item['name']}' (batch {$b['id']}): " .
+        "purchase_price={$batchTotalCapital}, initial_qty={$initialQty}. " .
+        "Fix product_batches.initial_quantity / purchase_price first."
+    );
+}
+$perPieceCost = $batchTotalCapital / $initialQty;
+$itemCost    += $take * $perPieceCost;
 
             $updQ->bind_param('di', $take, $b['id']);
             if (!$updQ->execute()) {

@@ -102,56 +102,70 @@ if ($action === 'download') {
                 $stmt = $conn->prepare($sql);
                 if (!$stmt) throw new Exception($conn->error);
 
-                $checkBatchStmt = $conn->prepare("SELECT id FROM product_batches WHERE product_id = ? AND status = 'active' LIMIT 1");
-                $insertBatchStmt = $conn->prepare("
-                    INSERT INTO product_batches 
-                    (product_id, code, name, category, brand, seller_store, 
-                     purchase_price, price, quantity, kg, measurement_type, 
-                     purchase_date, expiry_date, image_path, status)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
-                ");
+              $checkBatchStmt = $conn->prepare("SELECT id FROM product_batches WHERE product_id = ? AND status = 'active' LIMIT 1");
+$insertBatchStmt = $conn->prepare("
+    INSERT INTO product_batches
+    (product_id, code, name, category, brand, seller_store,
+     purchase_price, price,
+     quantity, initial_quantity,
+     kg, initial_kg,
+     measurement_type,
+     purchase_date, expiry_date, image_path, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
+");
 
-                foreach ($rows as $p) {
-                    $pid = (int)($p['id'] ?? 0);
-                    if ($pid === 0) continue;
-                    
-                    $code = v($p,'code'); $name = v($p,'name'); $cat = v($p,'category');
-                    $price = v($p,'price'); $brand = v($p,'brand'); $store = v($p,'seller_store');
-                    $exp = v($p,'expiry_date'); $pur = v($p,'purchase_date');
-                    $pieces = (int)(v($p,'pieces') ?? 0); 
-                    $kg = (float)(v($p,'kg') ?? 0);
-                    $mt = v($p,'measurement_type') ?? 'pieces';
-                    $pp = v($p,'purchase_price'); $img = v($p,'image_path');
-                    $added = v($p,'date_added');
+foreach ($rows as $p) {
+    $pid = (int)($p['id'] ?? 0);
+    if ($pid === 0) continue;
 
-                    //  VERIFIED 15-CHARACTER TYPE STRING
-                     $stmt->bind_param('isssdssssidsdss',
-                        $pid, $code, $name, $cat, $price, $brand, $store,
-                        $exp, $pur, $pieces, $kg, $mt, $pp, $img, $added
-                    );
-                    
-                    try { 
-                        $stmt->execute(); 
-                        $applied[$table] = ($applied[$table] ?? 0) + 1; 
-                        
-                        $checkBatchStmt->bind_param('i', $pid);
-                        $checkBatchStmt->execute();
-                        $res = $checkBatchStmt->get_result();
-                        
-                        if ($res->num_rows === 0) {
-                            //  VERIFIED 14-CHARACTER TYPE STRING
-                            $insertBatchStmt->bind_param('isssssddidssss', 
-                                $pid, $code, $name, $cat, $brand, $store,
-                                $pp, $price, $pieces, $kg, $mt, $pur, $exp, $img
-                            );
-                            $insertBatchStmt->execute();
-                        }
-                    } catch (Throwable $e) { 
-                        $errors[] = "Product #$pid: ".$e->getMessage(); 
-                    }
-                }
-                $checkBatchStmt->close();
-                $insertBatchStmt->close();
+    $code  = v($p,'code');  $name  = v($p,'name');  $cat   = v($p,'category');
+    $price = v($p,'price'); $brand = v($p,'brand'); $store = v($p,'seller_store');
+    $exp   = v($p,'expiry_date'); $pur = v($p,'purchase_date');
+    $pieces = (int)(v($p,'pieces') ?? 0);
+    $kg     = (float)(v($p,'kg') ?? 0);
+    $mt     = v($p,'measurement_type') ?? 'pieces';
+    $pp     = v($p,'purchase_price');  $img = v($p,'image_path');
+    $added  = v($p,'date_added');
+
+    // ── products table upsert (unchanged) ────────────────────────
+    $stmt->bind_param('isssdssssidsdss',
+        $pid, $code, $name, $cat, $price, $brand, $store,
+        $exp, $pur, $pieces, $kg, $mt, $pp, $img, $added
+    );
+
+    try {
+        $stmt->execute();
+        $applied[$table] = ($applied[$table] ?? 0) + 1;
+
+        $checkBatchStmt->bind_param('i', $pid);
+        $checkBatchStmt->execute();
+        $res = $checkBatchStmt->get_result();
+
+        if ($res->num_rows === 0) {
+            // ── product_batches insert WITH initial_* ────────────
+            // Cols: product_id, code, name, category, brand, seller_store,
+            //       purchase_price, price, quantity, initial_quantity,
+            //       kg, initial_kg, measurement_type,
+            //       purchase_date, expiry_date, image_path
+            // Types: i  s  s  s  s  s  d  d  i  i  d  d  s  s  s  s
+            //        = i s s s s s d d i i d d s s s s   (16 chars)
+            $insertBatchStmt->bind_param(
+                'isssssddiid dssss',   // note the space is removed below
+                $pid, $code, $name, $cat, $brand, $store,
+                $pp,     $price,
+                $pieces, $pieces,      // quantity, initial_quantity
+                $kg,     $kg,          // kg,       initial_kg
+                $mt,
+                $pur, $exp, $img
+            );
+            $insertBatchStmt->execute();
+        }
+    } catch (Throwable $e) {
+        $errors[] = "Product #$pid: " . $e->getMessage();
+    }
+}
+$checkBatchStmt->close();
+$insertBatchStmt->close();
             }
             elseif ($table === 'new_user') {
                 $sql = "INSERT INTO new_user
