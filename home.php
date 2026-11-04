@@ -332,13 +332,13 @@ body {
   background: linear-gradient(180deg, #4a4a4a, #3a3a3a);
   color: #eee; border-radius: 5px; cursor: pointer;
   border: 1px solid #555; overflow: hidden;
-  display: flex; flex-direction: column; height: 110px;
+  display: flex; flex-direction: column; height: 120px;
   transition: border-color 0.15s, transform 0.1s; position: relative;
 }
 .menu-item:hover  { border-color: #ff8800; transform: translateY(-1px); }
 .menu-item.out    { opacity: 0.45; cursor: not-allowed; }
 .menu-item.low-s  { border-color: #cc8800; }
-.menu-item-img    { height: 60px; background-size: cover; background-position: center; background-color: #333; flex-shrink: 0; }
+.menu-item-img    { height: 55px; background-size: cover; background-position: center; background-color: #333; flex-shrink: 0; }
 .menu-item-info   { flex: 1; padding: 4px 5px; display: flex; flex-direction: column; justify-content: center; }
 .menu-item-name   { font-size: 10px; font-weight: 600; line-height: 1.2; color: #f0f0f0; }
 .menu-item-price  { font-size: 10px; color: #ffcc66; font-weight: 700; margin-top: 1px; }
@@ -1959,12 +1959,23 @@ function toggleQRCode() {
    RECEIPT HELPER  — called by both processPayment & processWalletPayment
 ══════════════════════════════════════════════════════════════════ */
 function _fillReceiptCommon(date, time, cashier, itemsData, total) {
-  document.getElementById('r-date').textContent    = date;
-  document.getElementById('r-time').textContent    = time;
+  // Format the date from YYYY-MM-DD to "Month DD, YYYY"
+  const dateObj = new Date(date + 'T00:00:00');
+  const formattedDate = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  // Format the time from 24-hour to 12-hour with AM/PM
+  const timeObj = new Date(`1970-01-01T${time}`);
+  const formattedTime = timeObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  document.getElementById('r-date').textContent    = formattedDate;
+  document.getElementById('r-time').textContent    = formattedTime;
   document.getElementById('r-cashier').textContent = cashier;
   document.getElementById('r-total').textContent   = total.toFixed(2);
-  document.getElementById('r-items').innerHTML     = itemsData
-    .map(i => `<div>${i.qty}${i.unit} × ${i.name} = ${currencySymbol}${i.total}</div>`)
+  document.getElementById('r-items').innerHTML = itemsData
+    .map(i => `
+      <div style="display:flex; justify-content:space-between; gap:4px; margin:2px 0;">
+        <span>${i.name} <span style="font-weight:400;">x${i.qty}${i.unit === 'kg' ? 'kg' : ''}</span></span>
+        <span>${currencySymbol}${i.total}</span>
+      </div>
+    `)
     .join('');
 }
 let isPrinting = false;
@@ -1972,76 +1983,140 @@ let isPrinting = false;
 function printReceipt() {
   if (isPrinting) return;
   isPrinting = true;
-
   const paperWidth     = <?= (float)$receiptWidth ?>;
   const printableWidth = <?= (float)$receiptPrintable ?>;
   const fontSize       = <?= (float)$receiptFontSize ?>;
   const receiptElement = document.getElementById('receipt');
-
   const popupPxW = Math.round(paperWidth * 3.78);
   const printWindow = window.open('', '_blank', `width=${popupPxW},height=600`);
-
   if (!printWindow) {
     isPrinting = false;
     window.print();
     return;
   }
-
   printWindow.document.write(`
     <!DOCTYPE html>
     <html>
     <head>
       <title>Receipt</title>
       <style>
-        @page {
-          size: ${paperWidth}mm auto;
-          margin: 0;
+        /* ── PRINT STYLES (Copied exactly from reprint.php) ── */
+        @page { 
+          size: ${paperWidth}mm auto; 
+          margin: 0; 
         }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html {
-          width: ${paperWidth}mm;
-          background: #fff;
+        html, body { 
+          width: ${paperWidth}mm; 
+          margin: 0; 
+          padding: 0; 
+          background: #fff; 
+          font-family: Arial, Helvetica, sans-serif; 
         }
         body {
-          width: ${paperWidth}mm;
-          max-width: ${paperWidth}mm;
-          background: #fff;
-          font-family: 'Courier New', monospace;
           font-size: ${fontSize}px;
-          line-height: 1.3;
+          line-height: 1.35;
           color: #000;
-          /* ⬅ centered via margin auto instead of flex */
+        }
+
+        /* The wrapper to stretch and center */
+        #receipt-wrapper {
+          width: 90%; /* Forces the right edge into the printable area */
+          display: flex;
+          justify-content: center;
+        }
+
+        #receipt-print {
+          width: ${printableWidth}mm;
+          max-width: ${printableWidth}mm;
+          margin: 1mm 0 1mm 0; 
+          padding: 0;
+        }
+
+        /* ── INNER STYLES (Matching reprint.php) ── */
+        .center { text-align: center; }
+        
+        .brand { 
+          font-size: ${fontSize + 3}px; 
+          font-weight: 900; 
+          text-align: center; 
+          margin: 2px 0 0;
+          line-height: 1.2;
+        }
+        
+        .subtitle { 
+          font-size: ${Math.max(8, fontSize - 1)}px; 
+          font-weight: 700; 
+          text-align: center; 
+          text-transform: uppercase;
+          letter-spacing: 1.2px;
+          margin-top: 1px;
+        }
+        .meta { 
+          font-size: ${Math.max(8, fontSize - 1)}px; 
+          text-align: center; 
+          margin-top: 4px; 
+          font-weight: 700; /* BOLD ADDRESS & CONTACT */
+          line-height: 1.4;
+        }
+        .meta-row { 
+          display: flex; 
+          justify-content: space-between; 
+          font-size: ${fontSize}px; 
+          font-weight: 700;
           margin: 0;
         }
-        #receipt-print {
-  width: ${printableWidth}mm;
-  max-width: ${printableWidth}mm;
-  /* CHANGE THIS LINE BELOW */
-  margin: 1mm 0 1mm 0; 
-  padding: 0;
-}
-        /* ⬅ .receipt wrapper now fills the printable area */
-        #receipt-print > .receipt,
-        #receipt-print > div {
-          width: 100%;
+        #r-items > div {
+          display: flex;
+          justify-content: space-between;
+          gap: 4px;
+          font-size: ${fontSize}px;
+          margin: 2px 0;
+          font-weight: 700; /* BOLD ITEMS & PRICES */
         }
-        .center    { text-align: center; }
-        .brand     { font-size: ${fontSize + 3}px; font-weight: bold; text-align: center; }
-        .subtitle  { font-size: ${Math.max(8, fontSize - 1)}px; text-align: center; }
-        .meta      { font-size: ${Math.max(8, fontSize - 1)}px; text-align: center; margin-top: 2px; }
-        .meta-row  { display: flex; justify-content: space-between; font-size: ${fontSize}px; }
-        .grand     { display: flex; justify-content: space-between; font-size: ${fontSize + 2}px; font-weight: bold; }
-        .footer    { font-size: ${Math.max(8, fontSize - 1)}px; text-align: center; margin-top: 4px; }
-        hr         { border: none; border-top: 1px dashed #000; margin: 2px 0; }
-        img        { max-width: 55%; height: auto; max-height: 18mm; display: block; margin: 0 auto 4px; }
+        .totals { 
+          font-size: ${fontSize}px; 
+          font-weight: 700; 
+        }
+        .totals div { 
+          display: flex; 
+          justify-content: space-between; 
+          margin: 1px 0; 
+          font-weight: 700; 
+        }
+        .totals .grand { 
+          font-weight: 900; 
+          font-size: ${fontSize + 2}px; 
+          margin-top: 2px; 
+          padding-top: 2px;
+          border-top: 1px dashed #000;
+        }
+        .footer { 
+          font-size: ${Math.max(8, fontSize - 1)}px; 
+          text-align: center; 
+          margin-top: 4px; 
+          font-weight: 700;
+        }
+        hr { 
+          border: none; 
+          border-top: 1px dashed #000; 
+          margin: 3px 0; 
+        }
+        img { 
+          max-width: 55%; 
+          height: auto; 
+          max-height: 18mm; 
+          display: block; 
+          margin: 0 auto 4px; 
+        }
       </style>
     </head>
     <body>
-      <div id="receipt-print">${receiptElement.innerHTML}</div>
+      <div id="receipt-wrapper">
+        <div id="receipt-print">${receiptElement.innerHTML}</div>
+      </div>
     </body>
     </html>
   `);
-
   printWindow.document.close();
   printWindow.onload = function () {
     setTimeout(() => {
