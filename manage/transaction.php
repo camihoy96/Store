@@ -561,7 +561,7 @@ if (!empty($_GET['trans_id'])) {
     $stmt->bind_param('i', $tid);
 } else {
     // Show today's transactions only
-    $stmt = $conn->prepare("SELECT * FROM transactions WHERE date = ? AND (status IS NULL OR status != 'voided') ORDER BY id DESC");
+    $stmt = $conn->prepare("SELECT * FROM transactions WHERE date = ? ORDER BY id DESC");
     $stmt->bind_param('s', $today);
 }
 $stmt->execute();
@@ -918,12 +918,19 @@ tbody tr:hover { background: #2d2d2d; }
 tbody tr:hover td:first-child {
   background: #2d2d2d;
 }
-tbody tr.voided-row { opacity: 0.55; }
-tbody tr.voided-row td:first-child {
-  background: #242424;
-  opacity: 0.55;
+/* Highlight the Total, Paid, and Change columns in a voided row */
+tbody tr.voided-row td:nth-child(8), /* Total */
+tbody tr.voided-row td:nth-child(9), /* Paid */
+tbody tr.voided-row td:nth-child(10) { /* Change */
+  color: #ff8888 !important;
+  text-decoration: line-through;
+  font-weight: 700;
 }
-
+/* Make the payment badge look disabled */
+tbody tr.voided-row .pay-badge {
+  filter: grayscale(100%);
+  opacity: 0.7;
+}
 tbody td {
   padding: 8px 12px;
   font-size: 12px;
@@ -1152,7 +1159,7 @@ tbody td .money-change { color: #88ccff; font-weight: 600; }
       Transaction Records
     </h2>
     <span class="date-badge"><?= date('F j, Y') ?></span>
-    <small style="color:#aaa;font-size:11px;">Showing today's transactions only</small>
+    <small style="color:#aaa;font-size:11px;">Showing today's transactions (including voided)</small>
     <span class="cache-indicator" id="cacheIndicator" title="Transaction data cache status">
       <span class="ci-dot"></span>
       <span id="cacheLabel">Cache ready</span>
@@ -1377,47 +1384,55 @@ tbody td .money-change { color: #88ccff; font-weight: 600; }
               } else echo '<span style="color:#555;font-size:11px;">No items</span>';
               ?>
             </td>
-            <td style="white-space:nowrap; min-width:160px;">
-              <?php if ($isVoided): ?>
-                <div class="audit-cell">
-                  <div><span class="audit-tag audit-voided">VOIDED</span></div>
-                  <?php if (!empty($row['voided_by'])): ?>
-                  <div class="audit-detail">
-                    By: <strong style="color:#ffaaaa;"><?= htmlspecialchars($row['voided_by']) ?></strong><br>
-                    <?= !empty($row['voided_at']) ? date('M j, Y g:i A', strtotime($row['voided_at'])) : '' ?>
-                    <?php if (!empty($row['void_reason'])): ?>
-                      <br><em style="color:#ff8888;">"<?= htmlspecialchars(mb_strimwidth($row['void_reason'],0,50,'…')) ?>"</em>
-                    <?php endif; ?>
-                  </div>
-                  <?php endif; ?>
-                </div>
-              <?php else: ?>
-                <div class="audit-cell" style="margin-bottom:6px;">
-                  <?php if ($wasEdited): ?>
-                    <div><span class="audit-tag audit-edited">EDITED</span></div>
-                    <div class="audit-detail">
-                      By: <strong style="color:#ffe466;"><?= htmlspecialchars($row['edited_by'] ?? '') ?></strong><br>
-                      <?= !empty($row['edited_at']) ? date('M j, Y g:i A', strtotime($row['edited_at'])) : '' ?>
-                      <?php if (!empty($row['edit_remarks'])): ?>
-                        <br><em style="color:#ffe466;">"<?= htmlspecialchars(mb_strimwidth($row['edit_remarks'],0,50,'…')) ?>"</em>
-                      <?php endif; ?>
-                    </div>
-                  <?php else: ?>
-                    <span class="audit-tag audit-ok">OK</span>
-                  <?php endif; ?>
-                </div>
-                <div style="display:flex;flex-direction:column;gap:4px;">
-                  <a href="../record/reprint.php?id=<?= $row['id'] ?>" target="_blank" class="btn btn-blue btn-sm">
-                    <svg viewBox="0 0 24 24"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>
-                    Print
-                  </a>
-                  <button class="btn btn-orange btn-sm action-btn" data-transaction-id="<?= $row['id'] ?>">
-                    <svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.08-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98L14.5 2.42c-.03-.24-.24-.42-.5-.42h-4c-.26 0-.47.18-.5.42l-.36 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.08-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.08.65-.08.98s.03.66.08.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.36 2.65c.04.24.24.42.5.42h4c.26 0 .47-.18.5-.42l.36-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>
-                    Actions
-                  </button>
-                </div>
-              <?php endif; ?>
-            </td>
+           <td style="white-space:nowrap; min-width:160px;">
+  <?php if ($isVoided): ?>
+    <div class="audit-cell">
+      <div><span class="audit-tag audit-voided">VOIDED</span></div>
+      <?php if (!empty($row['voided_by'])): ?>
+      <div class="audit-detail">
+        By: <strong style="color:#ffaaaa;"><?= htmlspecialchars($row['voided_by']) ?></strong><br>
+        <?= !empty($row['voided_at']) ? date('M j, Y g:i A', strtotime($row['voided_at'])) : '' ?>
+        <?php if (!empty($row['void_reason'])): ?>
+          <?php
+            $reasonText = $row['void_reason'];
+            if (strlen($reasonText) > 50) $reasonText = substr($reasonText, 0, 50) . '…';
+          ?>
+          <br><em style="color:#ff8888;">"<?= htmlspecialchars($reasonText) ?>"</em>
+        <?php endif; ?>
+      </div>
+      <?php endif; ?>
+    </div>
+  <?php else: ?>
+    <div class="audit-cell" style="margin-bottom:6px;">
+      <?php if ($wasEdited): ?>
+        <div><span class="audit-tag audit-edited">EDITED</span></div>
+        <div class="audit-detail">
+          By: <strong style="color:#ffe466;"><?= htmlspecialchars($row['edited_by'] ?? '') ?></strong><br>
+          <?= !empty($row['edited_at']) ? date('M j, Y g:i A', strtotime($row['edited_at'])) : '' ?>
+          <?php if (!empty($row['edit_remarks'])): ?>
+            <?php
+              $editText = $row['edit_remarks'];
+              if (strlen($editText) > 50) $editText = substr($editText, 0, 50) . '…';
+            ?>
+            <br><em style="color:#ffe466;">"<?= htmlspecialchars($editText) ?>"</em>
+          <?php endif; ?>
+        </div>
+      <?php else: ?>
+        <span class="audit-tag audit-ok">OK</span>
+      <?php endif; ?>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <a href="../record/reprint.php?id=<?= $row['id'] ?>" target="_blank" class="btn btn-blue btn-sm">
+        <svg viewBox="0 0 24 24"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>
+        Print
+      </a>
+      <button class="btn btn-orange btn-sm action-btn" data-transaction-id="<?= $row['id'] ?>">
+        <svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.08-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98L14.5 2.42c-.03-.24-.24-.42-.5-.42h-4c-.26 0-.47.18-.5.42l-.36 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.08-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.08.65-.08.98s.03.66.08.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.36 2.65c.04.24.24.42.5.42h4c.26 0 .47-.18.5-.42l.36-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>
+        Actions
+      </button>
+    </div>
+  <?php endif; ?>
+</td>
            </tr>
         <?php endwhile; ?>
               <tr class="breakdown-row">
@@ -1666,9 +1681,20 @@ tbody td .money-change { color: #88ccff; font-weight: 600; }
 </div>
 
 <script>
+/* ── Fallback in case SweetAlert fails to load ── */
+if (typeof Swal === 'undefined') {
+  window.Swal = {
+    fire: function(opts) {
+      if (opts.showCancelButton) {
+        return Promise.resolve({ isConfirmed: confirm(opts.text || opts.title || 'Are you sure?') });
+      }
+      if (opts.text || opts.title) alert(opts.text || opts.title);
+      return Promise.resolve({ isConfirmed: true });
+    }
+  };
+}
 /* ── Embedded transaction cache (set once on page load by PHP) ── */
 const TXN_CACHE = <?= json_encode($allTransactionsData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-
 /* ─── DRAG FUNCTIONALITY FOR MODALS ──────────────────────────────── */
 function makeDraggable(modalElement, handleElement) {
   let isDragging = false;
@@ -1860,14 +1886,11 @@ function calcNewTotal(){
   document.getElementById('newTotal').textContent = '₱' + t.toFixed(2);
 }
 
-/* ─── Action form submit ─── */
+/* ─── Action form submit (Custom Modal Confirm) ─── */
 document.getElementById('actionForm').addEventListener('submit', async function(e){
   e.preventDefault();
   const submitBtn = this.querySelector('button[type="submit"]');
   const origText  = submitBtn.innerHTML;
-  submitBtn.innerHTML = 'Processing...';
-  submitBtn.disabled  = true;
-
   const formData = {
     transaction_id : document.getElementById('actionTransactionId').value,
     action_type    : document.getElementById('actionType').value,
@@ -1875,12 +1898,10 @@ document.getElementById('actionForm').addEventListener('submit', async function(
     original_items : document.getElementById('originalItems').value,
     items          : []
   };
-
   if (!formData.reason.trim()) {
-    await Swal.fire({icon:'error',title:'Reason Required',text:'Please provide a reason.',confirmButtonColor:'#ff6600'});
-    submitBtn.innerHTML = origText; submitBtn.disabled = false; return;
+    alert('Please provide a reason.');
+    return;
   }
-
   document.querySelectorAll('#itemsTableBody tr').forEach(row => {
     const act = row.querySelector('[name$="[action]"]').value;
     formData.items.push({
@@ -1893,50 +1914,56 @@ document.getElementById('actionForm').addEventListener('submit', async function(
       status: act === 'void' ? 'voided' : ''
     });
   });
-
-  const actionLabel = formData.action_type === 'void_all' ? 'VOID ENTIRE TRANSACTION' : 'MODIFY TRANSACTION';
-  const conf = await Swal.fire({
-    title:'Confirm Action',
-    html:`<strong>This cannot be undone!</strong><br><br>Action: <strong>${actionLabel}</strong><br>Transaction: <strong>#${formData.transaction_id}</strong>`,
-    icon:'warning', showCancelButton:true, confirmButtonColor:'#ff8800', cancelButtonColor:'#555',
-    confirmButtonText:'Yes, proceed', cancelButtonText:'Cancel', focusCancel:true
-  });
-
-  if (!conf.isConfirmed) { submitBtn.innerHTML = origText; submitBtn.disabled = false; return; }
-
-  setCacheStatus('refreshing', 'Saving...');
-  try {
-    const res = await fetch(this.action, {
-      method  : 'POST',
-      headers : {'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},
-      body    : JSON.stringify(formData)
-    });
-    if (!res.ok) throw new Error('Network error (HTTP ' + res.status + ')');
-    const data = await res.json();
-
-    if (data.success) {
-      closeActionModal();
-      delete TXN_CACHE[formData.transaction_id];
-      setCacheStatus('stale', 'Refreshing...');
-      const done = formData.action_type === 'void_all' ? 'voided' : 'modified';
-      await Swal.fire({
-        icon:'success', title:'Done!',
-        html:`Transaction <strong>#${formData.transaction_id}</strong> has been ${done}.<br><small>${formData.reason}</small>`,
-        confirmButtonColor:'#ff8800', timer:2200, timerProgressBar:true,
-        willClose:()=>location.reload()
+  // ── Change the Button to ask for confirmation ──
+  if (submitBtn.innerHTML.includes('Confirm')) {
+    // We are already in confirmation mode, so process the form!
+    submitBtn.innerHTML = 'Processing...';
+    submitBtn.disabled  = true;
+    try {
+      const res = await fetch(this.action, {
+        method  : 'POST',
+        headers : {'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},
+        body    : JSON.stringify(formData)
       });
-    } else {
-      setCacheStatus('ok', Object.keys(TXN_CACHE).length + ' txns cached');
-      await Swal.fire({icon:'error',title:'Failed',text:data.message||'Action failed.',confirmButtonColor:'#ff6600'});
-    }
-  } catch(err) {
-    setCacheStatus('stale', 'Error — reload page');
-    await Swal.fire({icon:'error',title:'Error',text:err.message,confirmButtonColor:'#ff6600'});
-  }
-  submitBtn.innerHTML = origText;
-  submitBtn.disabled  = false;
-});
+      if (!res.ok) throw new Error('Network error (HTTP ' + res.status + ')');
+      const data = await res.json();
 
+      if (data.success) {
+        closeActionModal();
+        delete TXN_CACHE[formData.transaction_id];
+        setCacheStatus('stale', 'Refreshing...');
+        location.reload();
+      } else {
+        setCacheStatus('ok', Object.keys(TXN_CACHE).length + ' txns cached');
+        alert('Failed: ' + (data.message || 'Action failed.'));
+        submitBtn.innerHTML = origText;
+        submitBtn.disabled  = false;
+      }
+    } catch(err) {
+      setCacheStatus('stale', 'Error — reload page');
+      alert('Error: ' + err.message);
+      submitBtn.innerHTML = origText;
+      submitBtn.disabled  = false;
+    }
+  } else {
+    // First click: Change the button to a RED confirmation button
+    const actionLabel = formData.action_type === 'void_all' ? 'Void Entire Transaction' : 'Modify Transaction';
+    submitBtn.innerHTML = `⚠️ Click Again to Confirm`;
+    submitBtn.style.background = 'linear-gradient(135deg, #e53935, #b71c1c)'; // Red color
+    // Show a warning banner inside the modal
+    const warningBanner = document.getElementById('warningBanner');
+    document.getElementById('warningMsg').innerHTML = `<strong>Are you sure?</strong> This will <strong>${actionLabel}</strong> for Transaction #${formData.transaction_id}. This cannot be undone.`;
+    warningBanner.style.display = 'block';
+    // Optional: Reset the button if they close the modal or change their mind
+    setTimeout(() => {
+      if (submitBtn.innerHTML.includes('Click Again')) {
+        submitBtn.innerHTML = origText;
+        submitBtn.style.background = '';
+        warningBanner.style.display = 'none';
+      }
+    }, 5000); // Resets after 5 seconds of inactivity
+  }
+});
 /* ─── Auto-refresh cache every 30 seconds ─── */
 (function startCacheRefresh(){
   const REFRESH_MS = 30_000;
